@@ -426,3 +426,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+/bin/Debug/net10.0/*.*
+/obj/Debug/net10.0/refint/WiseLabels.dll
+/obj/Debug/net10.0/ref/WiseLabels.dll
