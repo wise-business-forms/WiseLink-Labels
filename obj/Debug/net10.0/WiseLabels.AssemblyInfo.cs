@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("WiseLabels")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+192da0541a9268728cdbd5ca5654509b07dea55a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+39081bbde3081339315489c03d983735910715d8")]
 [assembly: System.Reflection.AssemblyProductAttribute("WiseLabels")]
 [assembly: System.Reflection.AssemblyTitleAttribute("WiseLabels")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

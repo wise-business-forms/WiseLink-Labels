@@ -142,6 +142,6 @@ C:\Users\pmenefee\source\WiseLink-Labels\bin\Debug\net10.0\CERM.DataAccess.dll
 C:\Users\pmenefee\source\WiseLink-Labels\bin\Debug\net10.0\CERM.DataAccess.pdb
 C:\Users\pmenefee\source\WiseLink-Labels\obj\Debug\net10.0\WiseLabels.csproj.AssemblyReference.cache
 C:\Users\pmenefee\source\WiseLink-Labels\obj\Debug\net10.0\WiseLabels.csproj.Up2Date
+C:\Users\pmenefee\source\WiseLink-Labels\obj\Debug\net10.0\compressed\83xy80bkby-{0}-d4r7ag3fdm-d4r7ag3fdm.gz
+C:\Users\pmenefee\source\WiseLink-Labels\obj\Debug\net10.0\compressed\n7z96ek46h-{0}-dpxb2itusw-dpxb2itusw.gz
 C:\Users\pmenefee\source\WiseLink-Labels\obj\Debug\net10.0\staticwebassets.upToDateCheck.txt
-C:\Users\pmenefee\source\WiseLink-Labels\obj\Debug\net10.0\compressed\n7z96ek46h-{0}-3r8b2a0bt1-3r8b2a0bt1.gz
-C:\Users\pmenefee\source\WiseLink-Labels\obj\Debug\net10.0\compressed\y09rpuo3s5-{0}-8lekb98ipv-8lekb98ipv.gz
