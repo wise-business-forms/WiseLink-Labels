@@ -28,6 +28,11 @@ namespace WiseLabels.Pages.Api
 
         [JsonPropertyName("Blocked")]
         public bool Blocked { get; set; }
+
+        // Optional field used by Finishing Types:
+        // 1 = Inline, 2 = Offline (see BUSINESS_RULES.md BR-FIN-FUTURE-001)
+        [JsonPropertyName("FinishingType")]
+        public int? FinishingType { get; set; }
     }
 
     public class Descriptions

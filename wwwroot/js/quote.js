@@ -1,4 +1,4 @@
-﻿document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function() {
     // Note: shapeInputs are now loaded dynamically, so we don't query them here
     const widthInput = document.getElementById('label-width');
     const heightInput = document.getElementById('label-height');
@@ -17,6 +17,47 @@
 
     // Store materials data for filtering
     let allMaterialsData = null;
+
+    function isCuttingDieApplicableForShape(shapeValue) {
+        const v = (shapeValue || '').toLowerCase();
+        // Business rule: If circle, oval, or special is selected, do not show Cutting Die.
+        return !(v === 'circle' || v === 'oval' || v === 'special');
+    }
+
+    function toggleCuttingDieSection() {
+        const cuttingDieSelect = document.getElementById('cutting-die');
+        if (!cuttingDieSelect) return;
+
+        const section = cuttingDieSelect.closest('.form-section');
+        const selectedShape = document.querySelector('input[name="shape"]:checked')?.value;
+        const applicable = isCuttingDieApplicableForShape(selectedShape);
+
+        if (section) {
+            section.style.display = applicable ? 'block' : 'none';
+        }
+
+        const cuttingDieError = document.getElementById('cutting-die-error');
+        if (cuttingDieError) cuttingDieError.style.display = 'none';
+
+        if (!applicable) {
+            // Clear and disable when not applicable.
+            cuttingDieSelect.innerHTML = '<option value="">Cutting die not applicable for selected shape</option>';
+            cuttingDieSelect.value = '';
+            cuttingDieSelect.disabled = true;
+            return;
+        }
+
+        // If applicable, ensure the select is enabled/loaded when Printing is available.
+        const selectedPrintingText = getSelectedPrinting();
+        const selectedPrintingId = getSelectedPrintingId();
+        if (selectedPrintingId || selectedPrintingText) {
+            loadCuttingDieOptions(selectedPrintingId || selectedPrintingText);
+        } else {
+            cuttingDieSelect.innerHTML = '<option value="">Please select a Printing option first</option>';
+            cuttingDieSelect.value = '';
+            cuttingDieSelect.disabled = true;
+        }
+    }
 
     // Fetch Materials from API via server-side endpoint (no prerequisites)
     async function loadFinishing() {
@@ -330,24 +371,30 @@
                 // Add active to clicked button
                 this.classList.add('active');
                 
-                // Get selected printing text
-                const selectedPrinting = this.getAttribute('data-printing-text') || this.textContent.trim();
+                // Get selected printing (both Id and display text)
+                const selectedPrintingText = this.getAttribute('data-printing-text') || this.textContent.trim();
+                const selectedPrintingId = this.getAttribute('data-printing-id') || '';
                 
                 // Load cutting die options based on printing selection
-                if (selectedPrinting) {
-                    loadCuttingDieOptions(selectedPrinting);
+                // Prefer passing the Id (e.g. "2F") so the server can reliably determine materie_
+                const currentShape = document.querySelector('input[name="shape"]:checked')?.value;
+                if (isCuttingDieApplicableForShape(currentShape) && (selectedPrintingId || selectedPrintingText)) {
+                    loadCuttingDieOptions(selectedPrintingId || selectedPrintingText);
                 } else {
                     // Clear cutting die if no printing selected
                     const cuttingDieSelect = document.getElementById('cutting-die');
                     if (cuttingDieSelect) {
-                        cuttingDieSelect.innerHTML = '<option value="">Please select a Printing option first</option>';
+                        cuttingDieSelect.innerHTML = isCuttingDieApplicableForShape(currentShape)
+                            ? '<option value="">Please select a Printing option first</option>'
+                            : '<option value="">Cutting die not applicable for selected shape</option>';
                         cuttingDieSelect.disabled = true;
                     }
                 }
                 
                 // Load Finishing options based on Printing selection
-                if (selectedPrinting) {
-                    loadFinishingOptions(selectedPrinting);
+                if (selectedPrintingText) {
+                    // finish.js exposes a global loadFinishingOptions(printingText)
+                    loadFinishingOptions(selectedPrintingText);
                 } else {
                     // Clear finish if no printing selected
                     const finishSelect = document.getElementById('finish');
@@ -382,10 +429,16 @@
                     if (buttonToActivate) {
                         buttonToActivate.classList.add('active');
                         // Trigger materials load if printing is restored
-                        const selectedPrinting = buttonToActivate.getAttribute('data-printing-text') || buttonToActivate.textContent.trim();
-                        if (selectedPrinting) {
-                            loadCuttingDieOptions(selectedPrinting);
-                            loadFinishingOptions(selectedPrinting);
+                        const selectedPrintingText = buttonToActivate.getAttribute('data-printing-text') || buttonToActivate.textContent.trim();
+                        const selectedPrintingId = buttonToActivate.getAttribute('data-printing-id') || '';
+                        if (selectedPrintingId || selectedPrintingText) {
+                            const currentShape = document.querySelector('input[name="shape"]:checked')?.value;
+                            if (isCuttingDieApplicableForShape(currentShape)) {
+                                loadCuttingDieOptions(selectedPrintingId || selectedPrintingText);
+                            }
+                            if (selectedPrintingText) {
+                                loadFinishingOptions(selectedPrintingText);
+                            }
                         }
                     }
                 }
@@ -919,7 +972,37 @@
             return;
         }
 
-        sizeValidation.style.display = 'none';
+        // Show notification when user manually enters label size values
+        sizeValidation.textContent = 'Save and use an existing die size.';
+        sizeValidation.className = 'size-validation-message warning';
+        sizeValidation.style.display = 'block';
+    }
+
+    // If a Cutting Die option includes a size like "4.00X3.00",
+    // populate Label Size Width/Height from that selection.
+    function applyCuttingDieToLabelSize() {
+        const cuttingDieSelect = document.getElementById('cutting-die');
+        if (!cuttingDieSelect || cuttingDieSelect.selectedIndex < 0) return;
+        if (!widthInput || !heightInput) return;
+
+        const selectedOption = cuttingDieSelect.options[cuttingDieSelect.selectedIndex];
+        const text = (selectedOption?.text || selectedOption?.textContent || '').trim();
+        if (!text) return;
+
+        // Find first occurrence of "<float> X <float>" (case-insensitive)
+        // Examples: "4.00X3.00", "4x3", "4.0 x 3.0"
+        const match = text.match(/(\d+(?:\.\d+)?)\s*[xX]\s*(\d+(?:\.\d+)?)/);
+        if (!match) return;
+
+        const w = match[1];
+        const h = match[2];
+
+        widthInput.value = w;
+        heightInput.value = h;
+
+        // Re-run validations and UI updates that depend on size
+        validateLabelSize();
+        updateSummaryPanel();
     }
 
     // Function to toggle corners section visibility
@@ -998,6 +1081,25 @@ function toggleSizeSections() {
         return '';
     }
 
+    // Get selected printing Id (e.g. "2F") for server-side queries
+    function getSelectedPrintingId() {
+        let printingFilter = null;
+        Array.from(document.querySelectorAll('.form-section')).forEach(section => {
+            const label = section.querySelector('.form-section-label');
+            if (label && label.textContent.trim() === 'Printing') {
+                printingFilter = section.querySelector('#printing-filter');
+            }
+        });
+
+        if (printingFilter) {
+            const activeBtn = printingFilter.querySelector('button.active');
+            if (activeBtn) {
+                return activeBtn.getAttribute('data-printing-id') || '';
+            }
+        }
+        return '';
+    }
+
     // Function to update summary panel with selected choices
     function updateSummaryPanel() {
         const summaryContainer = document.getElementById('selected-choices-summary');
@@ -1040,8 +1142,9 @@ function toggleSizeSections() {
         }
 
         // Cutting Die
+        const shapeForDie = document.querySelector('input[name="shape"]:checked')?.value;
         const cuttingDie = document.getElementById('cutting-die')?.value;
-        if (cuttingDie) {
+        if (isCuttingDieApplicableForShape(shapeForDie) && cuttingDie) {
             const cuttingDieSelect = document.getElementById('cutting-die');
             const selectedOption = cuttingDieSelect.options[cuttingDieSelect.selectedIndex];
             choices.push({ label: 'Cutting Die', value: selectedOption.text });
@@ -1142,6 +1245,7 @@ function toggleSizeSections() {
         input.addEventListener('change', function() {
             toggleCornersSection();
             toggleSizeSections();
+            toggleCuttingDieSection();
             validateLabelSize();
             validateDiameter();
             updateSummaryPanel();
@@ -1190,8 +1294,13 @@ function toggleSizeSections() {
         input.addEventListener('change', updateSummaryPanel);
     });
 
-    // Cutting Die change handler
-    document.getElementById('cutting-die')?.addEventListener('change', updateSummaryPanel);
+    // Cutting Die change handler:
+    // - updates summary
+    // - auto-populates label size when option contains "W x H" (e.g. "4.00X3.00")
+    document.getElementById('cutting-die')?.addEventListener('change', function() {
+        applyCuttingDieToLabelSize();
+        updateSummaryPanel();
+    });
 
     // Printing buttons are handled in populatePrintingOptions function
 
@@ -1251,6 +1360,7 @@ function toggleSizeSections() {
     // Initial setup
     toggleCornersSection();
     toggleSizeSections();
+    toggleCuttingDieSection();
     validateLabelSize();
     validateDiameter();
     updateSummaryPanel();
@@ -1269,11 +1379,17 @@ function toggleSizeSections() {
     if (printingFilter && printingLoading) {
         loadPrintingOptions().then(() => {
             // After printing options load, check if printing is already selected
-            const selectedPrinting = getSelectedPrinting();
-            if (selectedPrinting) {
+            const selectedPrintingText = getSelectedPrinting();
+            const selectedPrintingId = getSelectedPrintingId();
+            if (selectedPrintingId || selectedPrintingText) {
                 // Load cutting die and finishing options based on selected printing
-                loadCuttingDieOptions(selectedPrinting);
-                loadFinishingOptions(selectedPrinting);
+                const currentShape = document.querySelector('input[name="shape"]:checked')?.value;
+                if (isCuttingDieApplicableForShape(currentShape)) {
+                    loadCuttingDieOptions(selectedPrintingId || selectedPrintingText);
+                }
+                if (selectedPrintingText) {
+                    loadFinishingOptions(selectedPrintingText);
+                }
             }
             // Restore form data after everything loads
             setTimeout(() => restoreFormData(), 300);
@@ -1582,9 +1698,12 @@ function toggleSizeSections() {
             // Validate cutting die selection
             const cuttingDieSelect = document.getElementById('cutting-die');
             const selectedCuttingDie = cuttingDieSelect?.value;
-            if (!selectedCuttingDie) {
-                alert('Please select a cutting die option.');
-                return;
+            const currentShape = document.querySelector('input[name="shape"]:checked')?.value;
+            if (isCuttingDieApplicableForShape(currentShape)) {
+                if (!selectedCuttingDie) {
+                    alert('Please select a cutting die option.');
+                    return;
+                }
             }
 
             // Validate finish selection

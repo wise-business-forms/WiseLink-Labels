@@ -86,14 +86,13 @@ namespace WiseLabels.Pages
                 // Submit to CERM API
                 var apiSuccess = await _quoteService.SubmitToCermApiAsync(quote);
 
-                // Set the QuoteRequest property for display on the page
-                QuoteRequest = quote;
-
-                // Keep the quote data in TempData for Edit redirect
+                // Store data in TempData for Success page
+                TempData["QuoteId"] = quoteId;
+                TempData["ApiSuccess"] = apiSuccess.ToString();
                 TempData["QuoteRequest"] = JsonSerializer.Serialize(quote);
 
-                // Stay on the same page to show debug information
-                return Page();
+                // Redirect to Success page
+                return RedirectToPage("/Success");
             }
             catch (Exception ex)
             {

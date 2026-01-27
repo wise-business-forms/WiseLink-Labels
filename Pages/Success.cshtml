@@ -189,9 +189,6 @@
     </div>
 </div>
 
-<!-- Include html2pdf.js library for PDF generation -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
 @section Scripts {
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -207,110 +204,50 @@
             });
         }
         
-        // PDF export functionality
+        // PDF download functionality (official CERM PDF via server-side proxy)
         if (pdfBtn) {
-            pdfBtn.addEventListener('click', function() {
-                // Show loading state
+            pdfBtn.addEventListener('click', async function() {
                 const originalText = pdfBtn.textContent;
                 pdfBtn.disabled = true;
-                pdfBtn.textContent = 'Generating PDF...';
-                
-                // Get the content to convert - use the main container div
-                const contentElement = document.querySelector('.col-lg-8.mx-auto');
-                const buttons = document.querySelectorAll('button, .d-flex.gap-3.justify-content-center');
-                
-                // Hide success icon for PDF (saves space at top)
-                const successIcon = document.querySelector('.text-center.mb-4 svg');
-                let successIconParent = null;
-                let iconOriginalDisplay = '';
-                if (successIcon) {
-                    successIconParent = successIcon.closest('.text-center.mb-4');
-                    if (successIconParent) {
-                        iconOriginalDisplay = successIconParent.style.display || '';
-                        successIconParent.style.display = 'none';
-                    }
+                pdfBtn.textContent = 'Downloading PDF...';
+
+                if (!quoteId) {
+                    alert('Missing calculation id for PDF download.');
+                    pdfBtn.disabled = false;
+                    pdfBtn.textContent = originalText;
+                    return;
                 }
-                
-                // Store original display states
-                const hiddenElements = [];
-                buttons.forEach(btn => {
-                    hiddenElements.push({
-                        element: btn,
-                        originalDisplay: btn.style.display
-                    });
-                    btn.style.display = 'none';
-                });
-                
-                const header = document.querySelector('header');
-                const footer = document.querySelector('footer');
-                const headerOriginalDisplay = header ? header.style.display : '';
-                const footerOriginalDisplay = footer ? footer.style.display : '';
-                
-                // Temporarily hide header and footer for PDF
-                if (header) header.style.display = 'none';
-                if (footer) footer.style.display = 'none';
-                
-                // Configure PDF options with quote ID and date in filename
-                const filename = quoteId 
-                    ? `quote-${quoteId}-${submittedDate}.pdf`
-                    : `quote-request-${submittedDate}.pdf`;
-                
-                // Add PDF-specific class to body for styling
-                document.body.classList.add('pdf-export');
-                
-                const opt = {
-                    margin: [5, 10, 10, 10], // 5mm top margin (~0.2 inch), sides/bottom 10mm
-                    filename: filename,
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { 
-                        scale: 2, 
-                        useCORS: true,
-                        logging: false,
-                        letterRendering: true,
-                        scrollY: 0 // Start from top of page
-                    },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-                };
-                
-                // Generate PDF
-                html2pdf().set(opt).from(contentElement || document.body).save().then(function() {
-                    // Remove PDF class
-                    document.body.classList.remove('pdf-export');
-                    
-                    // Restore success icon
-                    if (successIconParent) {
-                        successIconParent.style.display = iconOriginalDisplay;
+
+                try {
+                    // This streams the PDF from CERM through our server (no CORS/auth in browser).
+                    const url = `?handler=Pdf&calculationId=${encodeURIComponent(quoteId)}`;
+                    const resp = await fetch(url, { method: 'GET' });
+
+                    if (!resp.ok) {
+                        const message = await resp.text().catch(() => '');
+                        if (resp.status === 404) {
+                            throw new Error(message || 'PDF not found (404).');
+                        }
+                        throw new Error(message || `Error downloading PDF (${resp.status}).`);
                     }
-                    
-                    // Restore elements
-                    hiddenElements.forEach(item => {
-                        item.element.style.display = item.originalDisplay;
-                    });
-                    if (header) header.style.display = headerOriginalDisplay;
-                    if (footer) footer.style.display = footerOriginalDisplay;
+
+                    const blob = await resp.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = quoteId
+                        ? `quote-${quoteId}-${submittedDate}.pdf`
+                        : `quote-request-${submittedDate}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(downloadUrl);
+                } catch (e) {
+                    alert(`Unable to download PDF: ${e?.message || e}`);
+                } finally {
                     pdfBtn.disabled = false;
                     pdfBtn.textContent = originalText;
-                }).catch(function(error) {
-                    // Remove PDF class on error
-                    document.body.classList.remove('pdf-export');
-                    
-                    // Restore success icon on error
-                    if (successIconParent) {
-                        successIconParent.style.display = iconOriginalDisplay;
-                    }
-                    
-                    console.error('Error generating PDF:', error);
-                    alert('Error generating PDF. Please try printing instead.');
-                    // Restore elements on error
-                    hiddenElements.forEach(item => {
-                        item.element.style.display = item.originalDisplay;
-                    });
-                    if (header) header.style.display = headerOriginalDisplay;
-                    if (footer) footer.style.display = footerOriginalDisplay;
-                    pdfBtn.disabled = false;
-                    pdfBtn.textContent = originalText;
-                });
+                }
             });
         }
     });

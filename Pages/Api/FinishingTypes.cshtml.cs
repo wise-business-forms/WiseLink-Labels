@@ -1,16 +1,30 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace WiseLabels.Pages.Api
 {
+    /// <summary>
+    /// Proxy Razor Page model that retrieves finishing types from the external CERM API
+    /// and returns them as JSON to the client. This decouples the client from direct
+    /// CORS/auth requirements and centralizes token handling and mapping logic.
+    /// </summary>
     public class FinishingTypesModel : PageModel
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
         private readonly ILogger<FinishingTypesModel> _logger;
 
+        /// <summary>
+        /// Constructor - dependencies are injected by the Razor Pages framework.
+        /// </summary>
         public FinishingTypesModel(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<FinishingTypesModel> logger)
         {
             _httpClientFactory = httpClientFactory;
@@ -18,18 +32,26 @@ namespace WiseLabels.Pages.Api
             _logger = logger;
         }
 
+        /// <summary>
+        /// GET handler invoked by client-side code at "/Api/FinishingTypes".
+        /// - Reads CERM configuration values from appsettings.
+        /// - Authenticates against the OAuth endpoint to retrieve an access token.
+        /// - Calls the configured FinishingTypesUrl and returns a JSON payload.
+        /// - Returns guarded error responses for configuration, authentication, and fetch failures.
+        /// </summary>
         public async Task<IActionResult> OnGetAsync()
         {
             try
             {
-                // Get credentials from configuration
+                // Get credentials from configuration (fallback defined for OAuth URL only)
                 var oauthUrl = _configuration["Cerm:OAuthUrl"] ?? "https://brandmark-api.cerm.be/oauth/token";
-                var materialsUrl = _configuration["Cerm:FinishingTypesUrl"] ?? "";
+                var finishingTypesUrl = _configuration["Cerm:FinishingTypesUrl"] ?? "";
                 var username = _configuration["Cerm:Username"];
                 var password = _configuration["Cerm:Password"];
                 var clientId = _configuration["Cerm:ClientId"];
                 var clientSecret = _configuration["Cerm:ClientSecret"];
 
+                // Validate required configuration and return a 500 with a helpful message when missing.
                 if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password) ||
                     string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
                 {
@@ -40,19 +62,32 @@ namespace WiseLabels.Pages.Api
                     };
                 }
 
-                // Authenticate and get access token
+                if (string.IsNullOrEmpty(finishingTypesUrl))
+                {
+                    _logger.LogError("Cerm:FinishingTypesUrl is missing from configuration (add to appsettings.json or appsettings.Production.json)");
+                    return new JsonResult(new { error = "Server configuration error: FinishingTypesUrl not configured" })
+                    {
+                        StatusCode = 500
+                    };
+                }
+
+                // Authenticate and get access token. GetAccessTokenAsync implements multiple
+                // authentication strategies to handle different OAuth server expectations.
                 var (accessToken, authError) = await GetAccessTokenAsync(oauthUrl, username, password, clientId, clientSecret);
                 if (string.IsNullOrEmpty(accessToken))
                 {
+                    // Return 401 so client-side code can surface an authentication-related error.
                     return new JsonResult(new { error = authError ?? "Failed to authenticate with CERM API" })
                     {
                         StatusCode = 401
                     };
                 }
 
-                // Fetch materials from API (no filtering for now)
-                var materials = await FetchMaterialsAsync(materialsUrl, accessToken);
+                // Fetch finishing types using the obtained bearer token. The method attempts
+                // to parse a variety of JSON shapes and will normalize to a List<ParameterResponse>.
+                var materials = await FetchMaterialsAsync(finishingTypesUrl, accessToken);
 
+                // Return normalized materials as JSON.
                 return new JsonResult(new { materials = materials });
             }
             catch (Exception ex)
@@ -65,15 +100,17 @@ namespace WiseLabels.Pages.Api
             }
         }
 
+        /// <summary>
+        /// Attempts to retrieve an access token from the OAuth endpoint using several strategies.
+        /// Returns a tuple containing the access token (or null) and an error message (or null).
+        /// </summary>
         private async Task<(string? accessToken, string? errorMessage)> GetAccessTokenAsync(string oauthUrl, string username, string password, string clientId, string clientSecret)
         {
             HttpClient? httpClient = null;
             try
             {
-                // Ensure URL doesn't have trailing slash
+                // Normalize URL and allow permissive certificate handling for local/internal hosts.
                 oauthUrl = oauthUrl.TrimEnd('/');
-
-                // Create handler that allows self-signed certificates for internal APIs
                 var handler = new HttpClientHandler();
                 if (oauthUrl.Contains("192.168.") || oauthUrl.Contains("localhost") || oauthUrl.Contains("127.0.0.1"))
                 {
@@ -85,7 +122,7 @@ namespace WiseLabels.Pages.Api
 
                 _logger.LogInformation("OAuth URL: {OAuthUrl}", oauthUrl);
 
-                // Method 1: Try credentials in body only (matching Postman "Send client credentials in body")
+                // Method 1: Send credentials in the request body (some OAuth servers expect this).
                 var formData = new List<KeyValuePair<string, string>>
                 {
                     new("grant_type", "password"),
@@ -157,6 +194,10 @@ namespace WiseLabels.Pages.Api
             }
         }
 
+        /// <summary>
+        /// Secondary authentication attempt: include both Basic Auth header and body parameters
+        /// (some servers expect client credentials in both places).
+        /// </summary>
         private async Task<(string? accessToken, string? errorMessage)> TryWithBasicAuthHeader(string oauthUrl, string username, string password, string clientId, string clientSecret)
         {
             HttpClient? httpClient = null;
@@ -226,6 +267,10 @@ namespace WiseLabels.Pages.Api
             }
         }
 
+        /// <summary>
+        /// Third authentication attempt: use Basic Auth for client credentials while keeping
+        /// user credentials in the body (client_id/client_secret omitted from body).
+        /// </summary>
         private async Task<(string? accessToken, string? errorMessage)> TryBasicAuthOnly(string oauthUrl, string username, string password, string clientId, string clientSecret)
         {
             HttpClient? httpClient = null;
@@ -294,6 +339,14 @@ namespace WiseLabels.Pages.Api
             }
         }
 
+        /// <summary>
+        /// Fetches the materials/finishing types from the provided URL using the bearer token,
+        /// attempts to handle multiple JSON shapes returned by the upstream API, and returns
+        /// a normalized List of ParameterResponse. The method:
+        /// - Tries to parse direct arrays, Data/items/results wrappers.
+        /// - Falls back to a manual mapping routine when automatic deserialization yields missing Ids.
+        /// - Filters on AllowRFQ and sorts by the en-US description.
+        /// </summary>
         private async Task<object> FetchMaterialsAsync(string materialsUrl, string accessToken)
         {
             try
@@ -317,20 +370,23 @@ namespace WiseLabels.Pages.Api
 
                 // Try to deserialize - handle different response structures
                 List<ParameterResponse>? paramResponse = null;
+                JsonElement jsonDoc = default;
+                var hasJsonDoc = false;
 
                 try
                 {
                     // First, try to parse as JsonElement to inspect structure
-                    var jsonDoc = JsonSerializer.Deserialize<JsonElement>(jsonResponse);
+                    jsonDoc = JsonSerializer.Deserialize<JsonElement>(jsonResponse);
+                    hasJsonDoc = true;
 
-                    // Log the structure of the first item if it's an array
+                    // If an array is returned, log structure details to aid future debugging.
                     if (jsonDoc.ValueKind == JsonValueKind.Array && jsonDoc.GetArrayLength() > 0)
                     {
                         var firstItem = jsonDoc[0];
                         var propertyNames = firstItem.EnumerateObject().Select(p => p.Name).ToList();
                         _logger.LogInformation("First item structure - All Properties: {Properties}", string.Join(", ", propertyNames));
 
-                        // Check for common property names that might contain the material data
+                        // Log subproperty names for object properties to help identify mapping candidates.
                         foreach (var propName in propertyNames)
                         {
                             var prop = firstItem.GetProperty(propName);
@@ -345,17 +401,15 @@ namespace WiseLabels.Pages.Api
                         }
                     }
 
-                    // Check if it's a direct array
+                    // Try several common wrapper shapes, falling back to a direct array parse.
                     if (jsonDoc.ValueKind == JsonValueKind.Array)
                     {
-                        // Try deserializing with case-insensitive property matching
                         var options = new JsonSerializerOptions
                         {
                             PropertyNameCaseInsensitive = true
                         };
                         paramResponse = JsonSerializer.Deserialize<List<ParameterResponse>>(jsonResponse, options);
                     }
-                    // Check if it's wrapped in a Data property
                     else if (jsonDoc.TryGetProperty("Data", out var data) && data.ValueKind == JsonValueKind.Array)
                     {
                         var options = new JsonSerializerOptions
@@ -364,7 +418,6 @@ namespace WiseLabels.Pages.Api
                         };
                         paramResponse = JsonSerializer.Deserialize<List<ParameterResponse>>(data.GetRawText(), options);
                     }
-                    // Check if it's wrapped in other common properties
                     else if (jsonDoc.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
                     {
                         var options = new JsonSerializerOptions
@@ -383,8 +436,8 @@ namespace WiseLabels.Pages.Api
                     }
                     else
                     {
+                        // Unexpected shapes are attempted to be parsed directly with case-insensitive matching.
                         _logger.LogWarning("Unexpected JSON structure. Root kind: {ValueKind}", jsonDoc.ValueKind);
-                        // Try direct deserialization with case-insensitive matching
                         var options = new JsonSerializerOptions
                         {
                             PropertyNameCaseInsensitive = true
@@ -392,7 +445,7 @@ namespace WiseLabels.Pages.Api
                         paramResponse = JsonSerializer.Deserialize<List<ParameterResponse>>(jsonResponse, options);
                     }
 
-                    // If Id is still null after deserialization, try manual mapping
+                    // If parsed items appear to be missing critical fields like Id, attempt manual mapping.
                     if (paramResponse != null && paramResponse.Count > 0 && string.IsNullOrEmpty(paramResponse[0].Id))
                     {
                         _logger.LogWarning("Id is null after deserialization. Attempting manual mapping...");
@@ -401,21 +454,39 @@ namespace WiseLabels.Pages.Api
                 }
                 catch (JsonException jsonEx)
                 {
+                    // Provide a helpful log and throw with a truncated response to keep logs readable.
                     _logger.LogError(jsonEx, "JSON deserialization error. Response: {Response}", jsonResponse);
                     throw new Exception($"Failed to parse materials response: {jsonEx.Message}. Response: {jsonResponse.Substring(0, Math.Min(500, jsonResponse.Length))}", jsonEx);
                 }
 
                 if (paramResponse != null && paramResponse.Count > 0)
                 {
-                    // Filter only on AllowRFQ flag being true
+                    // Only include items where AllowRFQ == true.
                     paramResponse = paramResponse.Where(m => m.AllowRFQ).ToList();
 
-                    // Sort materials alphabetically by their display description (en-US)
+                    // Normalize FinishingType (Inline=1 / Offline=2) from upstream payload.
+                    // Some upstream responses carry this as FinishingTypeId/Type/etc; we extract it from
+                    // the raw JsonElement and copy it onto ParameterResponse.FinishingType.
+                    if (hasJsonDoc)
+                    {
+                        var finishingTypeById = ExtractFinishingTypeById(jsonDoc);
+                        if (finishingTypeById.Count > 0)
+                        {
+                            foreach (var item in paramResponse)
+                            {
+                                if (!string.IsNullOrWhiteSpace(item.Id) && finishingTypeById.TryGetValue(item.Id, out var finishingType))
+                                {
+                                    item.FinishingType = finishingType;
+                                }
+                            }
+                        }
+                    }
+
+                    // Sort by the en-US description when available, otherwise fallback to first description.
                     paramResponse = paramResponse.OrderBy(material =>
                     {
                         if (material.Descriptions != null && material.Descriptions.Count > 0)
                         {
-                            // Prefer en-US description
                             var enUSDesc = material.Descriptions.FirstOrDefault(d =>
                                 d.ISOLanguageCode != null && d.ISOLanguageCode.Equals("en-US", StringComparison.OrdinalIgnoreCase));
                             var desc = enUSDesc ?? material.Descriptions[0];
@@ -438,6 +509,11 @@ namespace WiseLabels.Pages.Api
             }
         }
 
+        /// <summary>
+        /// Manually maps a JsonElement (array or wrapper) to a List&lt;ParameterResponse&gt; when
+        /// automatic deserialization is insufficient (e.g. unexpected property names or casing).
+        /// This routine attempts case-insensitive lookup for common property names.
+        /// </summary>
         private List<ParameterResponse> ManualMapMaterials(JsonElement jsonDoc)
         {
             var result = new List<ParameterResponse>();
@@ -469,13 +545,13 @@ namespace WiseLabels.Pages.Api
             {
                 var param = new ParameterResponse();
 
-                // Get Id (case-insensitive)
+                // Id (case-insensitive)
                 if (item.TryGetProperty("Id", out var idProp) || item.TryGetProperty("id", out idProp))
                 {
                     param.Id = idProp.GetString();
                 }
 
-                // Get Descriptions array (case-insensitive)
+                // Descriptions array (case-insensitive) - map to local Descriptions type
                 if ((item.TryGetProperty("Descriptions", out var descriptionsProp) ||
                      item.TryGetProperty("descriptions", out descriptionsProp)) &&
                     descriptionsProp.ValueKind == JsonValueKind.Array)
@@ -500,28 +576,21 @@ namespace WiseLabels.Pages.Api
                     param.Descriptions = descriptions;
                 }
 
-                //// Get AllowRFQ (case-insensitive)
-                //if (item.TryGetProperty("AllowRFQ", out var allowRFQProp) || 
-                //    item.TryGetProperty("allowRFQ", out allowRFQProp))
-                //{
-                //    param.AllowRFQ = allowRFQProp.GetBoolean();
-                //}
-
-                // Get Blocked (case-insensitive)
+                // Blocked flag (case-insensitive)
                 if (item.TryGetProperty("Blocked", out var blockedProp) ||
                     item.TryGetProperty("blocked", out blockedProp))
                 {
                     param.Blocked = blockedProp.GetBoolean();
                 }
 
-                // Get Website (optional)
+                // Website (optional)
                 if (item.TryGetProperty("Website", out var websiteProp) ||
                     item.TryGetProperty("website", out websiteProp))
                 {
                     param.Website = websiteProp.GetString();
                 }
 
-                // Get AllowQuickQuote (optional)
+                // AllowQuickQuote (optional)
                 if (item.TryGetProperty("AllowQuickQuote", out var allowQuickQuoteProp) ||
                     item.TryGetProperty("allowQuickQuote", out allowQuickQuoteProp))
                 {
@@ -533,6 +602,165 @@ namespace WiseLabels.Pages.Api
 
             _logger.LogInformation("Manually mapped {Count} materials", result.Count);
             return result;
+        }
+
+        private static Dictionary<string, int> ExtractFinishingTypeById(JsonElement jsonDoc)
+        {
+            var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            JsonElement arrayElement;
+            if (jsonDoc.ValueKind == JsonValueKind.Array)
+            {
+                arrayElement = jsonDoc;
+            }
+            else if (jsonDoc.TryGetProperty("Data", out var data) && data.ValueKind == JsonValueKind.Array)
+            {
+                arrayElement = data;
+            }
+            else if (jsonDoc.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
+            {
+                arrayElement = items;
+            }
+            else if (jsonDoc.TryGetProperty("results", out var results) && results.ValueKind == JsonValueKind.Array)
+            {
+                arrayElement = results;
+            }
+            else
+            {
+                return map;
+            }
+
+            foreach (var item in arrayElement.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object) continue;
+
+                var id = TryGetStringPropertyCaseInsensitive(item, "Id");
+                if (string.IsNullOrWhiteSpace(id)) continue;
+
+                var finishingType = TryExtractFinishingType(item);
+                if (finishingType is 1 or 2)
+                {
+                    map[id] = finishingType.Value;
+                }
+            }
+
+            return map;
+        }
+
+        private static int? TryExtractFinishingType(JsonElement item)
+        {
+            // Prefer explicit names containing both "finishing" and "type"
+            foreach (var prop in item.EnumerateObject())
+            {
+                var nameLower = prop.Name.ToLowerInvariant();
+                if (nameLower.Contains("finishing") && nameLower.Contains("type"))
+                {
+                    var val = ReadIntFlexible(prop.Value);
+                    if (val != null) return val;
+                }
+            }
+
+            // Common explicit keys
+            var explicitKeys = new[] { "FinishingType", "FinishingTypeId", "FinishingTypeID", "Type" };
+            foreach (var key in explicitKeys)
+            {
+                if (TryGetPropertyCaseInsensitive(item, key, out var el))
+                {
+                    var val = ReadIntFlexible(el);
+                    if (val != null) return val;
+                }
+            }
+
+            return null;
+        }
+
+        private static int? ReadIntFlexible(JsonElement el)
+        {
+            if (el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out var n))
+            {
+                return n;
+            }
+
+            if (el.ValueKind == JsonValueKind.String)
+            {
+                var str = el.GetString();
+                if (int.TryParse(str, out var s))
+                {
+                    return s;
+                }
+
+                // Some upstream payloads may encode finishing type as text.
+                // Normalize to: 1 = Inline, 2 = Offline (per BUSINESS_RULES.md)
+                if (!string.IsNullOrWhiteSpace(str))
+                {
+                    var lower = str.ToLowerInvariant();
+                    if (lower.Contains("inline") || lower.Contains("in-line") || lower.Contains("in line"))
+                    {
+                        return 1;
+                    }
+
+                    if (lower.Contains("offline") || lower.Contains("off-line") || lower.Contains("off line"))
+                    {
+                        return 2;
+                    }
+
+                    // Best-effort synonyms (only used if upstream uses printing terms)
+                    if (lower.Contains("flexo") || lower.Contains("rotary"))
+                    {
+                        return 1;
+                    }
+
+                    if (lower.Contains("digital"))
+                    {
+                        return 2;
+                    }
+                }
+            }
+
+            if (el.ValueKind == JsonValueKind.Object)
+            {
+                // Sometimes the field is an object with an Id
+                if (TryGetPropertyCaseInsensitive(el, "Id", out var idEl) || TryGetPropertyCaseInsensitive(el, "Value", out idEl))
+                {
+                    return ReadIntFlexible(idEl);
+                }
+            }
+
+            return null;
+        }
+
+        private static bool TryGetPropertyCaseInsensitive(JsonElement obj, string name, out JsonElement value)
+        {
+            if (obj.ValueKind == JsonValueKind.Object)
+            {
+                // Fast path: exact match
+                if (obj.TryGetProperty(name, out value))
+                {
+                    return true;
+                }
+
+                foreach (var prop in obj.EnumerateObject())
+                {
+                    if (prop.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = prop.Value;
+                        return true;
+                    }
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+        private static string? TryGetStringPropertyCaseInsensitive(JsonElement obj, string name)
+        {
+            if (TryGetPropertyCaseInsensitive(obj, name, out var el) && el.ValueKind == JsonValueKind.String)
+            {
+                return el.GetString();
+            }
+
+            return null;
         }
 
     }

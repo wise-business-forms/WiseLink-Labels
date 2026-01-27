@@ -68,12 +68,15 @@ namespace WiseLabels.Pages.Api
                 int materie = 2; // Default to digital
                 string printingLower = printing.ToLowerInvariant();
                 
-                if (printingLower.Contains("flexo"))
+                // Support both:
+                // - printing text (e.g. "Spot Color - 1 Standard Ink - Flexo")
+                // - printing id (e.g. "2F" / "3F" where trailing F implies flexo/rotary)
+                if (printingLower.Contains("rotary") || printingLower.Contains("flexo") || printingLower.EndsWith('f'))
                 {
                     materie = 1;
-                    _logger.LogInformation("Printing option contains 'flexo' (rotary die type) - using materie_ = 1");
+                    _logger.LogInformation("Printing option indicates flexo/rotary - using materie_ = 1");
                 }
-                else if (printingLower.Contains("digital"))
+                else if (printingLower.Contains("digital") || printingLower.EndsWith('d'))
                 {
                     materie = 2;
                     _logger.LogInformation("Printing option contains 'digital' - using materie_ = 2");
@@ -92,8 +95,13 @@ namespace WiseLabels.Pages.Api
                     var connectionString = _configuration.GetConnectionString("CermDatabase");
                     if (string.IsNullOrEmpty(connectionString))
                     {
-                        _logger.LogError("CermDatabase connection string not found in configuration");
-                        return new JsonResult(new { error = "Database connection not configured" })
+                        _logger.LogError(
+                            "CermDatabase connection string not found. Ensure appsettings.json (and appsettings.Production.json when deployed) are published and contain ConnectionStrings:CermDatabase, or set environment variable ConnectionStrings__CermDatabase.");
+                        return new JsonResult(new
+                        {
+                            error = "Database connection not configured",
+                            hint = "Check ConnectionStrings:CermDatabase in appsettings.json / appsettings.Production.json, or env ConnectionStrings__CermDatabase."
+                        })
                         {
                             StatusCode = 500
                         };
@@ -132,17 +140,6 @@ namespace WiseLabels.Pages.Api
                                     cuttingDieOption.weblabel = reader.IsDBNull(weblabelOrdinal) ? string.Empty : reader.GetString(weblabelOrdinal);
 
                                     results.Add(cuttingDieOption);
-
-                                    //results.Add(new CuttingDieOption
-                                    //{
-                                    //    StnsRef = reader.IsDBNull(stnsRefOrdinal) ? string.Empty : reader.GetString(stnsRefOrdinal),
-                                    //    StnsOms = reader.IsDBNull(stnsOmsOrdinal) ? string.Empty : reader.GetString(stnsOmsOrdinal),
-                                    //    etiket_b = reader.IsDBNull(etiket_bOrdinal) ? string.Empty : reader.GetString(etiket_bOrdinal),
-                                    //    etiket_h = reader.IsDBNull(etiket_hOrdinal) ? string.Empty : reader.GetString(etiket_hOrdinal),
-                                    //    Radius__ = reader.IsDBNull(Radius__Ordinal) ? string.Empty : reader.GetString(Radius__Ordinal),
-                                    //    omtrek__ = reader.IsDBNull(omtrek__Ordinal) ? string.Empty : reader.GetString(omtrek__Ordinal),
-                                    //    weblabel = reader.IsDBNull(weblabelOrdinal) ? string.Empty : reader.GetString(weblabelOrdinal)
-                                    //});
                                 }
                             }
                         }

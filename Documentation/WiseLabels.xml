@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>WiseLabels</name>
+    </assembly>
+    <members>
+        <member name="P:WiseLabels.Pages.Api.CuttingDieModel.CuttingDieOption.StnsRef">
+            <summary>
+            Die Identifier
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Pages.Api.CuttingDieModel.CuttingDieOption.StnsOms">
+            <summary>
+            Die Description (size)
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Pages.Api.CuttingDieModel.CuttingDieOption.Radius__">
+            <summary>
+            Die Radius
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Pages.Api.CuttingDieModel.CuttingDieOption.etiket_b">
+            <summary>
+            Across
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Pages.Api.CuttingDieModel.CuttingDieOption.etiket_h">
+            <summary>
+            Around
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Pages.Api.CuttingDieModel.CuttingDieOption.omtrek__">
+            <summary>
+            Step / Circumfrence
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Pages.Api.CuttingDieModel.CuttingDieOption.weblabel">
+            <summary>
+            Web Label Availability
+            </summary>
+        </member>
+        <member name="T:WiseLabels.Pages.Api.FinishingTypesModel">
+            <summary>
+            Proxy Razor Page model that retrieves finishing types from the external CERM API
+            and returns them as JSON to the client. This decouples the client from direct
+            CORS/auth requirements and centralizes token handling and mapping logic.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.FinishingTypesModel.#ctor(System.Net.Http.IHttpClientFactory,Microsoft.Extensions.Configuration.IConfiguration,Microsoft.Extensions.Logging.ILogger{WiseLabels.Pages.Api.FinishingTypesModel})">
+            <summary>
+            Constructor - dependencies are injected by the Razor Pages framework.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.FinishingTypesModel.OnGetAsync">
+            <summary>
+            GET handler invoked by client-side code at "/Api/FinishingTypes".
+            - Reads CERM configuration values from appsettings.
+            - Authenticates against the OAuth endpoint to retrieve an access token.
+            - Calls the configured FinishingTypesUrl and returns a JSON payload.
+            - Returns guarded error responses for configuration, authentication, and fetch failures.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.FinishingTypesModel.GetAccessTokenAsync(System.String,System.String,System.String,System.String,System.String)">
+            <summary>
+            Attempts to retrieve an access token from the OAuth endpoint using several strategies.
+            Returns a tuple containing the access token (or null) and an error message (or null).
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.FinishingTypesModel.TryWithBasicAuthHeader(System.String,System.String,System.String,System.String,System.String)">
+            <summary>
+            Secondary authentication attempt: include both Basic Auth header and body parameters
+            (some servers expect client credentials in both places).
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.FinishingTypesModel.TryBasicAuthOnly(System.String,System.String,System.String,System.String,System.String)">
+            <summary>
+            Third authentication attempt: use Basic Auth for client credentials while keeping
+            user credentials in the body (client_id/client_secret omitted from body).
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.FinishingTypesModel.FetchMaterialsAsync(System.String,System.String)">
+            <summary>
+            Fetches the materials/finishing types from the provided URL using the bearer token,
+            attempts to handle multiple JSON shapes returned by the upstream API, and returns
+            a normalized List of ParameterResponse. The method:
+            - Tries to parse direct arrays, Data/items/results wrappers.
+            - Falls back to a manual mapping routine when automatic deserialization yields missing Ids.
+            - Filters on AllowRFQ and sorts by the en-US description.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.FinishingTypesModel.ManualMapMaterials(System.Text.Json.JsonElement)">
+            <summary>
+            Manually maps a JsonElement (array or wrapper) to a List&lt;ParameterResponse&gt; when
+            automatic deserialization is insufficient (e.g. unexpected property names or casing).
+            This routine attempts case-insensitive lookup for common property names.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.MaterialsModel.GetAllowedMaterialIdsAsync(System.String)">
+            <summary>
+            Queries the database to get material IDs that are allowed for the given printing selection.
+            This method is called server-side only - no database information is exposed to the client.
+            </summary>
+            <param name="printing">The printing selection (ColorCode ID or description text)</param>
+            <returns>List of allowed material IDs, or null if no filtering should be applied</returns>
+        </member>
+    </members>
+</doc>

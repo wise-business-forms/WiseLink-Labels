@@ -1,106 +1,111 @@
-# WiseLink for Label Products
+# WiseLabels — Instant Quote Razor Pages App
 
-Label Quotes.  
-Label Orders.  
-Label Invoices.
+A Razor Pages web application that provides an instant-quote UI for custom labels and acts as a server-side proxy to CERM APIs (materials, printing/color codes, finishing types). The project centralizes OAuth handling and API mapping server-side to avoid CORS and credential exposure to clients.
+
+## Quick summary
+- Framework: ASP.NET Core Razor Pages
+- .NET Target: .NET 8
+- Frontend: Vanilla JS served from `wwwroot/js` (e.g. `site.js`, `finish.js`, `quote.js`, `submit.js`)
+- Server-side API proxies: Razor Pages under `Pages/Api/*` (e.g. `FinishingTypes`)
+- HTTP clients: `IHttpClientFactory` + token management for CERM OAuth
+
+## Repository layout (important files)
+- `Pages/Index.cshtml` — main quote page and form UI
+- `Pages/Api/FinishingTypes.cshtml.cs` — proxy endpoint that reads `Cerm:FinishingTypesUrl` and returns normalized JSON
+- `wwwroot/js/finish.js` — populates the `#finish` dropdown from `/Api/FinishingTypes`
+- `wwwroot/js/quote.js`, `wwwroot/js/submit.js` — form behavior and submit logic
+- `appsettings.Development.json` (example credentials kept here for local dev)
+
+## Prerequisites
+- Visual Studio 2026 (or dotnet CLI)
+- .NET 8 SDK
+- Access to CERM endpoints (OAuth + parameter APIs) and corresponding client credentials
+- Optional: SMTP accessible by the app for email notifications
+
+## Configuration
+Store environment-specific configuration in `appsettings.Development.json` (local dev) and production configuration in environment variables or `appsettings.Production.json`. Required configuration keys (CERM section):
+
+- `Cerm:OAuthUrl` — OAuth token endpoint (default: `https://brandmark-api.cerm.be/oauth/token`)
+- `Cerm:FinishingTypesUrl` — finishing types endpoint (used by `FinishingTypes` proxy)
+- `Cerm:MaterialsUrl` — materials endpoint (if used elsewhere)
+- `Cerm:ColorCodesUrl` — color codes endpoint
+- `Cerm:Username` — API username
+- `Cerm:Password` — API password
+- `Cerm:ClientId` — OAuth client id
+- `Cerm:ClientSecret` — OAuth client secret
+
+Email configuration (optional):
+- `Email:SmtpHost`, `Email:SmtpPort`, `Email:SmtpUsername`, `Email:SmtpPassword`, `Email:FromEmail`, `Email:FromName`
+
+Security notes:
+- Do NOT commit production secrets. Use environment variables, Azure Key Vault, AWS Secrets Manager, or user secrets for local development.
+- The server-side proxy endpoints require the above credentials and will return 500/401 errors if not present.
+
+Example snippet for local dev (already in repo):
+```
+{
+  "Cerm": {
+    "CustomerID": "108620",
+    "ContactID": "001",
+    "OAuthUrl": "https://brandmark-api.cerm.be/oauth/token",
+    "MaterialsUrl": "https://brandmark-api.cerm.be/parameter-api/v1/calculation/substrates",
+    "FinishingTypesUrl": "https://brandmark-api.cerm.be/api/v1/finishingtypes",
+    "ColorCodesUrl": "https://brandmark-api.cerm.be/parameter-api/v1/calculation/front-adhesive-backing/colour-codes?Filter=AllowRFQ%20eq%20true%20and%20Blocked%20ne%20true",
+    "Username": "CermAPI",
+    "Password": "Testerke.96145",
+    "ClientId": "A8C706636C584336B2CDCF399FAA9605",
+    "ClientSecret": "secret"
+  }
+}
+```
+
+## How it works
+- Client requests finishing types -> frontend `finish.js` calls `/Api/FinishingTypes`.
+- `FinishingTypesModel` reads config, authenticates to CERM (multiple strategies attempted), calls the configured `FinishingTypesUrl`, normalizes the JSON into `ParameterResponse` objects, filters `AllowRFQ`, sorts by `Descriptions` where `ISOLanguageCode == "en-US"`, then returns JSON to the client.
+- Frontend uses the `Descriptions` array (en-US entry) to populate the `#finish` dropdown.
+
+## Running locally
+1. Ensure .NET 8 SDK is installed.
+2. Configure secrets (recommended): `dotnet user-secrets` or environment variables for `Cerm:*`.
+3. Open solution in Visual Studio 2026 or run:
+   - `dotnet build`
+   - `dotnet run --project <project-folder>`
+4. Navigate to `https://localhost:5001` (or port shown).
+
+## Program / DI requirements
+- `IHttpClientFactory` must be registered (default in `WebApplication.CreateBuilder`).
+- Logging and `IConfiguration` are used by `Pages/Api/FinishingTypes.cshtml.cs` — ensure they are available (normal in Razor Pages template).
 
 ## Deployment
+- Publish using `dotnet publish -c Release`.
+- Host on IIS, Kestrel behind a reverse proxy, or Docker.
+- For Docker: copy configuration via environment variables or secret mounts.
+- Ensure network access to CERM endpoints from the deployment environment.
 
-[Production](https://wiselabels20251125155258-btbvc6cwdwetbjdc.canadacentral-01.azurewebsites.net/)
-[Development](https://wiselabels2025112515525-wiselabels-dev-f7bqa3fsamakdpcs.canadacentral-01.azurewebsites.net/)
-[Demo Site Wrapper](http://azwbfdev/wrapper.html)
+## Frontend notes & common issues
+- The app relies on DOM elements (IDs such as `send-quote-btn`, `finish`, `material`, `printing-filter`). Scripts must be loaded after DOM parsing or use `defer`/`DOMContentLoaded` wrappers.
+- Symptom: `TypeError: Cannot read properties of null (reading 'addEventListener')` typically means a script executed before the DOM element existed (or the element id changed). Fix by:
+  - Including script tags at the end of the page, or
+  - Adding `defer` to `<script>` tags, or
+  - Wrapping initialization in `document.addEventListener('DOMContentLoaded', ...)`.
+- Script order: include `site.js`, then `finish.js`, then `quote.js` so dropdowns are ready before other logic that depends on them.
 
-## Software Product Requirements
+## Logs & troubleshooting
+- The server logs OAuth and material mapping details. Look at application logs for:
+  - OAuth failures (401/400 responses)
+  - JSON parsing issues (unexpected shape)
+- On JSON parsing issues, `FinishingTypesModel` attempts several wrapper shapes (`Data`, `items`, `results`) and has a `ManualMapMaterials` fallback.
+- If the dropdown shows placeholder text or empty, confirm:
+  - `/Api/FinishingTypes` returns 200 and contains `materials`
+  - App has valid CERM credentials and network access
+  - Browser console shows no JS errors and `finish.js` executed
 
-### User Access Requirements
+## Contributing & maintenance
+- Keep API URLs and credentials configurable — do not hard-code production secrets.
+- Add unit/integration tests around `FinishingTypesModel` helpers (token acquisition and JSON mapping).
+- Keep frontend initialization defensive (null-check DOM queries before calling `addEventListener`).
 
-1. **Resellers - No Authentication**: Automatic authentication in the background to a default web user for resellers. Landing page/popup for verification where resellers agree they are a reseller/distributor and provide their company name and contact name to be recorded with the quote.
-2. **Resellers - WiseLink Account**: Automatic authentication in the background to the associated account/credentials linked to their WiseLink account.
-3. **End Users - White Label**: Automatic authentication in the background to a default web user for use with reseller-branded white label websites. Records both the reseller and end user company and contact information.
-
-### Outputs for the Quote
-
-1. Quote Letter PDF download link
-2. Automatic Email to Sales, Customer Service, etc. This email could have an attachment, or the quote data in another format in the email body.
-3. Automatic Email to the Customer.
-
-\*\*See [discountlabels.com](https://discountlabels.com) for reference as this is what most of our customers are used to using now.
-
-
-
-### Filtering Options on the Quote Form Page
-
-Where possible use the "AllowQuickQuote" filterable field.
-This Includes:
-
-1. Substrates
-2. Printing (Color Codes)
-3. Finishing (Finishing Types)
-4. Dies
-5. Packing (Packing Procedures)
-
-
-
-#### Finishing Field Filters based on Printing Field Choice
-
-2 Options
-
-1. If a "Printing" option (Color Code) is chosen that is a Ink Type (see inkklr\_\_.srt\_inkt) "0" for Flexo, "7" for Digital
-2. If a "Printing" option (aka Color Code) is chosen that includes the string "Flexo", then filter the options in Finshing to options that are Finishing Type "1", which is "Inline".
-
-If a "Printing" option (aka Color Code) is chosen that includes the string "Digital", then filter the options in Finishing to options that are Finishing Type "2", which is "Offline".
-
-See v1etaf\_\_.etap\_typ in Cerm SQL Database for values of "1" for "Inline" or "2" for "Offline"
-
-### Color Code Sample
-```json
-{
-    "Id": "DRL",
-    "Descriptions": [
-        {
-            "ISOLanguageCode": "en-US",
-            "Description": "Delam / Relam"
-        },
-        {
-            "ISOLanguageCode": "en-GB",
-            "Description": "Delam / Relam"
-        }
-    ],
-    "AllowQuickQuote": false,
-    "AllowRFQ": false,
-    "Blocked": false
-},
-```
-#### Existing Die Field Filters based on Printing Field Choice
-
-If a "Printing" option (aka Color Code) is chosen that includes the string "Flexo", then filter the Die options down to Material Type "1" (Rotary Die)
-
-If a "Printing" option (aka Color Code) is chosen that includes the string "Digital", then filter the Die options down to Material Type "2" (Flexible Die)
-
-See stnspr\_\_.materie\_ in Cerm SQL Database for values of "1" for "Rotary Die" or "2" for "Flexible Die"
-
-
-
-### ToDo:
-
-1. Add contact information fields for resellers and end users during the quote/order/invoice process.
-2. Store contact information with the quote/order/invoice records.
-3. Display contact information on generated documents (quotes, orders, invoices).
-4. Auth via GP account number.
-5. Add footnote if they do not chose to use an existing die.
-6. Filter die on shape.
-
-
-
-
-Parameter order
-1. Description - working
-2. Shape - working
-3. Corners - working
-4. Label Size - working
-5. Material/Substrate - pull from API. No filter.
-6. Printing - working.
-7. Cutting Die - requires Printing.
-8. Finishing
+## Contact / More info
+- For integration with additional CERM endpoints, add new Razor Page proxies under `Pages/Api/` following the same authentication pattern.
 
 

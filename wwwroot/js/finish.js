@@ -35,9 +35,19 @@ async function loadFinishingOptions(printingText) {
         // Clear existing options
         finishSelect.innerHTML = '';
 
-        // The API returns items where each item may include a Descriptions array:
-        // item.Descriptions = [{ ISOLanguageCode: 'en-US', Description: 'Gloss Laminate' }, ...]
-        const items = Array.isArray(data) ? data : (Object.values(data).find(v => Array.isArray(v)) || []);
+        // Explicitly support the server returning { materials: [...] }
+        let items = [];
+        if (Array.isArray(data)) {
+            items = data;
+        } else if (data && Array.isArray(data.materials)) {
+            items = data.materials;
+        } else {
+            // Fallback: find the first array value in the returned object
+            const possibleArray = Object.values(data).find(v => Array.isArray(v));
+            if (Array.isArray(possibleArray)) {
+                items = possibleArray;
+            }
+        }
 
         if (!Array.isArray(items) || items.length === 0) {
             console.warn('Finishing types response has no array payload:', data);
@@ -54,13 +64,17 @@ async function loadFinishingOptions(printingText) {
         placeholder.textContent = 'Select finish';
         finishSelect.appendChild(placeholder);
 
-        // Determine filter criteria based on printing text
+        // Filter based on what was shown on the Printing button:
+        // - If Printing contains "Digital": hide finishes that contain "Flexo"
+        // - If Printing contains "Flexo": hide finishes that contain "Digital"
         const printingLower = (printingText || '').toLowerCase();
-        const isFlexo = printingLower.includes('flexo');
-        
-        // Filter items based on printing selection
-        const filteredItems = items.filter(item => {
-            // Get the description text for filtering
+        const printingMode =
+            printingLower.includes('digital') ? 'digital' :
+            printingLower.includes('flexo') ? 'flexo' :
+            null;
+
+        const getFinishDisplayTextLower = (item) => {
+            // Prefer en-US description (Descriptions[]), fallback to other text fields
             let text = '';
             if (Array.isArray(item?.Descriptions)) {
                 const enDesc = item.Descriptions.find(d => (d?.ISOLanguageCode || '').toLowerCase() === 'en-us' || (d?.ISOLanguageCode || '').toLowerCase() === 'en');
@@ -68,25 +82,20 @@ async function loadFinishingOptions(printingText) {
                     text = enDesc.Description || enDesc.description;
                 }
             }
-            
-            // Fallback to other text fields
             if (!text) {
                 text = item?.Description ?? item?.description ?? item?.Name ?? item?.name ?? '';
             }
-            
-            const textLower = text.toLowerCase();
-            
-            if (isFlexo) {
-                // If printing is flexo, only show finishes that contain "flexo"
-                return textLower.includes('flexo');
-            } else {
-                // Otherwise, show finishes that contain "Digital" or "Blank"
-                return textLower.includes('digital') || textLower.includes('blank');
-            }
-        });
+            return (text || '').toLowerCase();
+        };
 
-        // Populate options with filtered items
-        filteredItems.forEach(item => {
+        let itemsToRender = items;
+        if (printingMode === 'digital') {
+            itemsToRender = items.filter(i => !getFinishDisplayTextLower(i).includes('flexo'));
+        } else if (printingMode === 'flexo') {
+            itemsToRender = items.filter(i => !getFinishDisplayTextLower(i).includes('digital'));
+        }
+
+        itemsToRender.forEach(item => {
             const opt = document.createElement('option');
 
             // Prefer the Descriptions array entry where ISOLanguageCode === 'en-US'
@@ -112,12 +121,11 @@ async function loadFinishingOptions(printingText) {
             finishSelect.appendChild(opt);
         });
 
-        // If no filtered items, show a message
-        if (filteredItems.length === 0) {
-            const noOptions = document.createElement('option');
-            noOptions.value = '';
-            noOptions.textContent = 'No finishes available for this printing option';
-            finishSelect.appendChild(noOptions);
+        if (printingMode !== null && itemsToRender.length === 0) {
+            const none = document.createElement('option');
+            none.value = '';
+            none.textContent = 'No finishes available for this printing option';
+            finishSelect.appendChild(none);
         }
 
         // If a previously selected value exists, attempt to restore it
