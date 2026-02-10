@@ -1,12 +1,13 @@
 {
   "version": 2,
-  "dgSpecHash": "Qa/GkzJ05qM=",
+  "dgSpecHash": "mD7II6JZrYw=",
   "success": true,
-  "projectFilePath": "c:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj",
+  "projectFilePath": "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\pmenefee\\.nuget\\packages\\azure.core\\1.47.1\\azure.core.1.47.1.nupkg.sha512",
     "C:\\Users\\pmenefee\\.nuget\\packages\\azure.identity\\1.14.2\\azure.identity.1.14.2.nupkg.sha512",
     "C:\\Users\\pmenefee\\.nuget\\packages\\dapper\\2.1.66\\dapper.2.1.66.nupkg.sha512",
+    "C:\\Users\\pmenefee\\.nuget\\packages\\markdig\\0.37.0\\markdig.0.37.0.nupkg.sha512",
     "C:\\Users\\pmenefee\\.nuget\\packages\\microsoft.bcl.asyncinterfaces\\8.0.0\\microsoft.bcl.asyncinterfaces.8.0.0.nupkg.sha512",
     "C:\\Users\\pmenefee\\.nuget\\packages\\microsoft.bcl.cryptography\\8.0.0\\microsoft.bcl.cryptography.8.0.0.nupkg.sha512",
     "C:\\Users\\pmenefee\\.nuget\\packages\\microsoft.data.sqlclient\\6.1.3\\microsoft.data.sqlclient.6.1.3.nupkg.sha512",

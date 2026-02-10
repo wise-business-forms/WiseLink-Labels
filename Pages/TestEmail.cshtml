@@ -1,0 +1,96 @@
+@page
+@model WiseLabels.Pages.TestEmailModel
+@{
+    ViewData["Title"] = "Test Email";
+}
+
+<div class="container py-4">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <h1>Test Email</h1>
+            <p class="text-muted">Use this page to test email sending functionality.</p>
+
+            @if (!string.IsNullOrEmpty(Model.ResultMessage))
+            {
+                <div class="alert @(Model.Success ? "alert-success" : "alert-danger")" role="alert">
+                    @Model.ResultMessage
+                </div>
+            }
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Send Test Email</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        @Html.AntiForgeryToken()
+
+                        <div class="mb-3">
+                            <label for="ToEmail" class="form-label">Recipient Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" id="ToEmail" name="ToEmail" 
+                                   value="@Model.ToEmail" required placeholder="recipient@example.com">
+                            <div class="form-text">Email address to send the test message to.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="QuoteId" class="form-label">Quote ID</label>
+                            <input type="text" class="form-control" id="QuoteId" name="QuoteId" 
+                                   value="@(Model.QuoteId ?? "TEST-001")" placeholder="TEST-001">
+                            <div class="form-text">A sample quote ID to include in the email.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="CustomerName" class="form-label">Customer Name</label>
+                            <input type="text" class="form-control" id="CustomerName" name="CustomerName" 
+                                   value="@(Model.CustomerName ?? "Test User")" placeholder="Test User">
+                            <div class="form-text">Name to use in the greeting.</div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">Send Test Email</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Current Email Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">SMTP Host:</dt>
+                        <dd class="col-sm-8"><code>@(Model.SmtpHost ?? "(not configured)")</code></dd>
+
+                        <dt class="col-sm-4">SMTP Port:</dt>
+                        <dd class="col-sm-8"><code>@Model.SmtpPort</code></dd>
+
+                        <dt class="col-sm-4">SMTP Username:</dt>
+                        <dd class="col-sm-8"><code>@(string.IsNullOrEmpty(Model.SmtpUsername) ? "(empty)" : "***")</code></dd>
+
+                        <dt class="col-sm-4">From Email:</dt>
+                        <dd class="col-sm-8"><code>@(Model.FromEmail ?? "(not configured)")</code></dd>
+
+                        <dt class="col-sm-4">From Name:</dt>
+                        <dd class="col-sm-8"><code>@(Model.FromName ?? "(not configured)")</code></dd>
+
+                        <dt class="col-sm-4">Configuration Status:</dt>
+                        <dd class="col-sm-8">
+                            @if (Model.IsConfigured)
+                            {
+                                <span class="badge bg-success">Configured</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark">Incomplete</span>
+                                <small class="text-muted d-block mt-1">Check appsettings.json Email section.</small>
+                            }
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <a href="/" class="btn btn-outline-secondary">Back to Home</a>
+            </div>
+        </div>
+    </div>
+</div>

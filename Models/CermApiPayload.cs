@@ -35,12 +35,15 @@ namespace WiseLabels.Models
         public List<int> Quantities { get; set; } = new();
 
         [JsonPropertyName("Width")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public double? Width { get; set; }
 
         [JsonPropertyName("Height")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public double? Height { get; set; }
 
         [JsonPropertyName("Radius")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public double? Radius { get; set; }
 
         [JsonPropertyName("PackingProcedureId")]

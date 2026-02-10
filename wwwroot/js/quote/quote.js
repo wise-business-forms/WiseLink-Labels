@@ -1,7 +1,19 @@
 document.addEventListener('DOMContentLoaded', function() {
+        // Stub for populateMaterials to prevent ReferenceError
+        function populateMaterials(data) {
+            // TODO: Implement material dropdown population logic here
+            console.log('populateMaterials called with:', data);
+        }
+    // Ensure loadMaterials is defined before use, at correct scope
+    function loadMaterials() {
+        QuoteApi.loadMaterials(materialLoading, materialError, materialSelect, populateMaterials);
+    }
     // Note: shapeInputs are now loaded dynamically, so we don't query them here
     const widthInput = document.getElementById('label-width');
     const heightInput = document.getElementById('label-height');
+    const dieSizeModeSelect = document.getElementById('die-size-mode');
+    const dieSizeModeContainer = document.getElementById('die-size-mode-container');
+    const customLabelSizeInputs = document.getElementById('custom-label-size-inputs');
     const diameterInput = document.getElementById('diameter');
     const sizeValidation = document.getElementById('size-validation');
     const diameterValidation = document.getElementById('diameter-validation');
@@ -18,6 +30,80 @@ document.addEventListener('DOMContentLoaded', function() {
     // Store materials data for filtering
     let allMaterialsData = null;
 
+    function getCornersMode() {
+        const selected = document.querySelector('input[name="corners"]:checked')?.value;
+        return (selected || '').toLowerCase(); // 'rounded' | 'square' | ''
+    }
+
+    function getDieSizeMode() {
+        return (dieSizeModeSelect?.value || 'existing').toLowerCase();
+    }
+
+    function isLabelSizeWidthHeightVisible() {
+        return customLabelSizeInputs && customLabelSizeInputs.style.display !== 'none';
+    }
+
+    function isCuttingDieRequiredForCurrentState() {
+        const shape = document.querySelector('input[name="shape"]:checked')?.value;
+        return isCuttingDieApplicableForShape(shape) && getDieSizeMode() === 'existing';
+    }
+
+    function toggleLabelSizeInputsForMode() {
+        // Only applies when label size section is shown (non-circle/oval)
+        const shape = document.querySelector('input[name="shape"]:checked')?.value;
+        const isCircleOrOval = shape === 'circle' || shape === 'oval';
+        if (isCircleOrOval) return;
+
+        // Special shapes cannot use an "existing die" selection in this flow.
+        if ((shape || '').toLowerCase() === 'special') {
+            if (dieSizeModeSelect) dieSizeModeSelect.value = 'custom';
+        }
+
+        // If user selects Square corners (instead of Rounded), force custom size entry and
+        // replace the Die Size dropdown with Width/Height inputs.
+        const cornersMode = getCornersMode();
+        if (cornersMode === 'square') {
+            if (dieSizeModeSelect) {
+                // Remember the user's prior selection so we can restore it when switching back to Rounded
+                if (dieSizeModeSelect.dataset.forcedByCorners !== 'true') {
+                    dieSizeModeSelect.dataset.prevMode = dieSizeModeSelect.value || 'existing';
+                }
+                dieSizeModeSelect.dataset.forcedByCorners = 'true';
+                dieSizeModeSelect.value = 'custom';
+            }
+            if (dieSizeModeContainer) dieSizeModeContainer.style.display = 'none';
+        } else {
+            if (dieSizeModeContainer) dieSizeModeContainer.style.display = 'block';
+            // If Custom was forced by Square corners, restore prior/default selection now.
+            if (dieSizeModeSelect && dieSizeModeSelect.dataset.forcedByCorners === 'true') {
+                const prev = dieSizeModeSelect.dataset.prevMode || 'existing';
+                dieSizeModeSelect.value = prev;
+                delete dieSizeModeSelect.dataset.forcedByCorners;
+                delete dieSizeModeSelect.dataset.prevMode;
+            }
+        }
+
+        const mode = getDieSizeMode();
+        const showCustom = mode === 'custom';
+
+        if (customLabelSizeInputs) {
+            // Keep flex layout so Width [X] Height stays inline
+            customLabelSizeInputs.style.display = showCustom ? 'flex' : 'none';
+        }
+
+        // Lock the manual inputs when using an existing die (they'll be populated from Cutting Die)
+        if (widthInput) widthInput.disabled = !showCustom;
+        if (heightInput) heightInput.disabled = !showCustom;
+
+        // When switching to custom, clear cutting die (since it won't be used)
+        if (showCustom) {
+            const cuttingDieSelect = document.getElementById('cutting-die');
+            if (cuttingDieSelect) {
+                cuttingDieSelect.value = '';
+            }
+        }
+    }
+
     function isCuttingDieApplicableForShape(shapeValue) {
         const v = (shapeValue || '').toLowerCase();
         // Business rule: If circle, oval, or special is selected, do not show Cutting Die.
@@ -30,7 +116,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const section = cuttingDieSelect.closest('.form-section');
         const selectedShape = document.querySelector('input[name="shape"]:checked')?.value;
-        const applicable = isCuttingDieApplicableForShape(selectedShape);
+        const applicable = isCuttingDieApplicableForShape(selectedShape) && getDieSizeMode() === 'existing';
 
         if (section) {
             section.style.display = applicable ? 'block' : 'none';
@@ -41,7 +127,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!applicable) {
             // Clear and disable when not applicable.
-            cuttingDieSelect.innerHTML = '<option value="">Cutting die not applicable for selected shape</option>';
+            cuttingDieSelect.innerHTML = getDieSizeMode() === 'custom'
+                ? '<option value="">Cutting die not required for custom die size</option>'
+                : '<option value="">Cutting die not applicable for selected shape</option>';
             cuttingDieSelect.value = '';
             cuttingDieSelect.disabled = true;
             return;
@@ -86,189 +174,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const data = await response.json();
 
-            // Extract materials from response (handle different response structures)
-            const materialsData = data.materials || data.data || data.items || data.results || data;
-            allMaterialsData = materialsData; // Store for potential re-filtering
-            populateMaterials(materialsData);
 
-        } catch (error) {
-            console.error('Error loading materials:', error);
-            let errorMessage = 'Error loading materials. ';
-            if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
-                errorMessage += 'Please check your network connection or API availability.';
-            } else {
-                errorMessage += (error.message || 'Please refresh the page to retry.');
+            // Use QuoteValidation for validation functions
+            const validateEmail = QuoteValidation.validateEmail;
+            const validatePhone = QuoteValidation.validatePhone;
+            const validateName = QuoteValidation.validateName;
+            function validateDiameter() {
+                QuoteValidation.validateDiameter(diameterInput, diameterValidation);
             }
-            materialError.textContent = errorMessage;
-            materialError.style.display = 'block';
-            materialSelect.innerHTML = '<option value="">Error loading materials. See error message below.</option>';
-        } finally {
-            materialLoading.style.display = 'none';
-            materialSelect.style.opacity = '1';
-            materialSelect.disabled = false;
-        }
-    }
-
-    // Fetch Materials from API via server-side endpoint (no prerequisites)
-    async function loadMaterials() {
-        try {
-            // Show loading state
-            materialLoading.style.display = 'block';
-            materialError.style.display = 'none';
-            materialSelect.style.opacity = '0.5';
-            materialSelect.disabled = false; // Materials load immediately, no dependency on Printing
-
-            // Materials URL - no printing filter for now
-            const url = '/Api/Materials';
-
-            // Call server-side endpoint (credentials are handled server-side)
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json'
+            function validateLabelSize() {
+                if (!isLabelSizeWidthHeightVisible()) {
+                    sizeValidation.style.display = 'none';
+                    return;
                 }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: 'Unknown error occurred' }));
-                throw new Error(errorData.error || `Failed to load materials: ${response.status}`);
+                QuoteValidation.validateLabelSize(widthInput, heightInput, sizeValidation);
             }
-
-            const data = await response.json();
-            
-            // Extract materials from response (handle different response structures)
-            const materialsData = data.materials || data.data || data.items || data.results || data;
-            allMaterialsData = materialsData; // Store for potential re-filtering
-            populateMaterials(materialsData);
-
-        } catch (error) {
-            console.error('Error loading materials:', error);
-            let errorMessage = 'Error loading materials. ';
-            if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
-                errorMessage += 'Please check your network connection or API availability.';
-            } else {
-                errorMessage += (error.message || 'Please refresh the page to retry.');
-            }
-            materialError.textContent = errorMessage;
-            materialError.style.display = 'block';
-            materialSelect.innerHTML = '<option value="">Error loading materials. See error message below.</option>';
-        } finally {
-            materialLoading.style.display = 'none';
-            materialSelect.style.opacity = '1';
-            materialSelect.disabled = false;
-        }
-    }
-
-    // Fetch Printing options (ColorCodes) from API via server-side endpoint
-    async function loadPrintingOptions() {
-        console.log('loadPrintingOptions called');
-        try {
-            console.log('Checking required elements...');
-            if (!printingFilter || !printingLoading) {
-                console.error('Required elements not found:', { printingFilter, printingLoading });
-                return;
-            }
-            console.log('Required elements found, proceeding...');
-            
-            // Show loading state
-            printingLoading.style.display = 'block';
-            printingError.style.display = 'none';
-            printingFilter.style.opacity = '0.5';
-            printingFilter.style.pointerEvents = 'none';
-
-            console.log('Fetching /Api/ColorCodes...');
-            // Call server-side endpoint (credentials are handled server-side)
-            const response = await fetch('/Api/ColorCodes', {
-                method: 'GET',
-                headers:
-                 {
-                    'Accept': 'application/json'
-                }
-            });
-            
-            console.log('Response received:', response.status, response.statusText, response.ok);
-
-            if (!response.ok) {
-                console.error('Response not OK, parsing error data...');
-                const errorData = await response.json().catch(() => ({ error: 'Unknown error occurred' }));
-                console.error('API error:', errorData);
-                throw new Error(errorData.error || `Failed to load printing options: ${response.status}`);
-            }
-
-            console.log('Response OK, parsing JSON...');
-            const data = await response.json();
-            console.log('Data received from API:', data);
-            console.log('About to call populatePrintingOptions with data type:', typeof data, 'isArray:', Array.isArray(data));
-            console.log('Calling populatePrintingOptions now...');
-            try {
-                populatePrintingOptions(data);
-                console.log('populatePrintingOptions call completed');
-            } catch (populateError) {
-                console.error('Error in populatePrintingOptions:', populateError);
-                console.error('Error stack:', populateError.stack);
-                throw populateError;
-            }
-
-        } catch (error) {
-            console.error('Error loading printing options:', error);
-            let errorMessage = 'Error loading printing options. ';
-            if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
-                errorMessage += 'Please check your network connection or API availability.';
-            } else {
-                errorMessage += (error.message || 'Please refresh the page to retry.');
-            }
-            printingError.textContent = errorMessage;
-            printingError.style.display = 'block';
-            printingFilter.innerHTML = '<div class="text-muted">Error loading printing options. Please refresh the page to retry.</div>';
-        } finally {
-            printingLoading.style.display = 'none';
-            printingFilter.style.opacity = '1';
-            printingFilter.style.pointerEvents = 'auto';
-        }
-    }
-
-
-    // Populate Printing options (ColorCodes) buttons
-    function populatePrintingOptions(data) {
-        console.log('populatePrintingOptions called with data:', data);
-        if (!printingFilter) {
-            console.error('Cannot populate printing options - printingFilter element not found');
-            return;
-        }
-        
-        // Clear existing buttons
-        printingFilter.innerHTML = '';
-        
-        console.log('Raw API response:', data);
-        
-        // Handle different response structures
-        let colorCodes = [];
-        if (Array.isArray(data)) {
-            colorCodes = data;
-        } else if (data.Data && Array.isArray(data.Data)) {
-            colorCodes = data.Data;
-        } else if (data.items && Array.isArray(data.items)) {
-            colorCodes = data.items;
-        } else if (data.results && Array.isArray(data.results)) {
-            colorCodes = data.results;
-        } else {
-            console.error('Unexpected data structure:', data);
-            printingError.textContent = 'Unexpected response format from API';
-            printingError.style.display = 'block';
-            return;
-        }
-
-        console.log('Total printing options received:', colorCodes.length);
-        console.log('Printing options data:', colorCodes);
-        
-        if (colorCodes.length === 0) {
-            console.warn('No printing options found in API response');
-            printingFilter.innerHTML = '<div class="text-muted">No printing options available.</div>';
-            return;
-        }
-
-        // Extract printing options with deduplication by Id
-        const printingMap = new Map();
         
         colorCodes.forEach((colorCode, index) => {
             console.log(`Processing color code ${index}:`, colorCode);
@@ -378,7 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Load cutting die options based on printing selection
                 // Prefer passing the Id (e.g. "2F") so the server can reliably determine materie_
                 const currentShape = document.querySelector('input[name="shape"]:checked')?.value;
-                if (isCuttingDieApplicableForShape(currentShape) && (selectedPrintingId || selectedPrintingText)) {
+                if (isCuttingDieApplicableForShape(currentShape) && getDieSizeMode() === 'existing' && (selectedPrintingId || selectedPrintingText)) {
                     loadCuttingDieOptions(selectedPrintingId || selectedPrintingText);
                 } else {
                     // Clear cutting die if no printing selected
@@ -391,231 +311,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
                 
-                // Load Finishing options based on Printing selection
-                if (selectedPrintingText) {
-                    // finish.js exposes a global loadFinishingOptions(printingText)
-                    loadFinishingOptions(selectedPrintingText);
-                } else {
-                    // Clear finish if no printing selected
-                    const finishSelect = document.getElementById('finish');
-                    if (finishSelect) {
-                        finishSelect.innerHTML = '<option value="">Please select a Printing option first</option>';
-                        finishSelect.disabled = true;
-                    }
+
+                // Use QuoteApi for API/data-fetching functions
+                function loadMaterials() {
+                    QuoteApi.loadMaterials(materialLoading, materialError, materialSelect, populateMaterials);
                 }
-                
-                updateSummaryPanel();
-            });
-            
-            printingFilter.appendChild(button);
-        });
 
-        // Restore saved printing value if available
-        const savedDataScript = document.getElementById('saved-quote-data');
-        if (savedDataScript) {
-            try {
-                const savedData = JSON.parse(savedDataScript.textContent);
-                const savedPrintingValue = savedData.printingValue || savedData.printing;
-                if (savedPrintingValue) {
-                    // Try to find button by Id first (if saved as Id)
-                    let buttonToActivate = printingFilter.querySelector(`button[data-printing-id="${savedPrintingValue}"]`);
-                    // If not found by Id, try by text
-                    if (!buttonToActivate) {
-                        buttonToActivate = Array.from(printingFilter.querySelectorAll('button')).find(btn => 
-                            btn.textContent.trim() === savedPrintingValue || 
-                            btn.getAttribute('data-printing-text') === savedPrintingValue
-                        );
-                    }
-                    if (buttonToActivate) {
-                        buttonToActivate.classList.add('active');
-                        // Trigger materials load if printing is restored
-                        const selectedPrintingText = buttonToActivate.getAttribute('data-printing-text') || buttonToActivate.textContent.trim();
-                        const selectedPrintingId = buttonToActivate.getAttribute('data-printing-id') || '';
-                        if (selectedPrintingId || selectedPrintingText) {
-                            const currentShape = document.querySelector('input[name="shape"]:checked')?.value;
-                            if (isCuttingDieApplicableForShape(currentShape)) {
-                                loadCuttingDieOptions(selectedPrintingId || selectedPrintingText);
-                            }
-                            if (selectedPrintingText) {
-                                loadFinishingOptions(selectedPrintingText);
-                            }
-                        }
-                    }
+                function loadPrintingOptions() {
+                    QuoteApi.loadPrintingOptions(printingFilter, printingLoading, printingError, populatePrintingOptions);
                 }
-            } catch (e) {
-                console.error('Error restoring printing option:', e);
-            }
-        }
 
-        // Update summary panel
-        updateSummaryPanel();
-    }
-
-    // Populate Materials dropdown
-    function populateMaterials(data) {
-        // Clear existing options
-        materialSelect.innerHTML = '';
-        
-        console.log('populateMaterials called with data:', data);
-        console.log('populateMaterials data type:', typeof data, 'isArray:', Array.isArray(data));
-        
-        // Handle different response structures
-        let materials = [];
-        if (Array.isArray(data)) {
-            materials = data;
-        } else if (data.Data && Array.isArray(data.Data)) {
-            materials = data.Data;
-        } else if (data.items && Array.isArray(data.items)) {
-            materials = data.items;
-        } else if (data.results && Array.isArray(data.results)) {
-            materials = data.results;
-        }
-
-        console.log('Materials array after parsing:', materials.length);
-        if (materials.length > 0) {
-            console.log('First material structure:', materials[0]);
-            console.log('First material keys:', Object.keys(materials[0]));
-        }
-
-        if (materials.length === 0) {
-            materialSelect.innerHTML = '<option value="">No materials available</option>';
-            console.warn('No materials found in response');
-            return;
-        }
-
-        let addedCount = 0;
-        let skippedCount = 0;
-        
-        // Populate dropdown
-        materials.forEach((material, index) => {
-            console.log(`Processing material ${index}:`, material);
-            
-            // Get Id from root level (flat structure)
-            const materialId = material.Id || material.id;
-            if (!materialId) {
-                console.warn(`  Skipping material ${index} - no Id found. Material keys:`, Object.keys(material));
-                skippedCount++;
-                return;
-            }
-            
-            console.log(`  Material ID found: ${materialId}`);
-            
-            const option = document.createElement('option');
-            
-            // Use Id as the form value
-            option.value = materialId;
-            
-            // Get description - specifically look for en-US, fallback to first if not found
-            let description = 'Unknown';
-            
-            // Get Descriptions array from root level (flat structure)
-            const descriptionsArray = material.Descriptions || material.descriptions;
-            console.log(`  Descriptions array:`, descriptionsArray);
-            
-            if (descriptionsArray && Array.isArray(descriptionsArray) && descriptionsArray.length > 0) {
-                console.log(`  Found ${descriptionsArray.length} descriptions`);
-                // First, try to find exact match for "en-US"
-                const enUSDesc = descriptionsArray.find(d => {
-                    const langCode = d.ISOLanguageCode || d.isoLanguageCode || d.ISOLanguagecode;
-                    return langCode === 'en-US' || langCode === 'en-us';
-                });
-                
-                if (enUSDesc) {
-                    description = enUSDesc.Description || enUSDesc.description || 'Unknown';
-                    console.log(`  Using en-US description: ${description}`);
-                } else {
-                    // Fallback to first description if en-US not found
-                    const firstDesc = descriptionsArray[0];
-                    description = firstDesc.Description || firstDesc.description || 'Unknown';
-                    console.log(`  Using first description (${firstDesc.ISOLanguageCode || 'unknown lang'}): ${description}`);
+                function loadCuttingDieOptions(printing) {
+                    const cuttingDieSelect = document.getElementById('cutting-die');
+                    const cuttingDieLoading = document.getElementById('cutting-die-loading');
+                    const cuttingDieError = document.getElementById('cutting-die-error');
+                    QuoteApi.loadCuttingDieOptions(printing, cuttingDieSelect, cuttingDieLoading, cuttingDieError);
                 }
-            } else {
-                console.warn(`  No descriptions found for material ${index}`);
-            }
-            
-            option.textContent = description;
-            materialSelect.appendChild(option);
-            addedCount++;
-        });
-        
-        console.log(`Materials population complete: ${addedCount} added, ${skippedCount} skipped`);
-        
-        if (addedCount === 0) {
-            materialSelect.innerHTML = '<option value="">No valid materials found</option>';
-        }
-
-        // Restore saved material value if available (after options are populated)
-        const savedMaterialValue = materialSelect.getAttribute('data-saved-value');
-        if (savedMaterialValue) {
-            // Try to find and select the option with this value
-            const optionToSelect = Array.from(materialSelect.options).find(opt => opt.value === savedMaterialValue);
-            if (optionToSelect) {
-                materialSelect.value = savedMaterialValue;
-            }
-        }
-
-        // Update summary panel if material was already selected
-        updateSummaryPanel();
-    }
-
-    // Fetch Cutting Die options (depends on Printing selection)
-    async function loadCuttingDieOptions(printing) {
-        const cuttingDieSelect = document.getElementById('cutting-die');
-        const cuttingDieLoading = document.getElementById('cutting-die-loading');
-        const cuttingDieError = document.getElementById('cutting-die-error');
-        
-        if (!cuttingDieSelect || !cuttingDieLoading || !cuttingDieError) {
-            console.error('Cutting die elements not found');
-            return;
-        }
-        
-        try {
-            // Show loading state
-            cuttingDieLoading.style.display = 'block';
-            cuttingDieError.style.display = 'none';
-            cuttingDieSelect.style.opacity = '0.5';
-            cuttingDieSelect.disabled = true;
-            cuttingDieSelect.innerHTML = '<option value="">Loading cutting die options...</option>';
-            
-            // Call server-side endpoint with printing parameter
-            const url = `/Api/CuttingDie?printing=${encodeURIComponent(printing)}`;
-            
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json'
-                }
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: 'Unknown error occurred' }));
-                throw new Error(errorData.error || `Failed to load cutting die options: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            // Extract cutting die options from response
-            const cuttingDieOptions = data.cuttingDieOptions || data.data || data.items || data.results || [];
-            
-            // Clear and populate dropdown
-            cuttingDieSelect.innerHTML = '';
-            
-            if (cuttingDieOptions.length === 0) {
-                cuttingDieSelect.innerHTML = '<option value="">No cutting die options available</option>';
-            } else {
-                // Populate dropdown with options
-                // Note: ASP.NET Core JSON serialization defaults to camelCase
-                cuttingDieOptions.forEach(option => {
-                    const optionElement = document.createElement('option');
-                    // Get the raw reference (handle possible naming variations)
-                    const optionValue = option.stns_ref || option.stnsRef || '';
-
-                    // Use cleanedRef as the option value so "QQ-R-" is removed
-                    optionElement.value = optionValue;
-
-                    // Human-readable text for the option
-                    optionElement.textContent = option.stnsOms || option.StnsOms || option.stns_oms || 'Unknown';
-
                     // Remove leading "QQ-R-" prefix if present
                     const cleanedRef = optionElement.textContent.replace(/^QQ-R-/, '');
 
@@ -627,7 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     cuttingDieSelect.appendChild(optionElement);
                 });
-            }
+            });
             
             // Restore saved value if available
             const savedDataScript = document.getElementById('saved-quote-data');
@@ -752,16 +463,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Function to validate email
+    // Function to validate email (required)
     function validateEmail() {
         const emailInput = document.getElementById('contact-email');
         const emailValidation = document.getElementById('email-validation');
         const email = emailInput.value.trim();
         
         if (!email) {
-            emailValidation.style.display = 'none';
-            emailInput.classList.remove('is-invalid');
-            return true; // Email is optional
+            emailValidation.textContent = 'Email is required.';
+            emailValidation.style.display = 'block';
+            emailInput.classList.add('is-invalid');
+            return false;
         }
         
         // Basic email validation regex (build pattern to avoid Razor parsing issues)
@@ -780,16 +492,17 @@ document.addEventListener('DOMContentLoaded', function() {
         return true;
     }
 
-    // Function to validate phone
+    // Function to validate phone (required)
     function validatePhone() {
         const phoneInput = document.getElementById('contact-phone');
         const phoneValidation = document.getElementById('phone-validation');
         const phone = phoneInput.value.trim();
         
         if (!phone) {
-            phoneValidation.style.display = 'none';
-            phoneInput.classList.remove('is-invalid');
-            return true; // Phone is optional
+            phoneValidation.textContent = 'Phone number is required.';
+            phoneValidation.style.display = 'block';
+            phoneInput.classList.add('is-invalid');
+            return false;
         }
         
         // Remove common phone formatting characters for validation
@@ -799,7 +512,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const phoneRegex = /^\+?\d{10,15}$/;
         
         if (!phoneRegex.test(cleanedPhone)) {
-            phoneValidation.textContent = 'Please enter a valid phone number (10-15 digits).';
+            phoneValidation.textContent = 'Please enter a valid phone number (10-15 digits, e.g. 111-222-3333).';
             phoneValidation.style.display = 'block';
             phoneInput.classList.add('is-invalid');
             return false;
@@ -810,16 +523,17 @@ document.addEventListener('DOMContentLoaded', function() {
         return true;
     }
 
-    // Function to validate name (optional, but if provided should be reasonable)
+    // Function to validate name (required)
     function validateName() {
         const nameInput = document.getElementById('contact-name');
         const nameValidation = document.getElementById('name-validation');
         const name = nameInput.value.trim();
         
         if (!name) {
-            nameValidation.style.display = 'none';
-            nameInput.classList.remove('is-invalid');
-            return true; // Name is optional
+            nameValidation.textContent = 'Name is required.';
+            nameValidation.style.display = 'block';
+            nameInput.classList.add('is-invalid');
+            return false;
         }
         
         // Check if name is too short or too long
@@ -842,27 +556,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return true;
     }
 
-    // Function to format number without trailing zeros
-    function formatNumber(value) {
-        if (!value || isNaN(value)) return '';
-        const num = parseFloat(value);
-        // Remove trailing zeros
-        return num.toString().replace(/\.0+$/, '').replace(/(\d+\.\d*?)0+$/, '$1');
-    }
 
-    // Function to round to nearest 1/32"
-    function roundToNearest32nd(value) {
-        if (!value || isNaN(value)) return '';
-        const num = parseFloat(value);
-        return formatNumber(Math.round(num * 32) / 32);
-    }
-
-    // Function to round to nearest hundredth
-    function roundToNearestHundredth(value) {
-        if (!value || isNaN(value)) return '';
-        const num = parseFloat(value);
-        return formatNumber(Math.round(num * 100) / 100);
-    }
+    // Use QuoteHelpers for formatting, rounding, and validation
+    const formatNumber = QuoteHelpers.formatNumber;
+    const roundToNearest32nd = QuoteHelpers.roundToNearest32nd;
+    const roundToNearestHundredth = QuoteHelpers.roundToNearestHundredth;
 
     // Function to validate diameter
     function validateDiameter() {
@@ -901,6 +599,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Skip validation for circle and oval (they use diameter)
         if (selectedShape === 'circle' || selectedShape === 'oval') {
+            sizeValidation.style.display = 'none';
+            return;
+        }
+
+        // Skip validation when width/height are hidden (Existing Die Size)
+        if (!isLabelSizeWidthHeightVisible()) {
             sizeValidation.style.display = 'none';
             return;
         }
@@ -1045,21 +749,9 @@ function toggleSizeSections() {
         }
     }
 
-    // Validate input is numeric (float or int) - show error if invalid but don't block typing
-    function validateNumericInput(input) {
-        const value = input.value;
-        if (value === '') return true;
-        // Allow: numbers, decimals, negative sign at start
-        const regex = /^-?\d*\.?\d*$/;
-        return regex.test(value);
-    }
 
-    // Function to format text for display
-    function formatLabel(text) {
-        return text.split(/-|_/).map(word => 
-            word.charAt(0).toUpperCase() + word.slice(1)
-        ).join(' ');
-    }
+    const validateNumericInput = QuoteHelpers.validateNumericInput;
+    const formatLabel = QuoteHelpers.formatLabel;
 
     // Function to get selected printing option
     function getSelectedPrinting() {
@@ -1104,6 +796,14 @@ function toggleSizeSections() {
     function updateSummaryPanel() {
         const summaryContainer = document.getElementById('selected-choices-summary');
         const choices = [];
+
+        // Reference (optional) - show first when present
+        const refType = document.getElementById('reference-type')?.value;
+        const refValue = document.getElementById('reference-value')?.value?.trim();
+        if (refValue) {
+            const refLabels = { 'company-name': 'Company Name', 'account-number': 'Account Number', 'purchase-order-number': 'Purchase Order Number', 'invoice-number': 'Invoice Number' };
+            choices.push({ label: refLabels[refType] || 'Reference', value: refValue });
+        }
 
         // Description - always show in summary
         const description = document.getElementById('description')?.value.trim();
@@ -1187,17 +887,13 @@ function toggleSizeSections() {
             choices.push({ label: 'Unwind Direction', value: label });
         }
 
-        // Versions and Total Quantity
-        const versions = document.getElementById('versions')?.value;
-        const totalQuantity = document.getElementById('total-quantity')?.value;
-        if (versions || totalQuantity) {
-            let qtyText = '';
-            if (versions) qtyText += `${versions} version${versions != 1 ? 's' : ''}`;
-            if (versions && totalQuantity) qtyText += ', ';
-            if (totalQuantity) qtyText += `${totalQuantity} total labels`;
-            if (qtyText) {
-                choices.push({ label: 'Quantity', value: qtyText });
-            }
+        // Quantities
+        const quantityInputs = document.querySelectorAll('.quantity-input');
+        const quantityValues = Array.from(quantityInputs)
+            .map(el => parseInt(el.value?.trim(), 10))
+            .filter(n => !isNaN(n) && n >= 1);
+        if (quantityValues.length > 0) {
+            choices.push({ label: 'Quantity', value: quantityValues.map(q => q.toLocaleString()).join(' / ') });
         }
 
         // Artwork Option
@@ -1239,59 +935,53 @@ function toggleSizeSections() {
         summaryContainer.innerHTML = html;
     }
 
-    // Event listeners
-    // Shape input event listeners
-    document.querySelectorAll('input[name="shape"]').forEach(input => {
-        input.addEventListener('change', function() {
-            toggleCornersSection();
-            toggleSizeSections();
-            toggleCuttingDieSection();
-            validateLabelSize();
-            validateDiameter();
+    // Reference field listeners (update summary)
+    document.getElementById('reference-type')?.addEventListener('change', updateSummaryPanel);
+    document.getElementById('reference-value')?.addEventListener('input', updateSummaryPanel);
+    document.getElementById('reference-value')?.addEventListener('blur', updateSummaryPanel);
+
+    // Customer autocomplete logic has been moved to wwwroot/js/quote/quote-autocomplete.js
+    // Please ensure that file is included in your HTML after quote.js
+    if (widthInput) {
+        widthInput.addEventListener('blur', function() { 
+            handleSizeInputBlur(this);
             updateSummaryPanel();
         });
-    });
-
-    // Width and Height input handlers
-    if (widthInput) {
-        widthInput.addEventListener('input', function () {
+    }
+    if (heightInput) {
+        heightInput.addEventListener('input', function() {
             if (validateNumericInput(this)) {
                 validateLabelSize();
                 updateSummaryPanel();
             }
         });
+        heightInput.addEventListener('blur', function() { 
+            handleSizeInputBlur(this);
+            updateSummaryPanel();
+        });
     }
-    widthInput.addEventListener('blur', function() { 
-        handleSizeInputBlur(this);
-        updateSummaryPanel();
-    });
-    
-    heightInput.addEventListener('input', function() {
-        if (validateNumericInput(this)) {
-            validateLabelSize();
-            updateSummaryPanel();
-        }
-    });
-    heightInput.addEventListener('blur', function() { 
-        handleSizeInputBlur(this);
-        updateSummaryPanel();
-    });
-
     // Diameter input handlers
-    diameterInput.addEventListener('input', function() {
-        if (validateNumericInput(this)) {
-            validateDiameter();
+    if (diameterInput) {
+        diameterInput.addEventListener('input', function() {
+            if (validateNumericInput(this)) {
+                validateDiameter();
+                updateSummaryPanel();
+            }
+        });
+        diameterInput.addEventListener('blur', function() { 
+            handleDiameterInputBlur(this);
             updateSummaryPanel();
-        }
-    });
-    diameterInput.addEventListener('blur', function() { 
-        handleDiameterInputBlur(this);
-        updateSummaryPanel();
-    });
+        });
+    }
 
     // Corners change handler
     document.querySelectorAll('input[name="corners"]').forEach(input => {
-        input.addEventListener('change', updateSummaryPanel);
+        input.addEventListener('change', function() {
+            toggleLabelSizeInputsForMode();
+            toggleCuttingDieSection();
+            validateLabelSize();
+            updateSummaryPanel();
+        });
     });
 
     // Cutting Die change handler:
@@ -1300,6 +990,47 @@ function toggleSizeSections() {
     document.getElementById('cutting-die')?.addEventListener('change', function() {
         applyCuttingDieToLabelSize();
         updateSummaryPanel();
+    });
+
+    // Add quantity button (max 5)
+    const quantityContainer = document.getElementById('quantity-inputs-container');
+    const addQuantityBtn = document.getElementById('add-quantity-btn');
+    const MAX_QUANTITIES = 5;
+    function updateAddQuantityButton() {
+        const count = quantityContainer?.querySelectorAll('.quantity-row').length || 0;
+        if (addQuantityBtn) addQuantityBtn.disabled = count >= MAX_QUANTITIES;
+    }
+    function addQuantityRow(value = '') {
+        const count = quantityContainer?.querySelectorAll('.quantity-row').length || 0;
+        if (count >= MAX_QUANTITIES) return;
+        const row = document.createElement('div');
+        row.className = 'quantity-row d-flex align-items-center gap-2';
+        row.innerHTML = '<label class="mb-0" style="min-width: 5rem;">Quantity</label><input type="number" class="form-control quantity-input" name="quantity" min="1" placeholder="e.g. 1000" value="' + (value || '') + '"><button type="button" class="btn btn-outline-danger btn-sm remove-quantity-btn" title="Remove">×</button>';
+        quantityContainer?.appendChild(row);
+        row.querySelector('.remove-quantity-btn')?.addEventListener('click', function() {
+            row.remove();
+            updateAddQuantityButton();
+            updateSummaryPanel();
+        });
+        row.querySelector('.quantity-input')?.addEventListener('input', updateSummaryPanel);
+        updateAddQuantityButton();
+        updateSummaryPanel();
+    }
+    if (addQuantityBtn) {
+        addQuantityBtn.addEventListener('click', function() { addQuantityRow(); });
+    }
+    // Init from data-initial-quantities (e.g. when returning from Edit)
+    const initialQtys = quantityContainer?.dataset.initialQuantities?.split(',').map(s => s.trim()).filter(Boolean) || [];
+    if (initialQtys.length > 1) {
+        const firstInput = quantityContainer?.querySelector('.quantity-input');
+        if (firstInput) firstInput.value = initialQtys[0] || '';
+        for (let i = 1; i < Math.min(initialQtys.length, MAX_QUANTITIES); i++) {
+            addQuantityRow(initialQtys[i]);
+        }
+    }
+    updateAddQuantityButton();
+    quantityContainer?.addEventListener('input', function(e) {
+        if (e.target?.classList?.contains('quantity-input')) updateSummaryPanel();
     });
 
     // Printing buttons are handled in populatePrintingOptions function
@@ -1332,8 +1063,25 @@ function toggleSizeSections() {
     });
 
     // Description change handler
-    document.getElementById('description')?.addEventListener('input', updateSummaryPanel);
-    document.getElementById('description')?.addEventListener('change', updateSummaryPanel);
+    const descriptionInput = document.getElementById('description');
+    const descriptionCharCount = document.getElementById('description-char-count');
+    const DESCRIPTION_MAX = 50;
+    function updateDescriptionCharCount() {
+        if (!descriptionCharCount) return;
+        const len = (descriptionInput?.value ?? '').length;
+        descriptionCharCount.textContent = `${len}/${DESCRIPTION_MAX} characters`;
+        descriptionCharCount.classList.toggle('text-danger', len >= DESCRIPTION_MAX);
+        descriptionCharCount.classList.toggle('text-muted', len < DESCRIPTION_MAX);
+    }
+    descriptionInput?.addEventListener('input', function() {
+        updateDescriptionCharCount();
+        updateSummaryPanel();
+    });
+    descriptionInput?.addEventListener('change', function() {
+        updateDescriptionCharCount();
+        updateSummaryPanel();
+    });
+    updateDescriptionCharCount();
 
     // Contact information validation handlers
     document.getElementById('contact-name')?.addEventListener('blur', validateName);
@@ -1360,6 +1108,7 @@ function toggleSizeSections() {
     // Initial setup
     toggleCornersSection();
     toggleSizeSections();
+    toggleLabelSizeInputsForMode();
     toggleCuttingDieSection();
     validateLabelSize();
     validateDiameter();
@@ -1384,7 +1133,7 @@ function toggleSizeSections() {
             if (selectedPrintingId || selectedPrintingText) {
                 // Load cutting die and finishing options based on selected printing
                 const currentShape = document.querySelector('input[name="shape"]:checked')?.value;
-                if (isCuttingDieApplicableForShape(currentShape)) {
+                if (isCuttingDieRequiredForCurrentState() && isCuttingDieApplicableForShape(currentShape)) {
                     loadCuttingDieOptions(selectedPrintingId || selectedPrintingText);
                 }
                 if (selectedPrintingText) {
@@ -1426,10 +1175,21 @@ function toggleSizeSections() {
             if (savedData.phone) {
                 document.getElementById('contact-phone').value = savedData.phone;
             }
+
+            // Restore reference
+            if (savedData.referenceType) {
+                const refType = document.getElementById('reference-type');
+                if (refType) refType.value = savedData.referenceType;
+            }
+            if (savedData.referenceValue) {
+                const refValue = document.getElementById('reference-value');
+                if (refValue) refValue.value = savedData.referenceValue;
+            }
             
             // Restore description
             if (savedData.description) {
                 document.getElementById('description').value = savedData.description;
+                if (typeof updateDescriptionCharCount === 'function') updateDescriptionCharCount();
             }
 
             // Restore shape
@@ -1638,6 +1398,11 @@ function toggleSizeSections() {
                 document.getElementById('description')?.focus();
                 return;
             }
+            if (description.length > 50) {
+                alert('Description cannot exceed 50 characters.');
+                document.getElementById('description')?.focus();
+                return;
+            }
 
             // Validate contact information if provided
             if (!validateName() || !validateEmail() || !validatePhone()) {
@@ -1666,17 +1431,19 @@ function toggleSizeSections() {
                     return;
                 }
             } else {
-                const width = document.getElementById('label-width')?.value.trim();
-                const height = document.getElementById('label-height')?.value.trim();
-                if (!width || !height || isNaN(parseFloat(width)) || isNaN(parseFloat(height))) {
-                    alert('Please enter valid width and height values.');
-                    return;
-                }
-                validateLabelSize();
-                const sizeValidation = document.getElementById('size-validation');
-                if (sizeValidation.style.display === 'block' && sizeValidation.classList.contains('error')) {
-                    alert('Please correct the label size values.');
-                    return;
+                if (isLabelSizeWidthHeightVisible()) {
+                    const width = document.getElementById('label-width')?.value.trim();
+                    const height = document.getElementById('label-height')?.value.trim();
+                    if (!width || !height || isNaN(parseFloat(width)) || isNaN(parseFloat(height))) {
+                        alert('Please enter valid width and height values.');
+                        return;
+                    }
+                    validateLabelSize();
+                    const sizeValidation = document.getElementById('size-validation');
+                    if (sizeValidation.style.display === 'block' && sizeValidation.classList.contains('error')) {
+                        alert('Please correct the label size values.');
+                        return;
+                    }
                 }
             }
 
@@ -1698,8 +1465,7 @@ function toggleSizeSections() {
             // Validate cutting die selection
             const cuttingDieSelect = document.getElementById('cutting-die');
             const selectedCuttingDie = cuttingDieSelect?.value;
-            const currentShape = document.querySelector('input[name="shape"]:checked')?.value;
-            if (isCuttingDieApplicableForShape(currentShape)) {
+            if (isCuttingDieRequiredForCurrentState()) {
                 if (!selectedCuttingDie) {
                     alert('Please select a cutting die option.');
                     return;
@@ -1714,11 +1480,15 @@ function toggleSizeSections() {
                 return;
             }
 
-            // Validate total quantity
-            const totalQuantity = document.getElementById('total-quantity')?.value.trim();
-            if (!totalQuantity || isNaN(parseInt(totalQuantity)) || parseInt(totalQuantity) < 1) {
-                alert('Please enter a valid total quantity (at least 1).');
-                document.getElementById('total-quantity')?.focus();
+            // Validate quantities (at least one valid quantity)
+            const quantityInputs = document.querySelectorAll('.quantity-input');
+            const quantities = Array.from(quantityInputs)
+                .map(el => parseInt(el.value?.trim(), 10))
+                .filter(n => !isNaN(n) && n >= 1);
+            if (quantities.length === 0) {
+                alert('Please enter at least one valid quantity (1 or more).');
+                const first = document.querySelector('.quantity-input');
+                if (first) first.focus();
                 return;
             }
 
@@ -1784,6 +1554,8 @@ function toggleSizeSections() {
             addHiddenField('name', document.getElementById('contact-name')?.value.trim() || '');
             addHiddenField('email', document.getElementById('contact-email')?.value.trim() || '');
             addHiddenField('phone', document.getElementById('contact-phone')?.value.trim() || '');
+            addHiddenField('referenceType', document.getElementById('reference-type')?.value || '');
+            addHiddenField('referenceValue', document.getElementById('reference-value')?.value.trim() || '');
             addHiddenField('labelWidth', document.getElementById('label-width')?.value.trim() || '');
             addHiddenField('labelHeight', document.getElementById('label-height')?.value.trim() || '');
             addHiddenField('cuttingDie', getSelectedText(cuttingDieSelect));
@@ -1800,7 +1572,7 @@ function toggleSizeSections() {
             addHiddenField('applicationMethodValue', document.querySelector('input[name="application-method"]:checked')?.value || '');
             addHiddenField('unwindDirection', getUnwindDirectionText());
             addHiddenField('unwindDirectionValue', document.querySelector('input[name="unwind-direction"]:checked')?.value || '');
-            addHiddenField('totalQuantity', totalQuantity);
+            addHiddenField('totalQuantity', quantities.reduce((a, b) => a + b, 0).toString());
             addHiddenField('artworkOption', document.querySelector('input[name="artwork-option"]:checked')?.closest('label')?.textContent.trim() || '');
             addHiddenField('artworkOptionValue', artworkOption);
             
@@ -1823,5 +1595,221 @@ function toggleSizeSections() {
     } else {
         console.error('Send Quote button not found');
     }
+
+    // --- Test case prefill (Load test case / Clear form) ---
+    const loadTestCaseSelect = document.getElementById('load-test-case');
+    const clearFormBtn = document.getElementById('clear-form-btn');
+
+    function applyTestCase(tc) {
+        if (!tc || !tc.data) return;
+        const d = tc.data;
+
+        // 1. Simple fields
+        const set = (id, v) => { const el = document.getElementById(id); if (el && v != null && v !== '') el.value = String(v); };
+        const setRadio = (name, val) => {
+            const r = document.querySelector(`input[name="${name}"][value="${val}"]`);
+            if (r) r.checked = true;
+        };
+        if (d.referenceType) {
+            const rt = document.getElementById('reference-type');
+            if (rt) rt.value = d.referenceType;
+        }
+        set('reference-value', d.referenceValue);
+        set('description', d.description);
+        if (typeof updateDescriptionCharCount === 'function') updateDescriptionCharCount();
+        set('contact-name', d.name);
+        set('contact-email', d.email);
+        set('contact-phone', d.phone);
+        // Quantities: set first input, add more if provided
+        const qtys = Array.isArray(d.quantities) ? d.quantities : (d.totalQuantity != null && d.totalQuantity !== '' ? [d.totalQuantity] : []);
+        const firstQtyInput = document.querySelector('.quantity-input');
+        if (firstQtyInput) firstQtyInput.value = qtys[0] != null ? String(qtys[0]) : '';
+        for (let i = 1; i < Math.min(qtys.length, MAX_QUANTITIES); i++) {
+            addQuantityRow(qtys[i] != null ? String(qtys[i]) : '');
+        }
+        updateAddQuantityButton();
+
+        // 2. Shape → toggles
+        if (d.shapeValue) {
+            setRadio('shape', d.shapeValue);
+            toggleCornersSection();
+            toggleSizeSections();
+        }
+        if (d.cornersValue) {
+            setRadio('corners', d.cornersValue);
+            toggleLabelSizeInputsForMode();
+            toggleCuttingDieSection();
+        }
+        if (d.dieSizeMode && dieSizeModeSelect && (d.cornersValue || '').toLowerCase() !== 'square') {
+            if (dieSizeModeSelect.dataset.forcedByCorners === 'true') {
+                delete dieSizeModeSelect.dataset.forcedByCorners;
+                delete dieSizeModeSelect.dataset.prevMode;
+            }
+            dieSizeModeSelect.value = d.dieSizeMode;
+            toggleLabelSizeInputsForMode();
+            toggleCuttingDieSection();
+        }
+
+        // 3. Size: diameter vs width/height
+        const shape = (d.shapeValue || '').toLowerCase();
+        if (shape === 'circle' || shape === 'oval') {
+            if (diameterInput) diameterInput.value = d.diameter != null && d.diameter !== '' ? String(d.diameter) : '';
+            if (widthInput) widthInput.value = '';
+            if (heightInput) heightInput.value = '';
+        } else {
+            if (diameterInput) diameterInput.value = '';
+            if (widthInput) widthInput.value = d.labelWidth != null && d.labelWidth !== '' ? String(d.labelWidth) : '';
+            if (heightInput) heightInput.value = d.labelHeight != null && d.labelHeight !== '' ? String(d.labelHeight) : '';
+        }
+        validateLabelSize();
+        validateDiameter();
+
+        // 4. Application, unwind, artwork
+        if (d.applicationMethodValue) setRadio('application-method', d.applicationMethodValue);
+        if (d.unwindDirectionValue) setRadio('unwind-direction', d.unwindDirectionValue);
+        if (d.artworkOptionValue) setRadio('artwork-option', d.artworkOptionValue);
+
+        // 5. Printing: click matching button → loads finish + cutting die
+        const pv = (d.printingValue || '').trim();
+        if (pv && printingFilter) {
+            const btn = printingFilter.querySelector(`button[data-printing-id="${pv}"]`);
+            if (btn) {
+                printingFilter.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                btn.click();
+            }
+        }
+
+        // 6. After delay: material, finish, cutting die (options may still be loading)
+        const applyDelayed = () => {
+            const matSel = document.getElementById('material');
+            const finSel = document.getElementById('finish');
+            const dieSel = document.getElementById('cutting-die');
+            const norm = (s) => (s || '').toString().trim().toLowerCase();
+
+            const optText = (o) => norm((o.text || o.textContent || '').toString());
+            if (matSel && (d.materialValue || d.material)) {
+                let optMat = d.materialValue ? Array.from(matSel.options).find(o => o.value === d.materialValue) : null;
+                if (!optMat && d.material) {
+                    const m = norm(d.material);
+                    optMat = Array.from(matSel.options).find(o => o.value && optText(o) === m)
+                        || Array.from(matSel.options).find(o => o.value && optText(o).includes(m));
+                }
+                if (optMat) matSel.value = optMat.value;
+            }
+            if (finSel && (d.finishValue || d.finish)) {
+                let optFin = d.finishValue ? Array.from(finSel.options).find(o => o.value === d.finishValue) : null;
+                if (!optFin && d.finish) {
+                    const f = norm(d.finish);
+                    optFin = Array.from(finSel.options).find(o => o.value && optText(o) === f)
+                        || Array.from(finSel.options).find(o => o.value && optText(o).includes(f));
+                }
+                if (optFin) finSel.value = optFin.value;
+            }
+            if (d.cuttingDieValue && dieSel) {
+                const opt = Array.from(dieSel.options).find(o => o.value === d.cuttingDieValue || o.text === d.cuttingDieValue);
+                if (opt) {
+                    dieSel.value = opt.value;
+                    applyCuttingDieToLabelSize();
+                }
+            }
+            toggleCuttingDieSection();
+            validateLabelSize();
+            updateSummaryPanel();
+        };
+        setTimeout(applyDelayed, 600);
+        setTimeout(applyDelayed, 1200);
+        setTimeout(applyDelayed, 2500);
+        setTimeout(applyDelayed, 3500);
+    }
+
+    function clearForm() {
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+        const setRadio = (name, val) => {
+            const r = document.querySelector(`input[name="${name}"][value="${val}"]`);
+            if (r) r.checked = true;
+        };
+        set('description', '');
+        if (typeof updateDescriptionCharCount === 'function') updateDescriptionCharCount();
+        set('reference-value', '');
+        const refType = document.getElementById('reference-type');
+        if (refType) refType.value = 'company-name';
+        set('contact-name', '');
+        set('contact-email', '');
+        set('contact-phone', '');
+        set('diameter', '');
+        // Reset quantities to single empty input
+        const qtyContainer = document.getElementById('quantity-inputs-container');
+        if (qtyContainer) {
+            const rows = qtyContainer.querySelectorAll('.quantity-row');
+            for (let i = 1; i < rows.length; i++) rows[i].remove();
+            const first = qtyContainer.querySelector('.quantity-input');
+            if (first) first.value = '';
+            updateAddQuantityButton();
+        }
+        if (widthInput) widthInput.value = '';
+        if (heightInput) heightInput.value = '';
+        setRadio('shape', 'rectangle');
+        setRadio('corners', 'rounded');
+        setRadio('application-method', 'hand');
+        setRadio('unwind-direction', 'top-off-first');
+        setRadio('artwork-option', 'upload-now');
+        if (dieSizeModeSelect) {
+            delete dieSizeModeSelect.dataset.forcedByCorners;
+            delete dieSizeModeSelect.dataset.prevMode;
+            dieSizeModeSelect.value = 'existing';
+        }
+        toggleCornersSection();
+        toggleSizeSections();
+        toggleLabelSizeInputsForMode();
+        toggleCuttingDieSection();
+        const matSel = document.getElementById('material');
+        const finSel = document.getElementById('finish');
+        const dieSel = document.getElementById('cutting-die');
+        if (matSel) matSel.value = '';
+        if (printingFilter) printingFilter.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        if (finSel) {
+            finSel.innerHTML = '<option value="">Please select a Printing option first</option>';
+            finSel.disabled = true;
+        }
+        if (dieSel) {
+            dieSel.innerHTML = '<option value="">Please select a Printing option first</option>';
+            dieSel.disabled = true;
+        }
+        validateLabelSize();
+        validateDiameter();
+        updateSummaryPanel();
+    }
+
+    if (loadTestCaseSelect) {
+        fetch('/data/test-cases.json')
+            .then(r => r.ok ? r.json() : [])
+            .then(arr => {
+                if (!Array.isArray(arr)) return;
+                arr.forEach(tc => {
+                    const opt = document.createElement('option');
+                    opt.value = tc.id || '';
+                    opt.textContent = tc.name || tc.id || 'Unnamed';
+                    loadTestCaseSelect.appendChild(opt);
+                });
+            })
+            .catch(() => {});
+        loadTestCaseSelect.addEventListener('change', function() {
+            const id = this.value;
+            if (!id) return;
+            fetch('/data/test-cases.json')
+                .then(r => r.ok ? r.json() : [])
+                .then(arr => {
+                    const tc = Array.isArray(arr) ? arr.find(t => t.id === id) : null;
+                    if (tc) {
+                        clearForm();
+                        applyTestCase(tc);
+                    }
+                })
+                .catch(() => {});
+            this.value = '';
+        });
+    }
+    if (clearFormBtn) clearFormBtn.addEventListener('click', clearForm);
 
 });

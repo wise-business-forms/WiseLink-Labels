@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -9,12 +9,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Markdig" Version="0.37.0" />
     <ProjectReference Include="..\CERM.DataAccess\CERM.DataAccess.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Ensure appsettings are always published (fixes "database connection not configured" when deployed) -->
     <Content Update="appsettings.json" CopyToPublishDirectory="PreserveNewest" />
     <Content Update="appsettings.*.json" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="wwwroot\img\" />
   </ItemGroup>
  <!-- 
   <Target Name="UpdateWebConfigForSelfContained" AfterTargets="Publish" Condition="'$(SelfContained)' == 'true'">

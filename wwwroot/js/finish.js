@@ -69,6 +69,7 @@ async function loadFinishingOptions(printingText) {
         // - If Printing contains "Flexo": hide finishes that contain "Digital"
         const printingLower = (printingText || '').toLowerCase();
         const printingMode =
+            printingLower.includes('blank') ? 'blank' :
             printingLower.includes('digital') ? 'digital' :
             printingLower.includes('flexo') ? 'flexo' :
             null;
@@ -89,10 +90,30 @@ async function loadFinishingOptions(printingText) {
         };
 
         let itemsToRender = items;
+
+        if (printingMode === 'blank') {
+            // Blank selected: only show finishes whose display text starts with "blank".
+            itemsToRender = itemsToRender.filter(i => getFinishDisplayTextLower(i).startsWith('blank'));
+        } else {
+            // Do not show "Blank-NoFinishing" or "Die-cut" unless Printing is Blank.
+            itemsToRender = itemsToRender.filter(i => {
+                const t = getFinishDisplayTextLower(i);
+                const isBlankNoFinishing =
+                    t.includes('blank-nofinishing') ||
+                    (t.includes('blank') && t.includes('nofinishing')) ||
+                    (t.includes('blank') && t.includes('no finishing')) ||
+                    t.includes('no finishing');
+                const isDieCut =
+                    t.includes('die-cut') || t.includes('die cut') || t.includes('diecut');
+                return !(isBlankNoFinishing || isDieCut);
+            });
+        }
+
+        // Digital hides Flexo finishes; Flexo hides Digital finishes.
         if (printingMode === 'digital') {
-            itemsToRender = items.filter(i => !getFinishDisplayTextLower(i).includes('flexo'));
+            itemsToRender = itemsToRender.filter(i => !getFinishDisplayTextLower(i).includes('flexo'));
         } else if (printingMode === 'flexo') {
-            itemsToRender = items.filter(i => !getFinishDisplayTextLower(i).includes('digital'));
+            itemsToRender = itemsToRender.filter(i => !getFinishDisplayTextLower(i).includes('digital'));
         }
 
         itemsToRender.forEach(item => {

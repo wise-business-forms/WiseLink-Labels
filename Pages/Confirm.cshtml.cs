@@ -84,12 +84,61 @@ namespace WiseLabels.Pages
                 FormValuesJson = JsonSerializer.Serialize(quote, formJsonOptions);
 
                 // Submit to CERM API
-                var apiSuccess = await _quoteService.SubmitToCermApiAsync(quote);
+                var (apiSuccess, cermCalculationId, cermEstimateId, cermErrorMessage) = await _quoteService.SubmitToCermApiAsync(quote);
 
-                // Store data in TempData for Success page
                 TempData["QuoteId"] = quoteId;
                 TempData["ApiSuccess"] = apiSuccess.ToString();
                 TempData["QuoteRequest"] = JsonSerializer.Serialize(quote);
+                if (!string.IsNullOrWhiteSpace(cermCalculationId))
+                    TempData["CermCalculationId"] = cermCalculationId;
+                if (!string.IsNullOrWhiteSpace(cermEstimateId))
+                    TempData["CermEstimateId"] = cermEstimateId;
+                if (!string.IsNullOrWhiteSpace(cermErrorMessage))
+                    TempData["CermErrorMessage"] = cermErrorMessage;
+
+                // Update contact info in CERM database when we have the estimate ID
+                var estimateIdForContact = cermEstimateId ?? cermCalculationId;
+                if (!string.IsNullOrWhiteSpace(estimateIdForContact))
+                {
+                    var contactUpdated = await _quoteService.UpdateContactInfoAsync(
+                        estimateIdForContact,
+                        quote.Name ?? "",
+                        quote.Email ?? "",
+                        quote.Phone ?? ""
+                    );
+                    if (!contactUpdated)
+                    {
+                        _logger.LogWarning("Failed to update contact info in CERM for estimate {EstimateId}", estimateIdForContact);
+                    }
+                }
+
+                // Send confirmation email to customer (use estimate ID as quote reference when available)
+                var quoteRefForEmail = estimateIdForContact ?? quoteId;
+                if (!string.IsNullOrWhiteSpace(quote.Email))
+                {
+                    try
+                    {
+                        var emailSent = await _emailService.SendQuoteConfirmationAsync(
+                            quote.Email,
+                            quoteRefForEmail,
+                            quote.Name ?? ""
+                        );
+                        TempData["EmailSent"] = emailSent.ToString();
+                        if (emailSent)
+                        {
+                            _logger.LogInformation("Quote confirmation email sent to {Email} for quote {QuoteId}", quote.Email, quoteId);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Failed to send confirmation email to {Email} for quote {QuoteId}", quote.Email, quoteId);
+                        }
+                    }
+                    catch (Exception emailEx)
+                    {
+                        _logger.LogError(emailEx, "Error sending confirmation email to {Email} for quote {QuoteId}", quote.Email, quoteId);
+                        TempData["EmailSent"] = "False";
+                    }
+                }
 
                 // Redirect to Success page
                 return RedirectToPage("/Success");

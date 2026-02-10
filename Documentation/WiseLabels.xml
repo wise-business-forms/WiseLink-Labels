@@ -103,5 +103,49 @@
             <param name="printing">The printing selection (ColorCode ID or description text)</param>
             <returns>List of allowed material IDs, or null if no filtering should be applied</returns>
         </member>
+        <member name="P:WiseLabels.Pages.SuccessModel.CermCalculationId">
+            <summary>CERM calculation ID (Data.Id) from submission.</summary>
+        </member>
+        <member name="P:WiseLabels.Pages.SuccessModel.CermEstimateId">
+            <summary>CERM estimate ID (Data.EstimateId) from submission; PDF endpoint uses this.</summary>
+        </member>
+        <member name="P:WiseLabels.Pages.SuccessModel.DisplayQuoteId">
+            <summary>Quote ID displayed to user: CERM estimate ID when available, otherwise calculation ID or internal QuoteId.</summary>
+        </member>
+        <member name="P:WiseLabels.Pages.SuccessModel.DisplayQuoteIdForCard">
+            <summary>Quote ID to show in the card: only the CERM ID (estimate or calculation), not the internal GUID.</summary>
+        </member>
+        <member name="P:WiseLabels.Pages.SuccessModel.CermErrorMessage">
+            <summary>Error message from CERM API when submission failed (for user display and debugging).</summary>
+        </member>
+        <member name="P:WiseLabels.Pages.SuccessModel.SubmittedDateEastern">
+            <summary>Submitted date/time in Eastern Time for display.</summary>
+        </member>
+        <member name="T:WiseLabels.Services.ICermAuthService">
+            <summary>
+            Obtains OAuth access tokens for the CERM API.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.IQuoteService.UpdateContactInfoAsync(System.String,System.String,System.String,System.String)">
+            <summary>
+            Updates contact info (name, email, phone) in the CERM database for the given estimate ID.
+            Requires the estimate ID returned from CERM (e.g. from SubmitToCermApiAsync).
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.QuoteService.BuildCermPayloadJson(WiseLabels.Models.QuoteRequest)">
+            <summary>
+            Builds CERM API payload JSON, including only properties with non-empty values.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.QuoteService.MapShapeToCermOutline(System.String,System.String)">
+            <summary>
+            Maps form shape value/ID to CERM API Outline (shape name): Rectangle, Circle, Oval, Special.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.QuoteService.ParseCermCalculationResponse(System.String)">
+            <summary>
+            Parses the CERM calculations POST response to extract Calculation ID (Data.Id) and Estimate ID (Data.EstimateId).
+            </summary>
+        </member>
     </members>
 </doc>

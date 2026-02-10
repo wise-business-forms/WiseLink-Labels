@@ -2,6 +2,13 @@
 @model WiseLabels.Pages.ConfirmModel
 @{
     ViewData["Title"] = "Confirm Quote Request";
+    string FormatReferenceType(string? t) => t switch {
+        "company-name" => "Company Name",
+        "account-number" => "Account Number",
+        "purchase-order-number" => "Purchase Order Number",
+        "invoice-number" => "Invoice Number",
+        _ => "Reference"
+    };
 }
 
 <div class="container">
@@ -46,6 +53,11 @@
                 </div>
                 <div class="card-body">
                     <dl class="row">
+                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.ReferenceValue))
+                        {
+                            <dt class="col-sm-4">@(FormatReferenceType(Model.QuoteRequest.ReferenceType)):</dt>
+                            <dd class="col-sm-8">@Model.QuoteRequest.ReferenceValue</dd>
+                        }
                         @if (!string.IsNullOrEmpty(Model.QuoteRequest.Description))
                         {
                             <dt class="col-sm-4">Description:</dt>
@@ -117,7 +129,12 @@
                             <dd class="col-sm-8">@Model.QuoteRequest.UnwindDirection</dd>
                         }
 
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.TotalQuantity))
+                        @if (Model.QuoteRequest?.Quantities?.Count > 0)
+                        {
+                            <dt class="col-sm-4">Quantities:</dt>
+                            <dd class="col-sm-8">@string.Join(" / ", Model.QuoteRequest.Quantities)</dd>
+                        }
+                        else if (!string.IsNullOrEmpty(Model.QuoteRequest?.TotalQuantity))
                         {
                             <dt class="col-sm-4">Total Quantity:</dt>
                             <dd class="col-sm-8">@Model.QuoteRequest.TotalQuantity</dd>

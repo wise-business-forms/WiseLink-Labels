@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "c:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj": {}
+    "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj": {}
   },
   "projects": {
-    "c:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj": {
+    "C:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj",
+        "projectUniqueName": "C:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj",
         "projectName": "CERM.DataAccess",
-        "projectPath": "c:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj",
+        "projectPath": "C:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj",
         "packagesPath": "C:\\Users\\pmenefee\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\pmenefee\\source\\CERM.DataAccess\\obj\\",
+        "outputPath": "C:\\Users\\pmenefee\\source\\CERM.DataAccess\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -92,14 +92,14 @@
         }
       }
     },
-    "c:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj": {
+    "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj",
+        "projectUniqueName": "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj",
         "projectName": "WiseLabels",
-        "projectPath": "c:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj",
+        "projectPath": "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj",
         "packagesPath": "C:\\Users\\pmenefee\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\pmenefee\\source\\WiseLink-Labels\\obj\\",
+        "outputPath": "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -121,8 +121,8 @@
           "net8.0": {
             "targetAlias": "net8.0",
             "projectReferences": {
-              "c:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj": {
-                "projectPath": "c:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj"
+              "C:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj": {
+                "projectPath": "C:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj"
               }
             }
           }
@@ -142,6 +142,12 @@
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
+          "dependencies": {
+            "Markdig": {
+              "target": "Package",
+              "version": "[0.37.0, )"
+            }
+          },
           "imports": [
             "net461",
             "net462",

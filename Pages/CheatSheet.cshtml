@@ -1,0 +1,30 @@
+@page
+@model CheatSheetModel
+@{
+    ViewData["Title"] = "Printing terms reference";
+    Layout = "_Layout";
+}
+
+<style>
+    .cheat-sheet-container {
+        max-width: 52rem;
+        margin: 0 auto;
+        padding: 1.5rem;
+    }
+    .cheat-sheet-container h1 { font-size: 1.5rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+    .cheat-sheet-container h2 { font-size: 1.15rem; margin-top: 1.25rem; margin-bottom: 0.5rem; }
+    .cheat-sheet-container h3 { font-size: 1rem; margin-top: 1rem; margin-bottom: 0.5rem; }
+    .cheat-sheet-container table { font-size: 0.9rem; margin-bottom: 1rem; }
+    .cheat-sheet-container th, .cheat-sheet-container td { padding: 0.35rem 0.5rem; }
+    .cheat-sheet-container pre { font-size: 0.85rem; white-space: pre-wrap; }
+    .cheat-sheet-container blockquote { border-left: 3px solid #dee2e6; padding-left: 1rem; margin: 0.5rem 0; color: #6c757d; }
+    .cheat-sheet-container hr { margin: 1rem 0; }
+    .cheat-sheet-back { font-size: 0.85rem; margin-bottom: 1rem; }
+</style>
+
+<div class="cheat-sheet-container">
+    <a asp-page="/Index" class="cheat-sheet-back text-muted text-decoration-none">← Back to quote</a>
+    <div class="cheat-sheet-content">
+        @Html.Raw(Model.HtmlContent)
+    </div>
+</div>

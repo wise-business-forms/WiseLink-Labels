@@ -1,0 +1,181 @@
+﻿@page "/Quote"
+@model WiseLabels.Pages.QuoteModel
+@{
+    ViewData["Title"] = "Quick Quote";
+}
+
+<div class="quote-page-container">
+    <div class="quote-main-content">
+        <div class="quote-form-header">
+            <h1>Get an Instant Quote</h1>
+            <p class="quote-subtitle"></p>
+            <p class="mt-1 mb-0">
+                <a asp-page="/CheatSheet" target="_blank" rel="noopener" class="terms-reference-link">Printing terms reference</a>
+            </p>
+        </div>
+
+        @if (Model.Testing)
+        {
+            <div class="mb-3 p-3 border rounded" id="test-case-panel">
+                <label for="load-test-case" class="form-label">Load test case</label>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <select class="form-select form-select-sm" id="load-test-case" style="max-width: 20rem;">
+                        <option value="">Load test case…</option>
+                    </select>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-form-btn">Clear form</button>
+                </div>
+            </div>
+        }
+
+         <form class="quote-form" method="post" id="quote-form">
+            @Html.AntiForgeryToken()
+            
+            <div class="form-section">
+                <label class="form-section-label">Reference (optional)</label>
+                <div class="form-section-content">
+                    <div class="d-flex flex-wrap gap-2 align-items-end">
+                        <div class="flex-grow-1" style="min-width: 140px;">
+                            <label for="reference-type" class="form-label visually-hidden">Reference type</label>
+                            <select class="form-control" id="reference-type" name="reference-type" data-saved-value="@(Model.SavedQuoteRequest?.ReferenceType ?? "company-name")">
+                                <option value="company-name">Company Name</option>
+                                <option value="account-number">Account Number</option>
+                                <option value="purchase-order-number">Purchase Order Number</option>
+                                <option value="invoice-number">Invoice Number</option>
+                            </select>
+                        </div>
+                        <div class="flex-grow-1" style="min-width: 180px;">
+                            <label for="reference-value" class="form-label visually-hidden">Reference value</label>
+                            <input type="text" class="form-control" id="reference-value" name="reference-value" placeholder="Enter value" value="@(Model.SavedQuoteRequest?.ReferenceValue ?? "")">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="customer-search" style="position: relative; width: 100%; max-width: 400px;">
+                    <input type="text"
+                           id="customerSearchBox"
+                           placeholder="Search customers..."
+                           style="width: 100%; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px;" />
+                    <div id="searchLoading" style="display: none; position: absolute; right: 10px; top: 12px;">
+                        Loading...
+                    </div>
+                    <ul id="customerResults"
+                        style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white;
+               border: 1px solid #ccc; border-top: none; max-height: 300px; overflow-y: auto;
+               margin: 0; padding: 0; list-style: none; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    </ul>
+                </div>
+            </div>
+
+        </form>
+
+    </div>
+    <div class="quote-summary-panel">
+        <div class="summary-content">
+            <h2>Summary</h2>
+            <!--
+            <p class="summary-note">* All prices include unlimited colors and Free Shipping delivery (after production) to anywhere in the 48 contiguous United States.</p>
+            <p class="summary-note">* Prices are guaranteed for 30 days from when the order is added to the shopping cart.</p>
+            -->
+            <div class="summary-section" id="selected-choices-summary">
+                <!-- Dynamic content will be populated here -->
+            </div>
+
+            <div class="summary-actions">
+                <button type="button" class="btn btn-primary btn-lg w-100 mb-2" id="send-quote-btn">Send Quote</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    (function() {
+        var searchBox = document.getElementById('customerSearchBox');
+        var resultsContainer = document.getElementById('customerResults');
+        var loadingIndicator = document.getElementById('searchLoading');
+        var debounceTimer = null;
+
+        searchBox.addEventListener('input', function() {
+            var searchTerm = this.value;
+
+            // Clear previous timer
+            clearTimeout(debounceTimer);
+
+            // Hide results if search is too short
+            if (searchTerm.length < 2) {
+                resultsContainer.style.display = 'none';
+                loadingIndicator.style.display = 'none';
+                return;
+            }
+
+            // Show loading
+            loadingIndicator.style.display = 'block';
+
+            // Debounce - wait 300ms after user stops typing
+            debounceTimer = setTimeout(function() {
+                fetch('/api/customers/search?term=' + encodeURIComponent(searchTerm))
+                    .then(function(response) { return response.json(); })
+                    .then(function(customers) {
+                        loadingIndicator.style.display = 'none';
+                        displayResults(customers);
+                    })
+                    .catch(function(error) {
+                        console.error('Error:', error);
+                        loadingIndicator.style.display = 'none';
+                    });
+            }, 300);
+        });
+
+        function displayResults(customers) {
+            resultsContainer.innerHTML = '';
+
+            if (customers.length === 0) {
+                resultsContainer.style.display = 'none';
+                return;
+            }
+
+            customers.slice(0, 10).forEach(function(customer) {
+                var li = document.createElement('li');
+                li.style.padding = '10px';
+                li.style.cursor = 'pointer';
+                li.style.borderBottom = '1px solid #eee';
+
+                li.innerHTML = '<div style="font-weight: 500;">' + customer.Name + '</div>' +
+                              (customer.Email ? '<div style="font-size: 14px; color: #666;">' + customer.Email + '</div>' : '');
+
+                li.addEventListener('mouseenter', function() {
+                    this.style.backgroundColor = '#f5f5f5';
+                });
+
+                li.addEventListener('mouseleave', function() {
+                    this.style.backgroundColor = 'white';
+                });
+
+                li.addEventListener('click', function() {
+                    selectCustomer(customer);
+                });
+
+                resultsContainer.appendChild(li);
+            });
+
+            resultsContainer.style.display = 'block';
+        }
+
+        function selectCustomer(customer) {
+            searchBox.value = customer.Name;
+            resultsContainer.style.display = 'none';
+
+            // Handle selection - update hidden field, redirect, etc.
+            console.log('Selected customer:', customer);
+            // Example: document.getElementById('CustomerId').value = customer.Id;
+        }
+
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!searchBox.contains(e.target) && !resultsContainer.contains(e.target)) {
+                resultsContainer.style.display = 'none';
+            }
+        });
+    })();
+</script>
+

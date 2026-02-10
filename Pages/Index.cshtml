@@ -1,314 +1,147 @@
-﻿@page
+@page
 @model IndexModel
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Dashboard";
 }
 
-@if (Model.SavedQuoteRequest != null)
-{
-    <script id="saved-quote-data" type="application/json">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SavedQuoteRequest))</script>
-    <script>
-        console.log('Saved quote data available on page:', @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SavedQuoteRequest)));
-    </script>
-}
-
-<div class="quote-page-container">
-    <div class="quote-main-content">
-        <div class="quote-form-header">
-            <h1>Get an Instant Quote</h1>
-            <p class="quote-subtitle">Kick off your custom label journey here and watch your brand come to life.</p>
-        </div>
-
-        <form class="quote-form" method="post" id="quote-form">
-            @Html.AntiForgeryToken()
-            
-            <div class="form-section">
-                <label class="form-section-label">Description</label>
-                <div class="form-section-content">
-                    <input type="text" class="form-control" id="description" name="description" min="5" value="@(Model.SavedQuoteRequest?.Description ?? "")">
-                </div>
+<div class="dashboard-container">
+    @await Html.PartialAsync("_DashboardSidebar")
+    <main class="dashboard-main"><!--
+        <h1 class="dashboard-page-title">Quote Dashboard</h1>
+        <div class="dashboard-stats-row">
+            <div class="dashboard-stat-card">
+                <span class="dashboard-stat-value">0</span>
+                <span class="dashboard-stat-label">Active Quotes</span>
             </div>
-
-            <!-- Material Section -->
-            <div class="form-section">
-                <label class="form-section-label">Materials</label>
-                <div class="form-section-content">
-                    <div id="material-loading" class="material-loading" style="display: none;">
-                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        <span>Loading materials ...</span>
-                    </div>
-                    <select class="form-control" id="material" name="material" size="10" data-saved-value="@(Model.SavedQuoteRequest?.MaterialValue ?? "")">
-                        <option value="">Loading materials...</option>
-                    </select>
-                    <div id="material-error" class="size-validation-message error" style="display: none;"></div>
-                </div>
+            <div class="dashboard-stat-card">
+                <span class="dashboard-stat-value">0</span>
+                <span class="dashboard-stat-label">Completed This Month</span>
             </div>
-
-            <!-- Printing Section (using Color Codes from API) -->
-            <div class="form-section">
-                <label class="form-section-label">Printing</label>
-                <div class="form-section-content">
-                    <div id="printing-loading" class="material-loading" style="display: none;">
-                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        <span>Loading printing options ...</span>
-                    </div>
-                    <div id="printing-filter" class="material-filter">
-                        <div class="text-muted">Loading printing options...</div>
-                    </div>
-                    <div id="printing-error" class="size-validation-message error" style="display: none;"></div>
-                </div>
+            <div class="dashboard-stat-card">
+                <span class="dashboard-stat-value">0</span>
+                <span class="dashboard-stat-label">Pending Approval</span>
             </div>
-
-            <!-- Finish Section -->
-            <div class="form-section">
-                <label class="form-section-label">Finish</label>
-                <div class="form-section-content">
-                    <div id="finish-loading" class="material-loading" style="display: none;">
-                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        <span>Loading finishes ...</span>
-                    </div>
-
-                    <select class="form-control" id="finish" name="finish" disabled data-selected="@(Model.SavedQuoteRequest?.FinishValue ?? Model.SavedQuoteRequest?.Finish ?? "")">
-                        <option value="">Please select a Printing option first</option>
-                    </select>
-
-                    <div id="finish-error" class="size-validation-message error" style="display: none;"></div>
-                </div>
-            </div>
-
-            <!-- Shape Section -->
-            <div class="form-section">
-                <label class="form-section-label">Shape</label>
-                <div class="form-section-content">
-                    <div class="shape-options">
-                        <label class="shape-option">
-                            <input type="radio" name="shape" value="rectangle" data-shape-id="1" @((Model.SavedQuoteRequest == null || Model.SavedQuoteRequest.ShapeValue == "1" || Model.SavedQuoteRequest.ShapeValue == "rectangle" || (string.IsNullOrEmpty(Model.SavedQuoteRequest?.ShapeValue) && string.IsNullOrEmpty(Model.SavedQuoteRequest?.Shape))) ? "checked" : "")>
-                            <span class="shape-label">Rectangle</span>
-                        </label>
-                        <label class="shape-option">
-                            <input type="radio" name="shape" value="square" data-shape-id="2" @(Model.SavedQuoteRequest?.ShapeValue == "2" || Model.SavedQuoteRequest?.ShapeValue == "square" ? "checked" : "")>
-                            <span class="shape-label">Square</span>
-                        </label>
-                        <label class="shape-option">
-                            <input type="radio" name="shape" value="circle" data-shape-id="3" @(Model.SavedQuoteRequest?.ShapeValue == "3" || Model.SavedQuoteRequest?.ShapeValue == "circle" ? "checked" : "")>
-                            <span class="shape-label">Circle</span>
-                        </label>
-                        <label class="shape-option">
-                            <input type="radio" name="shape" value="oval" data-shape-id="4" @(Model.SavedQuoteRequest?.ShapeValue == "4" || Model.SavedQuoteRequest?.ShapeValue == "oval" ? "checked" : "")>
-                            <span class="shape-label">Oval</span>
-                        </label>
-                        <label class="shape-option">
-                            <input type="radio" name="shape" value="special" data-shape-id="5" @(Model.SavedQuoteRequest?.ShapeValue == "5" || Model.SavedQuoteRequest?.ShapeValue == "special" ? "checked" : "")>
-                            <span class="shape-label">Special</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Corners Section -->
-            <div class="form-section" id="corners-section" style="display: @((Model.SavedQuoteRequest != null && (Model.SavedQuoteRequest.ShapeValue == "rectangle" || Model.SavedQuoteRequest.ShapeValue == "square")) ? "block" : "none");">
-                <label class="form-section-label">Corners</label>
-                <div class="form-section-content">
-                    <div class="shape-options">
-                        <label class="shape-option">
-                            <input type="radio" name="corners" value="rounded" @((Model.SavedQuoteRequest == null || Model.SavedQuoteRequest.CornersValue == "rounded" || string.IsNullOrEmpty(Model.SavedQuoteRequest?.CornersValue)) ? "checked" : "")>
-                            <span class="shape-label">Rounded</span>
-                        </label>
-                        <label class="shape-option">
-                            <input type="radio" name="corners" value="square" @(Model.SavedQuoteRequest?.CornersValue == "square" ? "checked" : "")>
-                            <span class="shape-label">Square</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-                        
-            <!-- Cutting Die Section -->
-            <div class="form-section">
-                <label class="form-section-label">Cutting Die</label>
-                <div class="form-section-content">
-                    <div id="cutting-die-loading" class="material-loading" style="display: none;">
-                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        <span>Loading cutting die options ...</span>
-                    </div>
-                    <select class="form-control" id="cutting-die" name="cutting-die" disabled>
-                        <option value="">Please select a Printing option first</option>
-                    </select>
-                    <div id="cutting-die-error" class="size-validation-message error" style="display: none;"></div>
-                </div>
-            </div>
-
-
-            <!-- Label Size Section -->
-            <div class="form-section" id="label-size-section" style="display: @((Model.SavedQuoteRequest != null && (Model.SavedQuoteRequest.ShapeValue == "circle" || Model.SavedQuoteRequest.ShapeValue == "oval")) ? "none" : "block");">
-                <label class="form-section-label">Label Size</label>
-                <div class="form-section-content">
-                    <div class="label-size-inputs">
-                        <div class="size-input-group">
-                            <label for="label-width">Width</label>
-                            <div class="input-with-unit">
-                                <input type="text" class="form-control" id="label-width" name="label-width" placeholder="" inputmode="decimal" value="@(Model.SavedQuoteRequest?.LabelWidth ?? "")">
-                                <span class="input-unit">"</span>
-                            </div>
-                        </div>
-                        <div class="size-separator">X</div>
-                        <div class="size-input-group">
-                            <label for="label-height">Height</label>
-                            <div class="input-with-unit">
-                                <input type="text" class="form-control" id="label-height" name="label-height" placeholder="" inputmode="decimal" value="@(Model.SavedQuoteRequest?.LabelHeight ?? "")">
-                                <span class="input-unit">"</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="size-validation-message" id="size-validation" style="display: none;"></div>
-                </div>
-            </div>
-
-            <!-- Diameter Section -->
-            <div class="form-section" id="diameter-section" style="display: @((Model.SavedQuoteRequest != null && (Model.SavedQuoteRequest.ShapeValue == "circle" || Model.SavedQuoteRequest.ShapeValue == "oval")) ? "block" : "none");">
-                <label class="form-section-label">Diameter</label>
-                <div class="form-section-content">
-                    <div class="diameter-input-group">
-                        <div class="input-with-unit">
-                            <input type="text" class="form-control" id="diameter" name="diameter" placeholder="" inputmode="decimal" step="0.01" value="@(Model.SavedQuoteRequest?.Diameter ?? "")">
-                            <span class="input-unit">"</span>
-                        </div>
-                    </div>
-                    <div class="size-hint">Enter diameter value in inches (to the nearest hundredth)</div>
-                    <div class="size-validation-message" id="diameter-validation" style="display: none;"></div>
-                </div>
-            </div>
-
-            
-
-            <!-- Application Method Section -->
-            <div class="form-section">
-                <label class="form-section-label">Application Method</label>
-                <div class="form-section-content">
-                    <div class="radio-options">
-                        <label class="radio-option">
-                            <input type="radio" name="application-method" value="hand" @((Model.SavedQuoteRequest == null || Model.SavedQuoteRequest.ApplicationMethodValue == "hand" || string.IsNullOrEmpty(Model.SavedQuoteRequest?.ApplicationMethodValue)) ? "checked" : "")>
-                            <span>Hand</span>
-                        </label>
-                        <label class="radio-option">
-                            <input type="radio" name="application-method" value="machine" @(Model.SavedQuoteRequest?.ApplicationMethodValue == "machine" ? "checked" : "")>
-                            <span>Machine <span class="option-note"></span></span>
-                        </label>
-                    </div>
-                    <!--
-                    <div class="option-hint">This option will add an additional $25 to orders of less than 5,000 labels.</div>
-                    -->
-                </div>
-            </div>
-
-            <!-- Unwind Direction Section -->
-            <div class="form-section">
-                <label class="form-section-label">Unwind Direction</label>
-                <div class="form-section-content">
-                    <div class="radio-options">
-                        <label class="radio-option">
-                            <input type="radio" name="unwind-direction" value="top-off-first" @((Model.SavedQuoteRequest == null || Model.SavedQuoteRequest.UnwindDirectionValue == "top-off-first" || string.IsNullOrEmpty(Model.SavedQuoteRequest?.UnwindDirectionValue)) ? "checked" : "")>
-                            <span>Top off first (#1)</span>
-                        </label>
-                        <label class="radio-option">
-                            <input type="radio" name="unwind-direction" value="bottom-off-first" @(Model.SavedQuoteRequest?.UnwindDirectionValue == "bottom-off-first" ? "checked" : "")>
-                            <span>Bottom off first (#2)</span>
-                        </label>
-                        <label class="radio-option">
-                            <input type="radio" name="unwind-direction" value="right-off-first" @(Model.SavedQuoteRequest?.UnwindDirectionValue == "right-off-first" ? "checked" : "")>
-                            <span>Right off first (#3)</span>
-                        </label>
-                        <label class="radio-option">
-                            <input type="radio" name="unwind-direction" value="left-off-first" @(Model.SavedQuoteRequest?.UnwindDirectionValue == "left-off-first" ? "checked" : "")>
-                            <span>Left off first (#4)</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Total Quantity Section -->
-            <div class="form-section">
-                <label class="form-section-label">Versions and Total Quantity</label>
-                <div class="form-section-content">
-                    <div class="versions-input-group">
-                        <div class="input-group-item">
-                            <label for="total-quantity">Total labels</label>
-                            <input type="number" class="form-control" id="total-quantity" name="total-quantity" min="1" value="@(Model.SavedQuoteRequest?.TotalQuantity ?? "")">
-                            <div class="input-hint">Of all designs combined</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Label Artwork Section -->
-            <div class="form-section">
-                <label class="form-section-label">Label Artwork</label>
-                <div class="form-section-content">
-                    <div class="radio-options">
-                        <label class="radio-option">
-                            <input type="radio" name="artwork-option" value="upload-now" @((Model.SavedQuoteRequest == null || Model.SavedQuoteRequest.ArtworkOptionValue == "upload-now" || string.IsNullOrEmpty(Model.SavedQuoteRequest?.ArtworkOptionValue)) ? "checked" : "")>
-                            <span>Upload artwork now</span>
-                        </label>
-                        <div class="option-hint">Upload your artwork in the next step</div>
-                    </div>
-                    <div class="radio-options" style="margin-top: 1rem;">
-                        <label class="radio-option">
-                            <input type="radio" name="artwork-option" value="artwork-not-ready" @(Model.SavedQuoteRequest?.ArtworkOptionValue == "artwork-not-ready" ? "checked" : "")>
-                            <span>Artwork is not ready</span>
-                        </label>
-                        <div class="option-hint">Artwork is not ready but will be for the order</div>
-                    </div>
-                    <div class="radio-options" style="margin-top: 1rem;">
-                        <label class="radio-option">
-                            <input type="radio" name="artwork-option" value="upload-later" @(Model.SavedQuoteRequest?.ArtworkOptionValue == "upload-later" ? "checked" : "")>
-                            <span>Upload artwork later</span>
-                        </label>
-                        <div class="option-hint">Supply files for your order later when you are ready</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Contact Information Section -->
-            <div class="form-section">
-                <label class="form-section-label">Contact Information</label>
-                <div class="form-section-content">
-                    <div class="mb-3">
-                        <label for="contact-name" class="form-label">Name</label>
-                        <input type="text" class="form-control" id="contact-name" name="contact-name" value="@(Model.SavedQuoteRequest?.Name ?? "")">
-                        <div class="invalid-feedback" id="name-validation" style="display: none;"></div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="contact-email" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="contact-email" name="contact-email" value="@(Model.SavedQuoteRequest?.Email ?? "")">
-                        <div class="invalid-feedback" id="email-validation" style="display: none;"></div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="contact-phone" class="form-label">Phone</label>
-                        <input type="tel" class="form-control" id="contact-phone" name="contact-phone" value="@(Model.SavedQuoteRequest?.Phone ?? "")">
-                        <div class="invalid-feedback" id="phone-validation" style="display: none;"></div>
-                    </div>
-                    <p class="text-muted small mb-0">This information is optional and will only be used to contact you about your quote.</p>
-                </div>
-            </div>
-        </form>
-    </div>
-
-    <div class="quote-summary-panel">
-        <div class="summary-content">
-            <h2>Summary</h2>
-            <!--
-            <p class="summary-note">* All prices include unlimited colors and Free Shipping delivery (after production) to anywhere in the 48 contiguous United States.</p>
-            <p class="summary-note">* Prices are guaranteed for 30 days from when the order is added to the shopping cart.</p>
-            -->
-            <div class="summary-section" id="selected-choices-summary">
-                <!-- Dynamic content will be populated here -->
-            </div>
-
-            <div class="summary-actions">
-                <button type="button" class="btn btn-primary btn-lg w-100 mb-2" id="send-quote-btn">Send Quote</button>
+            <div class="dashboard-stat-card">
+                <span class="dashboard-stat-value">$0</span>
+                <span class="dashboard-stat-label">Total Value</span>
             </div>
         </div>
-    </div>
+        <div class="dashboard-content-section">
+            <h2 class="dashboard-section-title">Recent Quotes</h2>
+            <p class="text-muted">Your recent quote requests and their status.</p>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Today, 2:34 PM</td><td>Custom rectangle labels</td><td><span class="badge bg-success">Submitted</span></td><td><a href="#" class="btn btn-sm btn-outline-primary">View</a></td></tr>
+                    <tr><td>Yesterday</td><td>Circle stickers</td><td><span class="badge bg-warning">In Review</span></td><td><a href="#" class="btn btn-sm btn-outline-primary">View</a></td></tr>
+                    <tr><td>2 days ago</td><td>Oval labels</td><td><span class="badge bg-info">Approved</span></td><td><a href="#" class="btn btn-sm btn-outline-primary">View</a></td></tr>
+                </tbody>
+            </table>
+        </div>
+        -->
+        <div class="dashboard-content-section">
+            <h2 class="dashboard-section-title">Quick Actions</h2>
+            <div class="d-flex gap-3">
+                <a asp-page="/Customers" class="btn btn-primary">Start New Quote</a>
+            </div>
+        </div>
+        <div class="dashboard-content-section">
+            <div class="alert alert-info mb-4">
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <h3 class="h6 text-uppercase text-muted mb-3">How to get a quote</h3>
+                        <ol class="mb-0 ps-3">
+                            <li class="mb-2">
+                                <strong>Start New Quote</strong>
+                                <span class="d-block text-muted">Use <em>Start New Quote</em> to jump into the customer list.</span>
+                                <button type="button"
+                                        class="guide-preview-trigger btn btn-link p-0 align-baseline"
+                                        data-guide-image="img/start-quick-quote.png"
+                                        data-guide-alt="Screenshot showing the Start New Quote button">
+                                    <span class="me-1" aria-hidden="true">&#9432;</span>Hover to preview
+                                </button>
+                            </li>
+                            <li class="mb-2">
+                                <strong>Select a customer.</strong>
+                                <span class="d-block text-muted">Pick the account, view their past quotes, and choose one.</span>
+                                <button type="button"
+                                        class="guide-preview-trigger btn btn-link p-0 align-baseline"
+                                        data-guide-image="img/pick-job.png"
+                                        data-guide-alt="Screenshot showing the past jobs for a customer">
+                                    <span class="me-1" aria-hidden="true">&#9432;</span>Hover to preview
+                                </button>
+                            </li>
+                            <li class="mb-2">
+                                <strong>Review on Get Quote.</strong>
+                                <span class="d-block text-muted">ensure this is the job to requote then select "Use This Quote".</span>
+                                <button type="button"
+                                        class="guide-preview-trigger btn btn-link p-0 align-baseline"
+                                        data-guide-image="img/use-quote.png"
+                                        data-guide-alt="Screenshot showing button to use quote">
+                                    <span class="me-1" aria-hidden="true">&#9432;</span>Hover to preview
+                                </button>
+                            </li>
+                            <li>
+                                <strong>Edit Quote</strong>
+                                <span class="d-block text-muted">The form will prepopulate with data from the selected job.</span>
+                            </li>
+                            <li>
+                                <strong>Generate Quote</strong>
+                                <span class="d-block text-muted">Once everything has been updated. Select "Generate Quote"</span>
+                            </li>
+                            <li>
+                                <strong>Confirm Quote</strong>
+                                <span class="d-block text-muted">Review the information. Select "Generate Quote"</span>
+                            </li>
+                            <li>
+                                <strong>Quote Generated</strong>
+                                <span class="d-block text-muted">Now that the quote has been generated take note of the Quote number and notifiy the customer.</span>
+                            </li>
+                        </ol>
+                    </div>
+                    <div class="col-lg-6">
+                        <h3 class="h6 text-uppercase text-muted mb-3">Status updates</h3>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="p-3 bg-white rounded shadow-sm h-100">
+                                    <h4 class="h6 text-success mb-2">Working</h4>
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="d-flex align-items-start"><span class="me-2 text-success">&#10003;</span><span>Past job lookup by company name</span></li>
+                                        <li class="d-flex align-items-start"><span class="me-2 text-success">&#10003;</span><span>Copy past job for exact repeat</span></li>
+                                        <li class="d-flex align-items-start"><span class="me-2 text-success">&#10003;</span><span>Estimate creation flow</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="p-3 bg-white rounded shadow-sm h-100">
+                                    <h4 class="h6 text-warning mb-2">In progress</h4>
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="d-flex align-items-start"><span class="me-2 status-warning-icon">&#x2610;</span><span>Prepopulate form with previous job <span class="fst-italic text-decoration-underline">Needed to go live.</span></span></li>                                        
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="p-3 bg-white rounded shadow-sm h-100">
+                                    <h4 class="h6 text-secondary mb-2">Backlog</h4>
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="d-flex align-items-start"><span class="me-2 text-secondary">&#x2796;</span><span>View past quote letters</span></li>
+                                        <li class="d-flex align-items-start"><span class="me-2 status-warning-icon">&#x2796;</span><span>Past job lookup via PO</span></li>
+                                        <li class="d-flex align-items-start"><span class="me-2 status-warning-icon">&#x2796;</span><span>Past job lookup via invoice number</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <p><a href="https://github.com/orgs/wise-business-forms/projects/1" target="_blank">Project details</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
 </div>
-<script src="~/js/site.js"></script>
-<script src="~/js/finish.js" asp-append-version="true"></script>
-<script src="~/js/quote.js" asp-append-version="true"></script>

@@ -1,0 +1,96 @@
+[
+  {
+    "id": "flexo-rect-existing",
+    "name": "Flexo, Rectangle, Existing Die",
+    "data": {
+      "description": "Test quote – Flexo, rectangle, existing die",
+      "shapeValue": "rectangle",
+      "cornersValue": "rounded",
+      "dieSizeMode": "existing",
+      "materialValue": "000006",
+      "material": "Thermal",
+      "printingValue": "1F",
+      "finishValue": "",
+      "finish": "Laminate",
+      "cuttingDieValue": "",
+      "labelWidth": "",
+      "labelHeight": "",
+      "totalQuantity": "5000",
+      "applicationMethodValue": "hand",
+      "unwindDirectionValue": "top-off-first",
+      "artworkOptionValue": "upload-now",
+      "name": "Jill Doe",
+      "email": "pmenefee@wbf.com",
+      "phone": "453-258-3214"
+    }
+  },
+  {
+    "id": "digital-custom",
+    "name": "Digital, Rectangle, Custom Size",
+    "data": {
+      "description": "Test quote – Digital, custom die size",
+      "shapeValue": "rectangle",
+      "cornersValue": "rounded",
+      "dieSizeMode": "custom",
+      "labelWidth": "4",
+      "labelHeight": "3",
+      "materialValue": "000006",
+      "material": "Thermal",
+      "printingValue": "2D",
+      "finishValue": "",
+      "finish": "Laminate",
+      "totalQuantity": "2500",
+      "applicationMethodValue": "machine",
+      "unwindDirectionValue": "top-off-first",
+      "artworkOptionValue": "upload-now",
+      "name": "Test User",
+      "email": "pmenefee@wbf.com",
+      "phone": "111-222-3333"
+    }
+  },
+  {
+    "id": "blank-circle",
+    "name": "Blank, Circle",
+    "data": {
+      "description": "Test quote – Blank, circle",
+      "shapeValue": "circle",
+      "diameter": "3",
+      "materialValue": "000006",
+      "material": "Thermal",
+      "printingValue": "1B",
+      "finishValue": "",
+      "finish": "blank",
+      "totalQuantity": "10000",
+      "applicationMethodValue": "hand",
+      "unwindDirectionValue": "top-off-first",
+      "artworkOptionValue": "artwork-not-ready",
+      "name": "Test User",
+      "email": "pmenefee@wbf.com",
+      "phone": "111-222-3333"
+    }
+  },
+  {
+    "id": "square-corners",
+    "name": "Rectangle, Square Corners, Custom",
+    "data": {
+      "description": "Test quote – Square corners, custom size",
+      "shapeValue": "rectangle",
+      "cornersValue": "square",
+      "dieSizeMode": "custom",
+      "labelWidth": "2",
+      "labelHeight": "1.5",
+      "materialValue": "000006",
+      "material": "Thermal",
+      "printingValue": "1F",
+      "finishValue": "",
+      "finish": "Laminate",
+      "totalQuantity": "3000",
+      "applicationMethodValue": "hand",
+      "unwindDirectionValue": "bottom-off-first",
+      "artworkOptionValue": "upload-later",
+      "name": "Test User",
+      "email": "pmenefee@wbf.com",
+      "phone": "111-222-3333"
+    }
+  }
+]

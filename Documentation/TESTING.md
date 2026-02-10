@@ -140,6 +140,41 @@ If you find any issues during testing, please report:
 5. Steps to reproduce the issue
 6. Screenshots if applicable
 
+## Test cases (Quote form)
+
+The quote form supports **Load test case** and **Clear form** when running in testing mode.
+
+### Enabling testing mode
+
+- Add `?testing=1` to the Index URL, or
+- Run the app on `localhost`.
+
+### Load test case
+
+1. Use the **Load test case** dropdown (above the form).
+2. Choose a scenario (e.g. *Flexo, Rectangle, Existing Die*).
+3. The form is pre-filled. Finish, Cutting Die, and Materials may take a moment to load; the logic retries at 600 ms, 1.2 s, 2.5 s, and 3.5 s.
+4. Adjust any fields as needed, then submit.
+
+### Clear form
+
+Click **Clear form** to reset the form to defaults (rectangle, rounded, existing die, etc.) and clear Printing, Finish, and Cutting Die.
+
+### Updating test case IDs and display text
+
+Test cases are defined in `wwwroot/data/test-cases.json`. API-dependent fields use IDs that can change per environment:
+
+- **materialValue**: Material/Substrate `Id` from `/Api/Materials`.
+- **material**: Display text or substring (e.g. `"Thermal"`) to match when `materialValue` is missing or not found; first option containing the substring is selected.
+- **printingValue**: Color Code `Id` (e.g. `1F`, `2D`) from `/Api/ColorCodes`.
+- **finishValue**: Finishing Type `Id` from `/Api/FinishingTypes` (filtered by Printing).
+- **finish**: Display text or substring (e.g. `"Laminate"`, `"blank"`) to match when `finishValue` is missing or not found.
+- **cuttingDieValue**: Cutting die option `value` (e.g. `stns_ref`) from `/Api/CuttingDie` for the selected Printing.
+
+Edit `test-cases.json` and replace placeholders with IDs or display strings that exist in your APIs. **Phone** must use `111-222-3333` format (XXX-XXX-XXXX). Pre-fill retries at 600 ms, 1.2 s, 2.5 s, and 3.5 s so Material and Finish can load before selection.
+
+---
+
 ## Additional Testing (Optional)
 
 ### Performance Testing

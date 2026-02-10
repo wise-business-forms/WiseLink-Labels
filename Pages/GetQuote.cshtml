@@ -1,0 +1,80 @@
+@page "/GetQuote"
+@model GetQuoteModel
+@{
+    ViewData["Title"] = "Get a Quote";
+}
+
+@if (Model.SavedQuoteRequest != null)
+{
+    <script id="saved-quote-data" type="application/json">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SavedQuoteRequest))</script>
+    <script>
+        console.log('Saved quote data available on page:', @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SavedQuoteRequest)));
+    </script>
+}
+
+<div class="dashboard-container">
+    @await Html.PartialAsync("_DashboardSidebar")
+    <main class="dashboard-main">
+        <div class="quote-page-container">
+            <div class="quote-main-content"><!--
+        <div class="quote-form-header">
+            <h1>Get an Instant Quote</h1>
+            <p class="quote-subtitle">Kick off your custom label journey here and watch your brand come to life.</p>
+            <p class="mt-1 mb-0">
+                <a asp-page="/CheatSheet" target="_blank" rel="noopener" class="terms-reference-link">Printing terms reference</a>
+            </p>
+        </div>
+        -->
+        @if (!string.IsNullOrWhiteSpace(Model.SelectedCustomerName))
+        {
+            <div class="quote-form-header">
+                <h1>@Model.SelectedCustomerName</h1>
+            </div>
+        }
+        @if (Model.Testing)
+        {
+            <!--
+            <div class="mb-3 p-3 border rounded" id="test-case-panel">
+                <label for="load-test-case" class="form-label">Load test case</label>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <select class="form-select form-select-sm" id="load-test-case" style="max-width: 20rem;">
+                        <option value="">Load test case</option>
+                    </select>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-form-btn">Clear form</button>
+                </div>
+            </div>
+            -->
+        }
+
+
+
+        <form class="quote-form" method="post" id="quote-form">
+            @Html.AntiForgeryToken()
+
+            <div class="mb-4">
+                <label for="description" class="form-label fw-semibold">Project description</label>
+                <textarea
+                    class="form-control"
+                    id="description"
+                    name="description"
+                    rows="3"
+                    maxlength="50"
+                    placeholder="What are we quoting?"
+                >@(Model.SavedQuoteRequest?.Description ?? string.Empty)</textarea>
+                <div class="form-text">Up to 50 characters. Prefilled when you start from a past quote.</div>
+            </div>
+
+            <div class="mb-4">
+                <label for="material-select" class="form-label fw-semibold">Material</label>
+                <label id="material-substrate" class="form-label fw-semibold">
+                    @(Model.SavedQuoteRequest?.Material ?? string.Empty)
+                </label>
+            </div>
+                
+
+            <!-- ...rest of the form markup from the old Index.cshtml... -->
+        </form>
+            </div>
+        </div>
+    </main>
+</div>

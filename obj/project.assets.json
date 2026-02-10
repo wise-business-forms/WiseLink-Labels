@@ -52,6 +52,19 @@
           }
         }
       },
+      "Markdig/0.37.0": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/Markdig.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/Markdig.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "Microsoft.Bcl.AsyncInterfaces/8.0.0": {
         "type": "package",
         "compile": {
@@ -853,6 +866,29 @@
         "lib/net8.0/Dapper.xml",
         "lib/netstandard2.0/Dapper.dll",
         "lib/netstandard2.0/Dapper.xml",
+        "readme.md"
+      ]
+    },
+    "Markdig/0.37.0": {
+      "sha512": "biiu4MTPFjW55qw6v5Aphtj0MjDLJ14x8ndZwkJUHIeqvaSGKeqhLY7S7Vu/S3k7/c9KwhhnaCDP9hdFNUhcNA==",
+      "type": "package",
+      "path": "markdig/0.37.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "lib/net462/Markdig.dll",
+        "lib/net462/Markdig.xml",
+        "lib/net6.0/Markdig.dll",
+        "lib/net6.0/Markdig.xml",
+        "lib/net8.0/Markdig.dll",
+        "lib/net8.0/Markdig.xml",
+        "lib/netstandard2.0/Markdig.dll",
+        "lib/netstandard2.0/Markdig.xml",
+        "lib/netstandard2.1/Markdig.dll",
+        "lib/netstandard2.1/Markdig.xml",
+        "markdig.0.37.0.nupkg.sha512",
+        "markdig.nuspec",
+        "markdig.png",
         "readme.md"
       ]
     },
@@ -2001,7 +2037,8 @@
   },
   "projectFileDependencyGroups": {
     "net8.0": [
-      "CERM.DataAccess >= 1.0.0"
+      "CERM.DataAccess >= 1.0.0",
+      "Markdig >= 0.37.0"
     ]
   },
   "packageFolders": {
@@ -2011,11 +2048,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj",
+      "projectUniqueName": "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj",
       "projectName": "WiseLabels",
-      "projectPath": "c:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj",
+      "projectPath": "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj",
       "packagesPath": "C:\\Users\\pmenefee\\.nuget\\packages\\",
-      "outputPath": "c:\\Users\\pmenefee\\source\\WiseLink-Labels\\obj\\",
+      "outputPath": "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -2037,8 +2074,8 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "c:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj": {
-              "projectPath": "c:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj"
+            "C:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj": {
+              "projectPath": "C:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj"
             }
           }
         }
@@ -2058,6 +2095,12 @@
     "frameworks": {
       "net8.0": {
         "targetAlias": "net8.0",
+        "dependencies": {
+          "Markdig": {
+            "target": "Package",
+            "version": "[0.37.0, )"
+          }
+        },
         "imports": [
           "net461",
           "net462",

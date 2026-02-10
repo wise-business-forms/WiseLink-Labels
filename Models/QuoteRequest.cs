@@ -2,12 +2,19 @@ namespace WiseLabels.Models
 {
     public class QuoteRequest
     {
+        // Metadata for server-side selection
+        public string? EstimateId { get; set; }
+        public string? CustomerId { get; set; }
+        public string? CustomerDisplayName { get; set; }
+
         // Contact information
         public string? Name { get; set; }
         public string? Email { get; set; }
         public string? Phone { get; set; }
         
         // Display values (for confirmation page)
+        public string? ReferenceType { get; set; }
+        public string? ReferenceValue { get; set; }
         public string? Description { get; set; }
         public string? Shape { get; set; }
         public string? LabelWidth { get; set; }
@@ -22,6 +29,7 @@ namespace WiseLabels.Models
         public string? ApplicationMethod { get; set; }
         public string? UnwindDirection { get; set; }
         public string? TotalQuantity { get; set; }
+        public List<int>? Quantities { get; set; }
         public string? ArtworkOption { get; set; }
         
         // Form values for restoration

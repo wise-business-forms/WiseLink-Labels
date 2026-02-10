@@ -2,6 +2,8 @@
 
 Primary context for implementing and validating behavior. Prefer **stable rule IDs**, explicit **inputs/outputs**, and **mapping functions**. Avoid prose unless it clarifies ambiguity.
 
+**See also:** [SCHEMA_REFERENCE.md](SCHEMA_REFERENCE.md) (CERM schema source of truth), [BUSINESS_LOGIC_QUERIES.md](BUSINESS_LOGIC_QUERIES.md) (SQL query catalog).
+
 ## 0. Glossary / canonical terms
 
 - **CERM Parameter Item**: object containing `Id` and `Descriptions[]` (or equivalent).
@@ -98,6 +100,30 @@ Primary context for implementing and validating behavior. Prefer **stable rule I
 
 - Requires a Printing selection first.
 - Not applicable when Shape is **circle**, **oval**, or **special** (hide the Cutting Die section and do not require a selection).
+- Not required when Die Size mode is **Custom Die Size** (user enters width/height manually).
+
+## 7. Die Size mode (Existing vs Custom)
+
+### BR-DIE-MODE-001: UI
+
+- Label Size section includes a dropdown:
+  - **Existing Die Size** (default)
+  - **Custom Die Size**
+
+### BR-DIE-MODE-002: Behavior
+
+- If **Existing Die Size**:
+  - Hide manual Label Size Width/Height inputs (they are populated from Cutting Die selection).
+  - Cutting Die section is visible/required (subject to Shape rules).
+- If **Custom Die Size**:
+  - Show manual Label Size Width/Height inputs.
+  - Cutting Die section is hidden/not required.
+
+### BR-DIE-MODE-003: Corners override
+
+- If **Corners = Square** (instead of Rounded) in the Corners section:
+  - Hide the Die Size dropdown.
+  - Force the UI into **Custom Die Size** (show Width/Height inputs, hide Cutting Die).
 
 ### BR-DIE-003: Query input
 
@@ -146,6 +172,11 @@ Determine `materie_` from the `printing` query value:
 
 - **DisplayText**: `PickEnglishDescription(Descriptions[])`
 - **ValueId**: `Id`
+
+### BR-FIN-005: Blank-only finishes
+
+- If Printing contains **Blank**: show **only** finish options whose DisplayText **starts with** `"blank"` (case-insensitive).
+- If Printing is **Digital** or **Flexo**: do **not** show finish options whose DisplayText contains `Blank-NoFinishing` or `Die-cut`.
 
 ### BR-FIN-FUTURE-001: Inline/Offline filtering
 

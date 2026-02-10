@@ -1,0 +1,59 @@
+@page "/Dashboard"
+@model DashboardModel
+@{
+    ViewData["Title"] = "Admin Dashboard";
+    Layout = "_Layout";
+}
+
+<div class="admin-dashboard">
+    <nav class="admin-sidebar">
+        <h6 class="admin-sidebar-title">Admin</h6>
+        <ul class="admin-nav-list">
+            <li><a asp-page="/Dashboard" class="admin-nav-link active">Dashboard</a></li>
+            <li><a asp-page="/Customers" class="admin-nav-link">Customers</a></li>
+            <li><a href="#" class="admin-nav-link">Quotes</a></li>
+            <li><a href="#" class="admin-nav-link">Reports</a></li>
+            <li><a href="#" class="admin-nav-link">Settings</a></li>
+        </ul>
+        <hr class="admin-sidebar-divider" />
+        <ul class="admin-nav-list">
+            <li><a asp-page="/Index" class="admin-nav-link">? Back to site</a></li>
+        </ul>
+    </nav>
+    <main class="admin-main">
+        <h1 class="admin-page-title">Dashboard</h1>
+        <div class="admin-stats-row">
+            <div class="admin-stat-card">
+                <span class="admin-stat-value">24</span>
+                <span class="admin-stat-label">Quotes this week</span>
+            </div>
+            <div class="admin-stat-card">
+                <span class="admin-stat-value">156</span>
+                <span class="admin-stat-label">Quotes this month</span>
+            </div>
+            <div class="admin-stat-card">
+                <span class="admin-stat-value">12</span>
+                <span class="admin-stat-label">Pending review</span>
+            </div>
+        </div>
+        <div class="admin-content-section">
+            <h2 class="admin-section-title">Recent activity</h2>
+            <p class="text-muted">Example placeholder. Recent quotes and submissions will appear here.</p>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Quote ID</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Today, 2:34 PM</td><td>—</td><td>Sample quote</td><td><span class="badge bg-success">Submitted</span></td></tr>
+                    <tr><td>Yesterday</td><td>—</td><td>Another sample</td><td><span class="badge bg-warning">Pending</span></td></tr>
+                    <tr><td>2 days ago</td><td>—</td><td>Third example</td><td><span class="badge bg-secondary">Draft</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</div>
