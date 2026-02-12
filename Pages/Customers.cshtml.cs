@@ -1,22 +1,27 @@
 using System.Collections.Generic;
-using System.Net.Http;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using CERM.DataAccess;
 using CERM.DataAccess.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using WiseLabels.Models;
 
 namespace WiseLabels.Pages
 {
     public class CustomersModel : PageModel
     {
-        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly CermDbContext _context;
+        private readonly ILogger<CustomersModel> _logger;
 
-        public CustomersModel(IHttpClientFactory httpClientFactory)
+        public CustomersModel(CermDbContext context, ILogger<CustomersModel> logger)
         {
-            _httpClientFactory = httpClientFactory;
+            _context = context;
+            _logger = logger;
         }
 
         public List<Customer> Customers { get; set; } = new();
@@ -38,12 +43,39 @@ namespace WiseLabels.Pages
 
         public async Task OnGetAsync()
         {
-            var client = _httpClientFactory.CreateClient();
-            var response = await client.GetAsync($"{Request.Scheme}://{Request.Host}/Api/Customers");
-            if (response.IsSuccessStatusCode)
+            try
             {
-                var json = await response.Content.ReadAsStringAsync();
-                Customers = JsonSerializer.Deserialize<List<Customer>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<Customer>();
+                Customers = await _context.Customers
+                    .AsNoTracking()
+                    .OrderBy(c => c.Name)
+                    .ToListAsync();
+
+                var representativeIds = Customers
+                    .Select(c => c.RepresentativeId)
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Distinct()
+                    .ToList();
+
+                if (representativeIds.Count > 0)
+                {
+                    var representatives = await _context.Representatives
+                        .Where(r => representativeIds.Contains(r.Id))
+                        .AsNoTracking()
+                        .ToDictionaryAsync(r => r.Id);
+
+                    foreach (var customer in Customers)
+                    {
+                        if (!string.IsNullOrWhiteSpace(customer.RepresentativeId) && representatives.TryGetValue(customer.RepresentativeId, out var rep))
+                        {
+                            customer.Representative = rep;
+                        }
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load customers list");
+                Customers = new List<Customer>();
             }
         }
 

@@ -1,10 +1,29 @@
 using CERM.DataAccess;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.UI;
+using WiseLabels.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddRazorPages();
+builder.Services
+    .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
+
+builder.Services.Configure<AccessControlOptions>(builder.Configuration.GetSection("Authorization"));
+builder.Services.AddSingleton<IAuthorizationHandler, GroupAccessHandler>();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("FullAccess", policy => policy.Requirements.Add(new GroupAccessRequirement(AccessLevel.Full)));
+    options.AddPolicy("LimitedAccess", policy => policy.Requirements.Add(new GroupAccessRequirement(AccessLevel.Limited)));
+    options.FallbackPolicy = options.GetPolicy("LimitedAccess");
+});
+
+builder.Services.AddRazorPages()
+    .AddMicrosoftIdentityUI();
 builder.Services.AddHttpClient();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
@@ -16,7 +35,10 @@ builder.Services.AddSession(options =>
 builder.Services.AddScoped<WiseLabels.Services.IQuoteService, WiseLabels.Services.QuoteService>();
 builder.Services.AddScoped<WiseLabels.Services.IEmailService, WiseLabels.Services.EmailService>();
 builder.Services.AddScoped<WiseLabels.Services.ICermAuthService, WiseLabels.Services.CermAuthService>();
-builder.Services.AddDbContext<CermDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("CermDatabase")));
+builder.Services.AddDbContext<CermDbContext>(options =>
+options.UseSqlServer(
+    builder.Configuration.GetConnectionString("CermDbConnection"),
+    sql => sql.UseCompatibilityLevel(120)));
 builder.Services.AddScoped<CERM.DataAccess.Repositories.Job.IJobRepository, CERM.DataAccess.Repositories.Job.JobRepositoryEF>();
 builder.Services.AddScoped<CERM.DataAccess.Repositories.Substrate.ISubstrateRepository, CERM.DataAccess.Repositories.Substrate.SubstrateRepositoryEF>();
 
@@ -43,6 +65,8 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseSession();
 
 app.MapRazorPages();

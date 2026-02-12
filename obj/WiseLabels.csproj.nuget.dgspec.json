@@ -146,6 +146,14 @@
             "Markdig": {
               "target": "Package",
               "version": "[0.37.0, )"
+            },
+            "Microsoft.Identity.Web": {
+              "target": "Package",
+              "version": "[3.3.1, )"
+            },
+            "Microsoft.Identity.Web.UI": {
+              "target": "Package",
+              "version": "[3.3.1, )"
             }
           },
           "imports": [
