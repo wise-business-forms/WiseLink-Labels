@@ -33,6 +33,10 @@ namespace WiseLabels.Pages
         public bool ApiSuccess { get; set; }
         /// <summary>Error message from CERM API when submission failed (for user display and debugging).</summary>
         public string? CermErrorMessage { get; set; }
+        /// <summary>Raw JSON returned from the CERM API submission.</summary>
+        public string? ApiResponseJson { get; set; }
+        /// <summary>Parsed pricing breakdown from the quick-quote response.</summary>
+        public List<QuotePriceBreakdown> PriceBreakdown { get; } = new();
         public bool EmailSent { get; set; }
         public QuoteRequest? QuoteRequest { get; set; }
         public DateTime SubmittedDate { get; set; } = DateTime.UtcNow;
@@ -87,6 +91,57 @@ namespace WiseLabels.Pages
                 {
                     QuoteRequest = null;
                 }
+            }
+
+            if (TempData.TryGetValue("CermApiResponse", out var apiResponseJson))
+            {
+                ApiResponseJson = apiResponseJson?.ToString();
+                PriceBreakdown.Clear();
+                PriceBreakdown.AddRange(ParsePriceBreakdown(ApiResponseJson));
+            }
+        }
+
+        private static IEnumerable<QuotePriceBreakdown> ParsePriceBreakdown(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return Array.Empty<QuotePriceBreakdown>();
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                JsonElement root = doc.RootElement;
+                if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("Data", out var dataElement))
+                {
+                    root = dataElement;
+                }
+
+                if (root.ValueKind != JsonValueKind.Array)
+                {
+                    return Array.Empty<QuotePriceBreakdown>();
+                }
+
+                var results = new List<QuotePriceBreakdown>();
+                foreach (var item in root.EnumerateArray())
+                {
+                    var breakdown = new QuotePriceBreakdown
+                    {
+                        Quantity = item.TryGetProperty("Quantity", out var qtyEl) && qtyEl.TryGetInt32(out var qty) ? qty : null,
+                        UnitPrice = item.TryGetProperty("UnitPrice", out var unitEl) && unitEl.TryGetDecimal(out var unit) ? unit : null,
+                        TotalPrice = item.TryGetProperty("TotalPrice", out var totalEl) && totalEl.TryGetDecimal(out var total) ? total : null,
+                        Currency = item.TryGetProperty("Currency", out var currencyEl) ? currencyEl.GetString() : null,
+                        ValidQuantity = item.TryGetProperty("ValidQuantity", out var validEl) ? validEl.GetBoolean() : (bool?)null,
+                        ValidErrorCode = item.TryGetProperty("ValidErrorCode", out var codeEl) ? codeEl.GetString() : null
+                    };
+                    results.Add(breakdown);
+                }
+
+                return results;
+            }
+            catch
+            {
+                return Array.Empty<QuotePriceBreakdown>();
             }
         }
 
@@ -304,6 +359,16 @@ namespace WiseLabels.Pages
                 return (null, ex.Message);
             }
         }
+    }
+
+    public class QuotePriceBreakdown
+    {
+        public int? Quantity { get; set; }
+        public decimal? UnitPrice { get; set; }
+        public decimal? TotalPrice { get; set; }
+        public string? Currency { get; set; }
+        public bool? ValidQuantity { get; set; }
+        public string? ValidErrorCode { get; set; }
     }
 }
 

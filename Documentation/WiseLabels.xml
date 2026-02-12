@@ -118,6 +118,12 @@
         <member name="P:WiseLabels.Pages.SuccessModel.CermErrorMessage">
             <summary>Error message from CERM API when submission failed (for user display and debugging).</summary>
         </member>
+        <member name="P:WiseLabels.Pages.SuccessModel.ApiResponseJson">
+            <summary>Raw JSON returned from the CERM API submission.</summary>
+        </member>
+        <member name="P:WiseLabels.Pages.SuccessModel.PriceBreakdown">
+            <summary>Parsed pricing breakdown from the quick-quote response.</summary>
+        </member>
         <member name="P:WiseLabels.Pages.SuccessModel.SubmittedDateEastern">
             <summary>Submitted date/time in Eastern Time for display.</summary>
         </member>
@@ -137,7 +143,7 @@
             Builds CERM API payload JSON, including only properties with non-empty values.
             </summary>
         </member>
-        <member name="M:WiseLabels.Services.QuoteService.MapShapeToCermOutline(System.String,System.String)">
+        <member name="M:WiseLabels.Services.QuoteService.NormalizeShapeKey(System.String,System.String)">
             <summary>
             Maps form shape value/ID to CERM API Outline (shape name): Rectangle, Circle, Oval, Special.
             </summary>

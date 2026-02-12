@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json;
 using CERM.DataAccess;
 using CERM.DataAccess.Models;
@@ -5,6 +6,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Primitives;
 using WiseLabels;
 using WiseLabels.Models;
 
@@ -14,16 +17,23 @@ namespace WiseLabels.Pages
     {
         private readonly ILogger<GetQuoteModel> _logger;
         private readonly CermDbContext _context;
+        private readonly IConfiguration _configuration;
 
-        public GetQuoteModel(ILogger<GetQuoteModel> logger, CermDbContext context)
+        public GetQuoteModel(ILogger<GetQuoteModel> logger, CermDbContext context, IConfiguration configuration)
         {
             _logger = logger;
             _context = context;
+            _configuration = configuration;
+            PrintingFinishFilters = _configuration
+                .GetSection("QuoteOptions:PrintingFinishFilters")
+                .Get<Dictionary<string, string[]>>()
+                ?? new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
         }
 
         public QuoteRequest? SavedQuoteRequest { get; set; }
         public bool Testing { get; set; }
         public string? SelectedCustomerName { get; private set; }
+        public IReadOnlyDictionary<string, string[]> PrintingFinishFilters { get; }
 
         public async Task OnGetAsync()
         {
@@ -99,39 +109,48 @@ namespace WiseLabels.Pages
 
         public IActionResult OnPostSubmit()
         {
+            var form = Request.Form;
+            var materialId = GetFormValue(form, "material", "materialValue");
+            var materialLabel = GetFormValue(form, "materialDisplay", "materialLabel");
+            var rawShapeValue = GetFormValue(form, "shapeValue", "shapeKey");
+            var shapeLabel = form["shape"].ToString();
+            var resolvedShapeValue = ResolveShapeOutline(rawShapeValue, shapeLabel);
+
             var quoteRequest = new QuoteRequest
             {
-                Name = Request.Form["name"].ToString().Trim(),
-                Email = Request.Form["email"].ToString().Trim(),
-                Phone = Request.Form["phone"].ToString().Trim(),
-                ReferenceType = Request.Form["referenceType"].ToString().Trim(),
-                ReferenceValue = Request.Form["referenceValue"].ToString().Trim(),
-                Description = TruncateDescription(Request.Form["description"].ToString()),
-                Shape = Request.Form["shape"].ToString(),
-                LabelWidth = Request.Form["labelWidth"].ToString(),
-                LabelHeight = Request.Form["labelHeight"].ToString(),
-                Diameter = Request.Form["diameter"].ToString(),
-                Corners = Request.Form["corners"].ToString(),
-                CuttingDie = Request.Form["cuttingDie"].ToString(),
-                Printing = Request.Form["printing"].ToString(),
-                Material = Request.Form["material"].ToString(),
-                ColorCode = Request.Form["colorCode"].ToString(),
-                Finish = Request.Form["finish"].ToString(),
-                ApplicationMethod = Request.Form["applicationMethod"].ToString(),
-                UnwindDirection = Request.Form["unwindDirection"].ToString(),
-                TotalQuantity = Request.Form["totalQuantity"].ToString(),
-                Quantities = ParseQuantitiesFromForm(Request.Form),
-                ArtworkOption = Request.Form["artworkOption"].ToString(),
-                ShapeValue = Request.Form["shapeValue"].ToString(),
-                CornersValue = Request.Form["cornersValue"].ToString(),
-                MaterialValue = Request.Form["materialValue"].ToString(),
-                ColorCodeValue = Request.Form["colorCodeValue"].ToString(),
-                FinishValue = Request.Form["finishValue"].ToString(),
-                ApplicationMethodValue = Request.Form["applicationMethodValue"].ToString(),
-                UnwindDirectionValue = Request.Form["unwindDirectionValue"].ToString(),
-                ArtworkOptionValue = Request.Form["artworkOptionValue"].ToString(),
-                CuttingDieValue = Request.Form["cuttingDieValue"].ToString(),
-                PrintingValue = Request.Form["printingValue"].ToString()
+                Name = GetFormValue(form, "name", "contactName"),
+                Company = GetFormValue(form, "company", "contactCompany"),
+                Email = GetFormValue(form, "email", "contactEmail"),
+                Phone = GetFormValue(form, "phone", "contactPhone"),
+                Comments = GetFormValue(form, "comments", "contactComments"),
+                ReferenceType = form["referenceType"].ToString().Trim(),
+                ReferenceValue = form["referenceValue"].ToString().Trim(),
+                Description = TruncateDescription(form["description"].ToString()),
+                Shape = shapeLabel,
+                LabelWidth = form["labelWidth"].ToString(),
+                LabelHeight = form["labelHeight"].ToString(),
+                Diameter = form["diameter"].ToString(),
+                Corners = form["corners"].ToString(),
+                CuttingDie = form["cuttingDie"].ToString(),
+                Printing = form["printing"].ToString(),
+                Material = string.IsNullOrEmpty(materialLabel) ? materialId : materialLabel,
+                ColorCode = form["colorCode"].ToString(),
+                Finish = form["finish"].ToString(),
+                ApplicationMethod = form["applicationMethod"].ToString(),
+                UnwindDirection = form["unwindDirection"].ToString(),
+                TotalQuantity = form["totalQuantity"].ToString(),
+                Quantities = ParseQuantitiesFromForm(form),
+                ArtworkOption = form["artworkOption"].ToString(),
+                ShapeValue = resolvedShapeValue,
+                CornersValue = form["cornersValue"].ToString(),
+                MaterialValue = materialId,
+                ColorCodeValue = form["colorCodeValue"].ToString(),
+                FinishValue = form["finishValue"].ToString(),
+                ApplicationMethodValue = form["applicationMethodValue"].ToString(),
+                UnwindDirectionValue = form["unwindDirectionValue"].ToString(),
+                ArtworkOptionValue = form["artworkOptionValue"].ToString(),
+                CuttingDieValue = form["cuttingDieValue"].ToString(),
+                PrintingValue = form["printingValue"].ToString()
             };
 
             TempData["QuoteRequest"] = JsonSerializer.Serialize(quoteRequest);
@@ -164,12 +183,50 @@ namespace WiseLabels.Pages
             return new QuoteRequest
             {
                 Name = estimate.CustomerName ?? estimate.ContactName,
+                Company = estimate.CustomerName,
                 Email = estimate.Email,
                 Phone = estimate.PhoneNumber,
                 ReferenceType = "Past Quote",
                 ReferenceValue = estimate.Reference ?? estimate.EstimateId,
                 Description = TruncateDescription(estimate.Description ?? string.Empty)
             };
+        }
+
+        private static string ResolveShapeOutline(string? shapeValue, string? shapeLabel)
+        {
+            if (!string.IsNullOrWhiteSpace(shapeValue))
+            {
+                return shapeValue.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(shapeLabel))
+            {
+                return string.Empty;
+            }
+
+            return shapeLabel.Trim().ToLowerInvariant() switch
+            {
+                "rectangle" => "1",
+                "square" => "2",
+                "circle" => "3",
+                "oval" => "4",
+                _ => shapeLabel.Trim()
+            };
+        }
+
+        private static string GetFormValue(IFormCollection form, params string[] keys)
+        {
+            foreach (var key in keys)
+            {
+                if (StringValues.IsNullOrEmpty(form[key]))
+                {
+                    continue;
+                }
+
+                return form[key].ToString().Trim();
+            }
+
+            return string.Empty;
         }
 
         private QuoteRequest? LoadSelectedQuoteFromSession()

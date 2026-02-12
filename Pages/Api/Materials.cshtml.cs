@@ -14,6 +14,9 @@ namespace WiseLabels.Pages.Api
         [JsonPropertyName("Id")]
         public string? Id { get; set; }
 
+        [JsonPropertyName("SubstrateId")]
+        public string? SubstrateId { get; set; }
+
         [JsonPropertyName("Descriptions")]
         public List<Descriptions>? Descriptions { get; set; }
 
@@ -94,6 +97,7 @@ namespace WiseLabels.Pages.Api
 
                 // Fetch materials from API (no filtering for now)
                 var materials = await FetchMaterialsAsync(materialsUrl, accessToken);
+                NormalizeMaterialIds(materials);
 
                 return new JsonResult(new { materials = materials });
             }
@@ -336,7 +340,7 @@ namespace WiseLabels.Pages.Api
             }
         }
 
-        private async Task<object> FetchMaterialsAsync(string materialsUrl, string accessToken)
+        private async Task<List<ParameterResponse>> FetchMaterialsAsync(string materialsUrl, string accessToken)
         {
             try
             {
@@ -449,6 +453,7 @@ namespace WiseLabels.Pages.Api
 
                 if (paramResponse != null && paramResponse.Count > 0)
                 {
+                    NormalizeMaterialIds(paramResponse);
                     // Filter only on AllowRFQ flag being true
                     paramResponse = paramResponse.Where(m => m.AllowRFQ).ToList();
 
@@ -467,16 +472,32 @@ namespace WiseLabels.Pages.Api
                     }, StringComparer.OrdinalIgnoreCase).ToList();
 
                     _logger.LogInformation("Returning {Count} materials after filtering and sorting", paramResponse.Count);
-                    return (paramResponse);
+                    return paramResponse;
                 }
 
                 _logger.LogWarning("No materials found in response");
-                return (new List<ParameterResponse>());
+                return new List<ParameterResponse>();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Exception while fetching materials");
                 throw;
+            }
+        }
+
+        private static void NormalizeMaterialIds(IEnumerable<ParameterResponse> materials)
+        {
+            foreach (var material in materials)
+            {
+                if (material == null)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(material.Id) && !string.IsNullOrWhiteSpace(material.SubstrateId))
+                {
+                    material.Id = material.SubstrateId;
+                }
             }
         }
 
@@ -515,6 +536,16 @@ namespace WiseLabels.Pages.Api
                 if (item.TryGetProperty("Id", out var idProp) || item.TryGetProperty("id", out idProp))
                 {
                     param.Id = idProp.GetString();
+                }
+
+                if (string.IsNullOrWhiteSpace(param.Id) && (item.TryGetProperty("SubstrateId", out var subIdProp) || item.TryGetProperty("substrateId", out subIdProp)))
+                {
+                    param.Id = subIdProp.GetString();
+                    param.SubstrateId = param.Id;
+                }
+                else if (item.TryGetProperty("SubstrateId", out var substrateProp) || item.TryGetProperty("substrateId", out substrateProp))
+                {
+                    param.SubstrateId = substrateProp.GetString();
                 }
 
                 // Get Descriptions array (case-insensitive)
@@ -573,6 +604,7 @@ namespace WiseLabels.Pages.Api
                 result.Add(param);
             }
 
+            NormalizeMaterialIds(result);
             _logger.LogInformation("Manually mapped {Count} materials", result.Count);
             return result;
         }

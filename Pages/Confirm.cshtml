@@ -17,7 +17,11 @@
             <h1 class="mb-4">Confirm Your Quote Request</h1>
             <p class="text-muted mb-4">Please review your information below. Click "Confirm" to submit or "Edit" to go back and make changes.</p>
 
-            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Name) || !string.IsNullOrEmpty(Model.QuoteRequest.Email) || !string.IsNullOrEmpty(Model.QuoteRequest.Phone))
+            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Name)
+                || !string.IsNullOrEmpty(Model.QuoteRequest.Email)
+                || !string.IsNullOrEmpty(Model.QuoteRequest.Phone)
+                || !string.IsNullOrEmpty(Model.QuoteRequest.Company)
+                || !string.IsNullOrEmpty(Model.QuoteRequest.Comments))
             {
                 <div class="card mb-4">
                     <div class="card-header">
@@ -31,6 +35,12 @@
                                 <dd class="col-sm-8">@Model.QuoteRequest.Name</dd>
                             }
 
+                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Company))
+                            {
+                                <dt class="col-sm-4">Company:</dt>
+                                <dd class="col-sm-8">@Model.QuoteRequest.Company</dd>
+                            }
+
                             @if (!string.IsNullOrEmpty(Model.QuoteRequest.Email))
                             {
                                 <dt class="col-sm-4">Email:</dt>
@@ -42,11 +52,17 @@
                                 <dt class="col-sm-4">Phone:</dt>
                                 <dd class="col-sm-8">@Model.QuoteRequest.Phone</dd>
                             }
+
+                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Comments))
+                            {
+                                <dt class="col-sm-4">Comments:</dt>
+                                <dd class="col-sm-8 text-break" style="white-space: pre-line;">@Model.QuoteRequest.Comments</dd>
+                            }
                         </dl>
                     </div>
                 </div>
             }
-
+            
             <div class="card mb-4">
                 <div class="card-header">
                     <h2 class="h5 mb-0">Quote Details</h2>
@@ -85,6 +101,11 @@
                         {
                             <dt class="col-sm-4">Corners:</dt>
                             <dd class="col-sm-8">@Model.QuoteRequest.Corners</dd>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.Material))
+                        {
+                            <dt class="col-sm-4">Material:</dt>
+                            <dd class="col-sm-8">@Model.QuoteRequest.Material</dd>
                         }
 
                         @if (!string.IsNullOrEmpty(Model.QuoteRequest.CuttingDie))

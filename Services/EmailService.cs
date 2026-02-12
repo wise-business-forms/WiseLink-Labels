@@ -136,6 +136,56 @@ namespace WiseLabels.Services
             }
         }
 
+        public async Task<bool> SendCustomEmailAsync(string toEmail, string subject, string htmlBody)
+        {
+            try
+            {
+                var smtpHost = _configuration["Email:SmtpHost"];
+                var smtpPort = _configuration.GetValue<int>("Email:SmtpPort", 587);
+                var smtpUsername = _configuration["Email:SmtpUsername"];
+                var smtpPassword = _configuration["Email:SmtpPassword"];
+                var fromEmail = _configuration["Email:FromEmail"] ?? "noreply@wiselinklabels.com";
+                var fromName = _configuration["Email:FromName"] ?? "WiseLink Labels";
+
+                if (string.IsNullOrEmpty(smtpHost))
+                {
+                    _logger.LogWarning("Email:SmtpHost is not configured. Custom email will not be sent.");
+                    return false;
+                }
+
+                var enableSsl = _configuration.GetValue<bool>("Email:EnableSsl", smtpPort != 25);
+
+                using var client = new SmtpClient(smtpHost, smtpPort)
+                {
+                    EnableSsl = enableSsl
+                };
+
+                if (!string.IsNullOrEmpty(smtpUsername) && !string.IsNullOrEmpty(smtpPassword))
+                {
+                    client.Credentials = new NetworkCredential(smtpUsername, smtpPassword);
+                }
+
+                var message = new MailMessage
+                {
+                    From = new MailAddress(fromEmail, fromName),
+                    Subject = subject,
+                    Body = htmlBody,
+                    IsBodyHtml = true
+                };
+
+                message.To.Add(toEmail);
+
+                await client.SendMailAsync(message);
+                _logger.LogInformation("Custom email '{Subject}' sent successfully to {Email}", subject, toEmail);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending custom email '{Subject}' to {Email}", subject, toEmail);
+                return false;
+            }
+        }
+
         private static string GenerateExceptionEmailBody(
             Exception exception,
             string? context,

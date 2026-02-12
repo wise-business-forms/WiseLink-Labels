@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WiseLabels.Models;
 using System.Text.Json;
+using System.Net;
 
 namespace WiseLabels.Pages
 {
@@ -84,7 +85,7 @@ namespace WiseLabels.Pages
                 FormValuesJson = JsonSerializer.Serialize(quote, formJsonOptions);
 
                 // Submit to CERM API
-                var (apiSuccess, cermCalculationId, cermEstimateId, cermErrorMessage) = await _quoteService.SubmitToCermApiAsync(quote);
+                var (apiSuccess, cermCalculationId, cermEstimateId, cermErrorMessage, cermResponseJson) = await _quoteService.SubmitToCermApiAsync(quote);
 
                 TempData["QuoteId"] = quoteId;
                 TempData["ApiSuccess"] = apiSuccess.ToString();
@@ -95,6 +96,28 @@ namespace WiseLabels.Pages
                     TempData["CermEstimateId"] = cermEstimateId;
                 if (!string.IsNullOrWhiteSpace(cermErrorMessage))
                     TempData["CermErrorMessage"] = cermErrorMessage;
+                if (!string.IsNullOrWhiteSpace(cermResponseJson))
+                    TempData["CermApiResponse"] = cermResponseJson;
+
+                if (string.IsNullOrWhiteSpace(cermCalculationId) && string.IsNullOrWhiteSpace(cermEstimateId))
+                {
+                    var subject = "CERM quote submission missing reference number";
+                    var body = $@"<p>No quote number was returned for a submission.</p>
+<ul>
+    <li><strong>QuoteId:</strong> {quoteId}</li>
+    <li><strong>ApiSuccess:</strong> {apiSuccess}</li>
+    <li><strong>Description:</strong> {WebUtility.HtmlEncode(quote.Description ?? string.Empty)}</li>
+    <li><strong>Error:</strong> {WebUtility.HtmlEncode(cermErrorMessage ?? "(none)")}</li>
+</ul>";
+                    try
+                    {
+                        await _emailService.SendCustomEmailAsync("pmenefee@wbf.com", subject, body);
+                    }
+                    catch (Exception emailEx)
+                    {
+                        _logger.LogError(emailEx, "Failed sending debug email when quote number was missing");
+                    }
+                }
 
                 // Update contact info in CERM database when we have the estimate ID
                 var estimateIdForContact = cermEstimateId ?? cermCalculationId;

@@ -1,5 +1,6 @@
 @page "/GetQuote"
 @model GetQuoteModel
+@using System.Collections.Generic
 @{
     ViewData["Title"] = "Get a Quote";
 }
@@ -11,44 +12,23 @@
         console.log('Saved quote data available on page:', @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SavedQuoteRequest)));
     </script>
 }
+<script id="printing-finish-filters" type="application/json">
+    @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.PrintingFinishFilters ?? new Dictionary<string, string[]>()))
+</script>
 
 <div class="dashboard-container">
     @await Html.PartialAsync("_DashboardSidebar")
     <main class="dashboard-main">
         <div class="quote-page-container">
-            <div class="quote-main-content"><!--
-        <div class="quote-form-header">
-            <h1>Get an Instant Quote</h1>
-            <p class="quote-subtitle">Kick off your custom label journey here and watch your brand come to life.</p>
-            <p class="mt-1 mb-0">
-                <a asp-page="/CheatSheet" target="_blank" rel="noopener" class="terms-reference-link">Printing terms reference</a>
-            </p>
-        </div>
-        -->
+            <div class="quote-main-content">
         @if (!string.IsNullOrWhiteSpace(Model.SelectedCustomerName))
         {
             <div class="quote-form-header">
                 <h1>@Model.SelectedCustomerName</h1>
             </div>
         }
-        @if (Model.Testing)
-        {
-            <!--
-            <div class="mb-3 p-3 border rounded" id="test-case-panel">
-                <label for="load-test-case" class="form-label">Load test case</label>
-                <div class="d-flex flex-wrap gap-2 align-items-center">
-                    <select class="form-select form-select-sm" id="load-test-case" style="max-width: 20rem;">
-                        <option value="">Load test case</option>
-                    </select>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="clear-form-btn">Clear form</button>
-                </div>
-            </div>
-            -->
-        }
 
-
-
-        <form class="quote-form" method="post" id="quote-form">
+        <form class="quote-form" method="post" id="quote-form" asp-page-handler="Submit">
             @Html.AntiForgeryToken()
 
             <div class="mb-4">
@@ -65,15 +45,1004 @@
             </div>
 
             <div class="mb-4">
-                <label for="material-select" class="form-label fw-semibold">Material</label>
-                <label id="material-substrate" class="form-label fw-semibold">
-                    @(Model.SavedQuoteRequest?.Material ?? string.Empty)
-                </label>
+                <label class="form-label fw-semibold" for="shape-input">Shape</label>
+                <input type="hidden" id="shape-input" name="shape" value="@(Model.SavedQuoteRequest?.Shape ?? string.Empty)" />
+                <input type="hidden" id="shape-outline" name="shapeValue" value="@(Model.SavedQuoteRequest?.ShapeValue ?? string.Empty)" />
+                <div class="d-flex flex-wrap gap-2" id="shape-options">
+                    @{ var shapes = new (string Key, string Label, string OutlineId)[]
+                        {
+                            ("rectangle", "Rectangle", "1"),
+                            ("square", "Square", "2"),
+                            ("circle", "Circle", "3"),
+                            ("oval", "Oval", "4")
+                        };
+                        var savedShape = (Model.SavedQuoteRequest?.Shape ?? string.Empty).Trim();
+                        var savedShapeValue = (Model.SavedQuoteRequest?.ShapeValue ?? string.Empty).Trim();
+                        var shapeIcons = new Dictionary<string, string>
+                        {
+                            ["rectangle"] = "<svg width=\"32\" height=\"20\" viewBox=\"0 0 32 20\" aria-hidden=\"true\" focusable=\"false\"><rect x=\"1\" y=\"1\" width=\"30\" height=\"18\" rx=\"2\" ry=\"2\" fill=\"currentColor\" opacity=\"0.15\" stroke=\"currentColor\" stroke-width=\"2\" /></svg>",
+                            ["square"] = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" aria-hidden=\"true\" focusable=\"false\"><rect x=\"2\" y=\"2\" width=\"20\" height=\"20\" rx=\"2\" ry=\"2\" fill=\"currentColor\" opacity=\"0.15\" stroke=\"currentColor\" stroke-width=\"2\" /></svg>",
+                            ["circle"] = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" aria-hidden=\"true\" focusable=\"false\"><circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"currentColor\" opacity=\"0.15\" stroke=\"currentColor\" stroke-width=\"2\" /></svg>",
+                            ["oval"] = "<svg width=\"32\" height=\"20\" viewBox=\"0 0 32 20\" aria-hidden=\"true\" focusable=\"false\"><ellipse cx=\"16\" cy=\"10\" rx=\"13\" ry=\"8\" fill=\"currentColor\" opacity=\"0.15\" stroke=\"currentColor\" stroke-width=\"2\" /></svg>"
+                        };
+                    }
+                    @foreach (var shape in shapes)
+                    {
+                        var isActive = shape.Label.Equals(savedShape, StringComparison.OrdinalIgnoreCase)
+                            || shape.Key.Equals(savedShape, StringComparison.OrdinalIgnoreCase)
+                            || shape.OutlineId.Equals(savedShapeValue, StringComparison.OrdinalIgnoreCase);
+                        <button type="button"
+                                class="btn btn-outline-secondary shape-option @(isActive ? "active" : string.Empty)"
+                                data-value="@shape.Key"
+                                data-shape-key="@shape.Key"
+                                data-outline-id="@shape.OutlineId"
+                                data-label="@shape.Label">
+                            <span class="shape-icon me-1">@Html.Raw(shapeIcons[shape.Key])</span>
+                            @shape.Label
+                        </button>
+                    }
+                </div>
             </div>
-                
+
+                    <div class="mb-4 d-none" id="corner-options">
+                        <label class="form-label fw-semibold" for="corners-input">Corners</label>
+                        <input type="hidden" id="corners-input" name="corners" value="@(Model.SavedQuoteRequest?.Corners ?? string.Empty)" />
+                        <div class="d-flex flex-wrap gap-2">
+                            @{
+                                var cornerChoices = new (string Value, string Label)[]
+                                {
+                                                        ("rounded", "Rounded"),
+                                                        ("square", "Square")
+                                };
+                                var savedCorner = (Model.SavedQuoteRequest?.Corners ?? string.Empty).Trim();
+                            }
+                            @foreach (var corner in cornerChoices)
+                            {
+                                var cornerActive = corner.Label.Equals(savedCorner, StringComparison.OrdinalIgnoreCase) || corner.Value.Equals(savedCorner, StringComparison.OrdinalIgnoreCase);
+                                <button type="button"
+                                        class="btn btn-outline-secondary corner-option @(cornerActive ? "active" : string.Empty)"
+                                        data-value="@corner.Value"
+                                        data-label="@corner.Label">
+                                    @corner.Label
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+            <div class="mb-4" id="dimensions-rectangles">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="label-width" class="form-label fw-semibold">Width (inches)</label>
+                        <input type="number"
+                               class="form-control"
+                               id="label-width"
+                               name="labelWidth"
+                               min="0"
+                               step="0.001"
+                               value="@(Model.SavedQuoteRequest?.LabelWidth ?? string.Empty)"
+                               placeholder="e.g., 2.500" />
+                    </div>
+                    <div class="col-md-6">
+                        <label for="label-height" class="form-label fw-semibold">Height (inches)</label>
+                        <input type="number"
+                               class="form-control"
+                               id="label-height"
+                               name="labelHeight"
+                               min="0"
+                               step="0.001"
+                               value="@(Model.SavedQuoteRequest?.LabelHeight ?? string.Empty)"
+                               placeholder="e.g., 1.750" />
+                    </div>
+                </div>
+                <div class="form-text">Shown for rectangle or square labels.</div>
+            </div>
+
+            <div class="mb-4 d-none" id="dimensions-radius">
+                <label for="label-radius" class="form-label fw-semibold">Radius (inches)</label>
+                <input type="number"
+                       class="form-control"
+                       id="label-radius"
+                       name="diameter"
+                       min="0"
+                       step="0.001"
+                       value="@(Model.SavedQuoteRequest?.Diameter ?? string.Empty)"
+                       placeholder="e.g., 1.250" />
+                <div class="form-text">Shown for circle or oval labels.</div>
+            </div>
+
+            <div class="mb-4">
+                <label for="material-select" class="form-label fw-semibold">Material</label>
+                <select
+                    class="form-select"
+                    id="material-select"
+                    name="material"
+                    size="8"
+                    data-initial-value="@(Model.SavedQuoteRequest?.MaterialValue ?? string.Empty)"
+                    data-initial-label="@(Model.SavedQuoteRequest?.Material ?? string.Empty)">
+                    <option value="">Loading materials…</option>
+                </select>
+                <input type="hidden" id="material-display" name="materialDisplay" value="@(Model.SavedQuoteRequest?.Material ?? string.Empty)" />
+                <div id="material-loading" class="form-text text-muted">Loading materials…</div>
+                <div id="material-error" class="form-text text-danger d-none"></div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold" for="printing-input">Printing</label>
+                <input type="hidden" id="printing-input" name="printing" value="@(Model.SavedQuoteRequest?.Printing ?? string.Empty)" />
+                <input type="hidden" id="printing-value" name="printingValue" value="@(Model.SavedQuoteRequest?.PrintingValue ?? string.Empty)" />
+                <div id="printing-loading" class="form-text text-muted">Loading printing options…</div>
+                <div id="printing-filter" class="printing-filter d-flex flex-wrap gap-2"
+                     data-initial-id="@(Model.SavedQuoteRequest?.PrintingValue ?? string.Empty)"
+                     data-initial-label="@(Model.SavedQuoteRequest?.Printing ?? string.Empty)">
+                </div>
+                <div id="printing-error" class="form-text text-danger d-none"></div>
+            </div>
+
+            <div class="mb-4">
+                <label for="finish-select" class="form-label fw-semibold">Finish</label>
+                <select
+                    class="form-select"
+                    id="finish-select"
+                    name="finish"
+                    data-initial-value="@(Model.SavedQuoteRequest?.Finish ?? string.Empty)">
+                    <option value="">Loading finishes…</option>
+                </select>
+                <div id="finish-loading" class="form-text text-muted">Loading finishes…</div>
+                <div id="finish-error" class="form-text text-danger d-none"></div>
+            </div>
+
+            <div class="mb-4">
+                <label for="label-size-type" class="form-label fw-semibold">Label Size Type</label>
+                <select class="form-select" id="label-size-type" name="labelSizeType">
+                    <option value="existing-die" selected>Existing Die</option>
+                    <option value="custom-die">Custom Die</option>
+                </select>
+            </div>
+
+            <div class="mb-4 d-none" id="existing-die-section">
+                <label class="form-label fw-semibold" for="existing-die-select">Existing Die Size</label>
+                <select class="form-select" id="existing-die-select" name="existingDie">
+                    <option value="">Select a die size</option>
+                </select>
+                <div id="die-loading" class="form-text text-muted d-none">Loading die sizes…</div>
+                <div id="die-error" class="form-text text-danger d-none"></div>
+            </div>
+
+            <div class="alert alert-info d-none" id="custom-die-info" role="status">
+                Custom die selections may require additional tooling costs and extended lead times.
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold" for="unwind-input">Unwind Direction / Copy Position</label>
+                <input type="hidden" id="unwind-input" name="unwindDirection" value="@(Model.SavedQuoteRequest?.UnwindDirection ?? string.Empty)" />
+                <div class="row row-cols-2 row-cols-md-4 g-2" id="unwind-options">
+                    @{ var unwindOptions = new (string Value, string Label, string Description)[]
+                        {
+                            ("1", "1 - Top off first", "Labels feed with top edge leading"),
+                            ("2", "2 - Bottom off first", "Bottom edge leads"),
+                            ("3", "3 - Right off first", "Right edge leads"),
+                            ("4", "4 - Left off first", "Left edge leads")
+                        };
+                        var savedUnwind = (Model.SavedQuoteRequest?.UnwindDirection ?? string.Empty).Trim();
+                    }
+                    @foreach (var option in unwindOptions)
+                    {
+                        var isActive = option.Label.Equals(savedUnwind, StringComparison.OrdinalIgnoreCase)
+                            || option.Value.Equals(savedUnwind, StringComparison.OrdinalIgnoreCase);
+                        <div class="col">
+                            <button type="button"
+                                    class="btn btn-outline-secondary w-100 text-start unwind-option @(isActive ? "active" : string.Empty)"
+                                    data-value="@option.Value"
+                                    data-label="@option.Label">
+                                <span class="d-flex align-items-center">
+                                    <span class="unwind-icon me-2">
+                                        @switch (option.Value)
+                                        {
+                                            case "1":
+                                                @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="6" y="12" width="20" height="8" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M16 6v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 10l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                break;
+                                            case "2":
+                                                @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="6" y="12" width="20" height="8" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M16 26v-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 22l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                break;
+                                            case "3":
+                                                @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="12" y="6" width="8" height="20" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M26 16h-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M22 12l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                break;
+                                            default:
+                                                @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="12" y="6" width="8" height="20" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M6 16h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 12l-4 4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                break;
+                                        }
+                                    </span>
+                                    <span>
+                                        <span class="fw-semibold d-block">@option.Label</span>
+                                        <small class="text-muted">@option.Description</small>
+                                    </span>
+                                </span>
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Quantities to Quote</label>
+                <div class="form-text mb-2">Add up to five breakouts so estimating can price each run size.</div>
+                <div id="quantity-list" class="d-flex flex-column gap-2">
+                    @{
+                        var savedQuantities = Model.SavedQuoteRequest?.Quantities ?? new List<int>();
+                        for (var i = 0; i < 5; i++)
+                        {
+                            var preset = i < savedQuantities.Count ? savedQuantities[i].ToString() : string.Empty;
+                            var isVisible = i == 0 || !string.IsNullOrEmpty(preset);
+                            <div class="quantity-row row g-2 @(isVisible ? string.Empty : "d-none")" data-index="@i">
+                                <div class="col">
+                                    <label class="form-label">Quantity @(i + 1)</label>
+                                    <input type="number"
+                                            class="form-control"
+                                            name="quantity"
+                                            min="1"
+                                            step="1"
+                                            value="@preset"
+                                            placeholder="e.g., 5000" />
+                                </div>
+                                <div class="col-auto d-flex align-items-end">
+                                    @if (i > 0)
+                                    {
+                                        <button type="button" class="btn btn-outline-danger remove-quantity" aria-label="Remove quantity @(i + 1)">
+                                            Remove
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+                <button type="button" id="add-quantity" class="btn btn-outline-secondary btn-sm mt-2">Add another quantity</button>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Contact Information</label>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="contact-name" class="form-label">Full name</label>
+                        <input type="text"
+                               class="form-control"
+                               id="contact-name"
+                               name="name"
+                               placeholder="Jane Doe"
+                               value="@(Model.SavedQuoteRequest?.Name ?? string.Empty)" />
+                    </div>
+                    <div class="col-md-6">
+                        <label for="contact-company" class="form-label">Company</label>
+                        <input type="text"
+                               class="form-control"
+                               id="contact-company"
+                               name="company"
+                               placeholder="Acme Corp"
+                               value="@(Model.SavedQuoteRequest?.Company ?? string.Empty)" />
+                    </div>
+                    <div class="col-md-6">
+                        <label for="contact-email" class="form-label">Email address</label>
+                        <input type="email"
+                               class="form-control"
+                               id="contact-email"
+                               name="email"
+                               placeholder="name@example.com"
+                               value="@(Model.SavedQuoteRequest?.Email ?? string.Empty)" />
+                    </div>
+                    <div class="col-md-6">
+                        <label for="contact-phone" class="form-label">Phone number</label>
+                        <input type="tel"
+                               class="form-control"
+                               id="contact-phone"
+                               name="phone"
+                               placeholder="555-123-4567"
+                               value="@(Model.SavedQuoteRequest?.Phone ?? string.Empty)" />
+                    </div>
+                    <div class="col-12">
+                        <label for="contact-comments" class="form-label">Comments</label>
+                        <textarea class="form-control" id="contact-comments" name="comments" rows="3" placeholder="Anything else we should know?">@(Model.SavedQuoteRequest?.Comments ?? string.Empty)</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-end mt-4">
+                <button type="submit" class="btn btn-primary">Submit Quote Request</button>
+            </div>
 
             <!-- ...rest of the form markup from the old Index.cshtml... -->
         </form>
+
+        <script>
+            (function () {
+                const materialSelect = document.getElementById('material-select');
+                if (!materialSelect) {
+                    return;
+                }
+
+                const materialLoading = document.getElementById('material-loading');
+                const materialError = document.getElementById('material-error');
+                const materialDisplayInput = document.getElementById('material-display');
+                const initialValue = (materialSelect.dataset.initialValue || '').trim();
+                const initialLabel = (materialSelect.dataset.initialLabel || '').trim();
+
+                function updateMaterialDisplay() {
+                    if (!materialDisplayInput) {
+                        return;
+                    }
+                    const selected = materialSelect.options[materialSelect.selectedIndex];
+                    const displayText = selected?.dataset.display || selected?.textContent || '';
+                    materialDisplayInput.value = displayText;
+                }
+
+                function getDescription(material) {
+                    const descriptions = material.Descriptions || material.descriptions || [];
+                    const en = descriptions.find(d => (d.ISOLanguageCode || d.isoLanguageCode || '').toLowerCase() === 'en-us');
+                    const fallback = descriptions[0];
+                    return (en && (en.Description || en.description))
+                        || (fallback && (fallback.Description || fallback.description))
+                        || material.Id
+                        || material.id
+                        || 'Unknown Material';
+                }
+
+                function populateMaterials(materials) {
+                    materialSelect.innerHTML = '<option value="">Select a material</option>';
+                    materials.forEach(material => {
+                        const materialId = material.SubstrateId || material.substrateId || material.Id || material.id || '';
+                        const description = getDescription(material);
+                        const option = document.createElement('option');
+                        option.value = materialId || description;
+                        option.textContent = description;
+                        option.dataset.display = description;
+                        option.dataset.materialId = materialId;
+                        if (initialValue && option.value === initialValue) {
+                            option.selected = true;
+                        } else if (!initialValue && initialLabel && description.toLowerCase() === initialLabel.toLowerCase()) {
+                            option.selected = true;
+                        }
+                        materialSelect.appendChild(option);
+                    });
+
+                    if (!materialSelect.value && initialValue) {
+                        materialSelect.value = initialValue;
+                    }
+
+                    updateMaterialDisplay();
+                }
+
+                async function loadMaterials() {
+                    try {
+                        materialLoading.classList.remove('d-none');
+                        materialError.classList.add('d-none');
+                        const response = await fetch('/Api/Materials', { headers: { 'Accept': 'application/json' } });
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({ error: 'Unable to load materials right now.' }));
+                            throw new Error(errorData.error || `Unable to load materials (${response.status})`);
+                        }
+
+                        const payload = await response.json();
+                        const materials = payload.materials || payload.data || payload.items || payload.results || payload;
+                        if (!Array.isArray(materials) || materials.length === 0) {
+                            throw new Error('No materials were returned.');
+                        }
+                        populateMaterials(materials);
+                    } catch (error) {
+                        console.error('Failed to load materials', error);
+                        materialError.textContent = error.message || 'Unable to load materials right now.';
+                        materialError.classList.remove('d-none');
+                        materialSelect.innerHTML = '<option value="">Unable to load materials</option>';
+                    } finally {
+                        materialLoading.classList.add('d-none');
+                    }
+                }
+
+                materialSelect.addEventListener('change', updateMaterialDisplay);
+
+                loadMaterials();
+            })();
+
+            (function () {
+                const printingFilter = document.getElementById('printing-filter');
+                const printingLoading = document.getElementById('printing-loading');
+                const printingError = document.getElementById('printing-error');
+                const printingInput = document.getElementById('printing-input');
+                const printingValueInput = document.getElementById('printing-value');
+                if (!printingFilter || !printingInput || !printingValueInput) {
+                    return;
+                }
+
+                const initialId = (printingFilter.dataset.initialId || '').trim();
+                const initialLabel = (printingFilter.dataset.initialLabel || '').trim();
+
+                const slugify = (text) => (text || '')
+                    .toString()
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+                const deriveLegacyKey = (label) => {
+                    const normalized = (label || '').toLowerCase();
+                    if (!normalized) return '';
+                    if (normalized.includes('white') && normalized.includes('cmyk')) return 'white-cmyk-digital';
+                    if (normalized.includes('black') && normalized.includes('digital')) return 'black-only-digital';
+                    if (normalized.includes('process') && normalized.includes('digital')) return 'process-digital';
+                    if (normalized.includes('spot') && normalized.includes('2')) return 'spot-2-standard';
+                    if (normalized.includes('spot') && normalized.includes('1')) return 'spot-1-standard';
+                    if (normalized.includes('flexo')) return 'flexo';
+                    if (normalized.includes('digital')) return 'digital';
+                    return '';
+                };
+
+                const dispatchSelection = (detail) => {
+                    window.dispatchEvent(new CustomEvent('printingSelectionChanged', { detail }));
+                };
+
+                const setActive = (button, raiseEvent = true) => {
+                    printingFilter.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+
+                    const label = button.getAttribute('data-printing-text') || button.textContent.trim();
+                    const id = button.getAttribute('data-printing-id') || '';
+                    const legacyKey = button.getAttribute('data-printing-key') || slugify(label);
+
+                    printingInput.value = label;
+                    printingValueInput.value = id;
+
+                    if (raiseEvent) {
+                        dispatchSelection({
+                            id,
+                            label,
+                            key: legacyKey,
+                            slug: slugify(label)
+                        });
+                    }
+                };
+
+                const normalizePayload = (payload) => {
+                    if (!payload) return [];
+                    const candidates = [payload, payload.data, payload.Data, payload.items, payload.Items, payload.results, payload.Results, payload.colourCodes, payload.ColourCodes];
+                    for (const candidate of candidates) {
+                        if (Array.isArray(candidate)) {
+                            return candidate;
+                        }
+                    }
+                    return [];
+                };
+
+                const extractId = (entry) => {
+                    const colourBacking = entry?.ColourBacking || entry?.colourBacking;
+                    return colourBacking?.Id || entry?.Id || entry?.id || entry?.ColourCodeId || entry?.colourCodeId || entry?.ColorCodeId || entry?.colorCodeId || '';
+                };
+
+                const extractDescription = (entry) => {
+                    const colourBacking = entry?.ColourBacking || entry?.colourBacking;
+                    const source = colourBacking || entry;
+                    const descriptions = source?.Descriptions || source?.Discriptions || source?.descriptions || source?.discriptions;
+                    if (Array.isArray(descriptions) && descriptions.length) {
+                        const preferred = descriptions.find(d => (d?.ISOLanguageCode || d?.isoLanguageCode || '').toLowerCase() === 'en-us') || descriptions[0];
+                        return preferred?.Description || preferred?.description || '';
+                    }
+                    return '';
+                };
+
+                const buildButton = (id, label) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'filter-btn';
+                    button.textContent = label;
+                    button.setAttribute('data-printing-id', id);
+                    button.setAttribute('data-printing-text', label);
+                    const legacyKey = deriveLegacyKey(label) || slugify(id) || slugify(label) || '';
+                    button.setAttribute('data-printing-key', legacyKey);
+                    button.addEventListener('click', () => setActive(button, true));
+                    return button;
+                };
+
+                async function loadPrintingOptions() {
+                    try {
+                        printingLoading?.classList.remove('d-none');
+                        printingError?.classList.add('d-none');
+                        printingFilter.innerHTML = '';
+
+                        const response = await fetch('/Api/ColorCodes', { headers: { 'Accept': 'application/json' } });
+                        if (!response.ok) {
+                            const errorPayload = await response.json().catch(() => ({}));
+                            throw new Error(errorPayload.error || `Unable to load printing options (${response.status})`);
+                        }
+
+                        const payload = await response.json();
+                        const items = normalizePayload(payload);
+                        const printingMap = new Map();
+
+                        items.forEach(item => {
+                            const id = extractId(item);
+                            if (!id || printingMap.has(id)) {
+                                return;
+                            }
+                            const description = extractDescription(item) || id;
+                            printingMap.set(id, description);
+                        });
+
+                        if (printingMap.size === 0) {
+                            printingFilter.innerHTML = '<div class="text-muted">No printing options available.</div>';
+                            return;
+                        }
+
+                        Array.from(printingMap.entries())
+                            .sort((a, b) => a[1].localeCompare(b[1]))
+                            .forEach(([id, label]) => {
+                                printingFilter.appendChild(buildButton(id, label));
+                            });
+
+                        const buttons = Array.from(printingFilter.querySelectorAll('button'));
+                        const match = buttons.find(btn => {
+                            const id = btn.getAttribute('data-printing-id');
+                            const label = btn.getAttribute('data-printing-text');
+                            return (initialId && id === initialId) || (!initialId && initialLabel && label && label.toLowerCase() === initialLabel.toLowerCase());
+                        }) || buttons[0];
+
+                        if (match) {
+                            setActive(match, true);
+                        }
+                    } catch (error) {
+                        console.error('Failed to load printing options', error);
+                        if (printingError) {
+                            printingError.textContent = error.message || 'Unable to load printing options right now.';
+                            printingError.classList.remove('d-none');
+                        }
+                        printingFilter.innerHTML = '<div class="text-muted">Unable to load printing options.</div>';
+                    } finally {
+                        printingLoading?.classList.add('d-none');
+                    }
+                }
+
+                loadPrintingOptions();
+            })();
+
+            (function () {
+                const shapeOptions = document.querySelectorAll('.shape-option');
+                const shapeInput = document.getElementById('shape-input');
+                const shapeOutlineInput = document.getElementById('shape-outline');
+                if (!shapeOptions.length || !shapeInput) {
+                    return;
+                }
+
+                function setActive(button, forceEvent = false) {
+                    shapeOptions.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    shapeInput.value = button.dataset.label || button.dataset.value || '';
+                    if (shapeOutlineInput) {
+                        shapeOutlineInput.value = button.dataset.outlineId || button.dataset.shapeKey || button.dataset.value || '';
+                    }
+                    if (forceEvent) {
+                        const detail = {
+                            value: shapeInput.value,
+                            key: (button.dataset.shapeKey || button.dataset.value || '').toLowerCase(),
+                            outlineId: shapeOutlineInput ? shapeOutlineInput.value : ''
+                        };
+                        window.dispatchEvent(new CustomEvent('shapeSelectionChanged', { detail }));
+                    }
+                }
+
+                shapeOptions.forEach(button => {
+                    button.addEventListener('click', function () {
+                        setActive(this, true);
+                    });
+                });
+
+                const initialActive = document.querySelector('.shape-option.active');
+                if (initialActive) {
+                    setActive(initialActive, true);
+                } else if (shapeOptions.length) {
+                    setActive(shapeOptions[0], true);
+                }
+            })();
+
+            (function () {
+                const rectangleSection = document.getElementById('dimensions-rectangles');
+                const radiusSection = document.getElementById('dimensions-radius');
+                if (!rectangleSection || !radiusSection) {
+                    return;
+                }
+
+                function updateVisibility(shapeKey) {
+                    const isRectangular = shapeKey === 'rectangle' || shapeKey === 'square';
+                    const isRound = shapeKey === 'circle' || shapeKey === 'oval';
+                    rectangleSection.classList.toggle('d-none', !isRectangular);
+                    radiusSection.classList.toggle('d-none', !isRound);
+                }
+
+                window.addEventListener('shapeSelectionChanged', event => {
+                    updateVisibility(event.detail?.key || '');
+                });
+
+                const initialKey = document.querySelector('.shape-option.active')?.dataset.shapeKey || '';
+                updateVisibility((initialKey || '').toLowerCase());
+            })();
+
+            (function () {
+                const cornerSection = document.getElementById('corner-options');
+                const cornerOptions = Array.from(document.querySelectorAll('.corner-option'));
+                const cornerInput = document.getElementById('corners-input');
+                if (!cornerSection || !cornerInput || !cornerOptions.length) {
+                    return;
+                }
+
+                function setCornerActive(button) {
+                    cornerOptions.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    cornerInput.value = button.dataset.label || button.dataset.value || '';
+                }
+
+                function updateCornerVisibility(shapeKey) {
+                    const show = shapeKey === 'rectangle' || shapeKey === 'square';
+                    cornerSection.classList.toggle('d-none', !show);
+                    if (!show) {
+                        cornerInput.value = '';
+                        cornerOptions.forEach(btn => btn.classList.remove('active'));
+                    } else if (!cornerOptions.some(btn => btn.classList.contains('active'))) {
+                        setCornerActive(cornerOptions[0]);
+                    }
+                }
+
+                cornerOptions.forEach(button => {
+                    button.addEventListener('click', function () {
+                        setCornerActive(this);
+                    });
+                });
+
+                const initialCorner = document.querySelector('.corner-option.active') || cornerOptions[0];
+                if (initialCorner) {
+                    setCornerActive(initialCorner);
+                }
+
+                const initialShape = document.querySelector('.shape-option.active')?.dataset.shapeKey || '';
+                updateCornerVisibility((initialShape || '').toLowerCase());
+
+                window.addEventListener('shapeSelectionChanged', event => {
+                    updateCornerVisibility((event.detail?.key || '').toLowerCase());
+                });
+            })();
+
+            (function () {
+                const unwindOptions = document.querySelectorAll('.unwind-option');
+                const unwindInput = document.getElementById('unwind-input');
+                if (!unwindOptions.length || !unwindInput) {
+                    return;
+                }
+
+                function setActive(button, raiseEvent = false) {
+                    unwindOptions.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    unwindInput.value = button.dataset.label || button.dataset.value || '';
+                    if (raiseEvent) {
+                        window.dispatchEvent(new CustomEvent('unwindSelectionChanged', {
+                            detail: {
+                                value: unwindInput.value,
+                                key: (button.dataset.value || '').toLowerCase()
+                            }
+                        }));
+                    }
+                }
+
+                unwindOptions.forEach(button => {
+                    button.addEventListener('click', function () {
+                        setActive(this, true);
+                    });
+                });
+
+                const initialActive = document.querySelector('.unwind-option.active');
+                if (initialActive) {
+                    setActive(initialActive);
+                } else if (unwindOptions.length) {
+                    setActive(unwindOptions[0]);
+                }
+            })();
+
+            (function () {
+                const finishSelect = document.getElementById('finish-select');
+                const finishLoading = document.getElementById('finish-loading');
+                const finishError = document.getElementById('finish-error');
+                const filtersElement = document.getElementById('printing-finish-filters');
+                if (!finishSelect || !filtersElement) {
+                    return;
+                }
+
+                const initialValue = (finishSelect.dataset.initialValue || '').trim();
+                let selectedValue = initialValue;
+                let currentPrintingKey = null;
+                let allFinishes = [];
+
+                const printingFinishFilters = (() => {
+                    try {
+                        const parsed = JSON.parse(filtersElement.textContent || '{}');
+                        return Object.keys(parsed || {}).reduce((acc, key) => {
+                            acc[key.toLowerCase()] = (parsed[key] || []).map(v => (v || '').toString().toLowerCase());
+                            return acc;
+                        }, {});
+                    }
+                    catch {
+                        return {};
+                    }
+                })();
+
+                function getDescription(item) {
+                    const descriptions = item.Descriptions || item.descriptions || [];
+                    const en = descriptions.find(d => (d.ISOLanguageCode || d.isoLanguageCode || '').toLowerCase() === "en-us");
+                    const fallback = descriptions[0];
+                    return (en && (en.Description || en.description))
+                        || (fallback && (fallback.Description || fallback.description))
+                        || item.Id
+                        || item.id
+                        || 'Unknown Finish';
+                }
+
+                function rebuildOptions(items) {
+                    finishSelect.innerHTML = '<option value="">Select a finish</option>';
+                    if (!items.length) {
+                        const option = document.createElement('option');
+                        option.value = '';
+                        option.textContent = 'No finishes available for this printing option';
+                        option.disabled = true;
+                        option.selected = true;
+                        finishSelect.appendChild(option);
+                        return;
+                    }
+
+                    items.forEach(item => {
+                        const description = getDescription(item);
+                        const option = document.createElement('option');
+                        option.value = description;
+                        option.textContent = description;
+                        finishSelect.appendChild(option);
+                    });
+
+                    const normalizedSelected = (selectedValue || '').toLowerCase();
+                    const matchingOption = Array.from(finishSelect.options).find(opt => opt.value.toLowerCase() === normalizedSelected);
+                    if (matchingOption) {
+                        matchingOption.selected = true;
+                    }
+                }
+
+                function applyFilter() {
+                    if (!allFinishes.length) {
+                        return;
+                    }
+
+                    const keywords = currentPrintingKey ? (printingFinishFilters[currentPrintingKey] || []) : [];
+                    const filtered = keywords.length === 0
+                        ? allFinishes
+                        : allFinishes.filter(item => {
+                            const description = getDescription(item).toLowerCase();
+                            return keywords.some(keyword => description.includes(keyword));
+                        });
+
+                    rebuildOptions(filtered);
+                }
+
+                finishSelect.addEventListener('change', () => {
+                    selectedValue = finishSelect.value;
+                });
+
+                window.addEventListener('printingSelectionChanged', event => {
+                    currentPrintingKey = (event.detail?.key || '').toLowerCase();
+                    applyFilter();
+                });
+
+                async function loadFinishes() {
+                    try {
+                        finishLoading.classList.remove('d-none');
+                        finishError.classList.add('d-none');
+                        const response = await fetch('/Api/FinishingTypes', { headers: { 'Accept': 'application/json' } });
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({ error: 'Unable to load finishes right now.' }));
+                            throw new Error(errorData.error || `Unable to load finishes (${response.status})`);
+                        }
+
+                        const payload = await response.json();
+                        const items = payload.materials || payload.data || payload.items || payload.results || payload;
+                        if (!Array.isArray(items) || items.length === 0) {
+                            throw new Error('No finishes were returned.');
+                        }
+                        allFinishes = items;
+                        applyFilter();
+                    } catch (error) {
+                        console.error('Failed to load finishes', error);
+                        finishError.textContent = error.message || 'Unable to load finishes right now.';
+                        finishError.classList.remove('d-none');
+                        finishSelect.innerHTML = '<option value="">Unable to load finishes</option>';
+                    } finally {
+                        finishLoading.classList.add('d-none');
+                    }
+                }
+
+                const activePrinting = document.querySelector('.printing-option.active');
+                if (activePrinting) {
+                    currentPrintingKey = (activePrinting.dataset.printingKey || activePrinting.dataset.value || '').toLowerCase();
+                }
+
+                loadFinishes();
+            })();
+
+            (function () {
+                const finishSelect = document.getElementById('finish-select');
+                const labelSizeType = document.getElementById('label-size-type');
+                const dieSection = document.getElementById('existing-die-section');
+                const dieSelect = document.getElementById('existing-die-select');
+                const dieLoading = document.getElementById('die-loading');
+                const dieError = document.getElementById('die-error');
+                const printingInput = document.getElementById('printing-input');
+                const customDieInfo = document.getElementById('custom-die-info');
+                if (!finishSelect || !labelSizeType || !dieSection || !dieSelect || !dieLoading || !dieError || !printingInput || !customDieInfo) {
+                    return;
+                }
+
+                let dieOptionsCache = [];
+                let cachedPrintingKey = null;
+
+                function toggleLabelSizeAvailability(enable) {
+                    labelSizeType.disabled = !enable;
+                    if (!enable) {
+                        dieSection.classList.add('d-none');
+                        customDieInfo.classList.add('d-none');
+                    } else {
+                        handleLabelSizeTypeChange();
+                    }
+                }
+
+                function clearDieOptions(message) {
+                    dieSelect.innerHTML = `<option value="">${message}</option>`;
+                }
+
+                function rebuildDieOptions() {
+                    dieSelect.innerHTML = '<option value="">Select a die size</option>';
+                    if (!dieOptionsCache.length) {
+                        const option = document.createElement('option');
+                        option.value = '';
+                        option.textContent = 'No die sizes available';
+                        option.disabled = true;
+                        option.selected = true;
+                        dieSelect.appendChild(option);
+                        return;
+                    }
+
+                    dieOptionsCache.forEach(option => {
+                        const dieOption = document.createElement('option');
+                        const ref = option.StnsRef || option.stnsRef || '';
+                        const description = option.StnsOms || option.stnsOms || ref || 'Unnamed Die';
+                        const across = option.etiket_b ?? option.etiket_B ?? '';
+                        const around = option.etiket_h ?? option.etiket_H ?? '';
+                        const radius = option.Radius__ ?? option.radius__ ?? '';
+                        dieOption.value = ref;
+                        dieOption.textContent = description;
+                        if (across || around) {
+                            dieOption.textContent += ` (${across}" x ${around}")`;
+                        }
+                        if (radius) {
+                            dieOption.textContent += ` • Radius ${radius}"`;
+                        }
+                        dieSelect.appendChild(dieOption);
+                    });
+                }
+
+                async function loadDieOptions() {
+                    const printingSelection = (printingInput.value || '').trim();
+                    if (!printingSelection) {
+                        dieError.textContent = 'Select a printing option to see die sizes.';
+                        dieError.classList.remove('d-none');
+                        clearDieOptions('Printing selection required');
+                        return;
+                    }
+
+                    if (cachedPrintingKey === printingSelection && dieOptionsCache.length) {
+                        rebuildDieOptions();
+                        return;
+                    }
+
+                    dieLoading.classList.remove('d-none');
+                    dieError.classList.add('d-none');
+
+                    try {
+                        const response = await fetch(`/Api/CuttingDie?printing=${encodeURIComponent(printingSelection)}`, {
+                            headers: { 'Accept': 'application/json' }
+                        });
+
+                        if (!response.ok) {
+                            const errorPayload = await response.json().catch(() => ({ }));
+                            throw new Error(errorPayload.error || `Unable to load die sizes (${response.status})`);
+                        }
+
+                        const payload = await response.json();
+                        dieOptionsCache = payload.cuttingDieOptions || payload.data || payload.items || payload.results || [];
+                        cachedPrintingKey = printingSelection;
+                        rebuildDieOptions();
+                    } catch (error) {
+                        console.error('Failed to load die sizes', error);
+                        dieError.textContent = error.message || 'Unable to load die sizes right now.';
+                        dieError.classList.remove('d-none');
+                        clearDieOptions('Unable to load die sizes');
+                    } finally {
+                        dieLoading.classList.add('d-none');
+                    }
+                }
+
+                async function handleLabelSizeTypeChange() {
+                    if (labelSizeType.disabled) {
+                        dieSection.classList.add('d-none');
+                        return;
+                    }
+
+                    if (labelSizeType.value === 'existing-die') {
+                        dieSection.classList.remove('d-none');
+                        await loadDieOptions();
+                    } else {
+                        dieSection.classList.add('d-none');
+                    }
+
+                    const showCustomInfo = labelSizeType.value === 'custom-die';
+                    customDieInfo.classList.toggle('d-none', !showCustomInfo);
+                }
+
+                finishSelect.addEventListener('change', () => {
+                    toggleLabelSizeAvailability(!!finishSelect.value);
+                });
+
+                labelSizeType.addEventListener('change', () => {
+                    handleLabelSizeTypeChange();
+                });
+
+                window.addEventListener('printingSelectionChanged', () => {
+                    cachedPrintingKey = null;
+                    dieOptionsCache = [];
+                    if (!dieSection.classList.contains('d-none')) {
+                        loadDieOptions();
+                    }
+                });
+
+                toggleLabelSizeAvailability(!!finishSelect.value);
+            })();
+
+            (function () {
+                const addButton = document.getElementById('add-quantity');
+                const rows = Array.from(document.querySelectorAll('#quantity-list .quantity-row'));
+                if (!addButton || !rows.length) {
+                    return;
+                }
+
+                function updateAddState() {
+                    const hasHidden = rows.some(row => row.classList.contains('d-none'));
+                    addButton.disabled = !hasHidden;
+                }
+
+                function showNextRow() {
+                    const next = rows.find(row => row.classList.contains('d-none'));
+                    if (next) {
+                        next.classList.remove('d-none');
+                    }
+                }
+
+                addButton.addEventListener('click', () => {
+                    showNextRow();
+                    updateAddState();
+                });
+
+                rows.forEach(row => {
+                    const removeBtn = row.querySelector('.remove-quantity');
+                    const input = row.querySelector('input[name="quantity"]');
+                    if (!removeBtn || !input) {
+                        return;
+                    }
+
+                    removeBtn.addEventListener('click', () => {
+                        input.value = '';
+                        row.classList.add('d-none');
+                        updateAddState();
+                    });
+                });
+
+                updateAddState();
+            })();
+        </script>
             </div>
         </div>
     </main>

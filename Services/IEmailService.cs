@@ -7,6 +7,7 @@ namespace WiseLabels.Services
             Exception exception,
             string? context = null,
             IReadOnlyDictionary<string, object?>? parameters = null);
+        Task<bool> SendCustomEmailAsync(string toEmail, string subject, string htmlBody);
     }
 }
 

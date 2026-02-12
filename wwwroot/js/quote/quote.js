@@ -20,12 +20,39 @@ document.addEventListener('DOMContentLoaded', function() {
     const cornersSection = document.getElementById('corners-section');
     const labelSizeSection = document.getElementById('label-size-section');
     const diameterSection = document.getElementById('diameter-section');
-    const materialSelect = document.getElementById('material');
+    const materialSelect = document.getElementById('material-select');
     const materialLoading = document.getElementById('material-loading');
     const materialError = document.getElementById('material-error');
     const printingFilter = document.getElementById('printing-filter');
     const printingLoading = document.getElementById('printing-loading');
     const printingError = document.getElementById('printing-error');
+    const printingInput = document.getElementById('printing-input');
+    const printingValueInput = document.getElementById('printing-value');
+
+    if (printingFilter && printingInput && printingValueInput) {
+        const syncPrintingFields = (button) => {
+            if (!button) {
+                return;
+            }
+            const label = button.getAttribute('data-printing-text') || button.textContent.trim();
+            const id = button.getAttribute('data-printing-id') || button.getAttribute('data-printing-key') || button.getAttribute('data-value') || '';
+            printingInput.value = label;
+            printingValueInput.value = id;
+        };
+
+        printingFilter.addEventListener('click', event => {
+            const button = event.target.closest('button[data-printing-id], button[data-printing-key], button[data-value]');
+            if (!button || !printingFilter.contains(button)) {
+                return;
+            }
+            syncPrintingFields(button);
+        });
+
+        const initiallyActive = printingFilter.querySelector('button.active');
+        if (initiallyActive) {
+            syncPrintingFields(initiallyActive);
+        }
+    }
 
     // Store materials data for filtering
     let allMaterialsData = null;
@@ -150,21 +177,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Fetch Materials from API via server-side endpoint (no prerequisites)
     async function loadFinishing() {
         try {
-            // Show loading state
             materialLoading.style.display = 'block';
             materialError.style.display = 'none';
             materialSelect.style.opacity = '0.5';
-            materialSelect.disabled = false; // Materials load immediately, no dependency on Printing
+            materialSelect.disabled = true;
 
-            // Materials URL - no printing filter for now
-            const url = '/Api/Materials';
-
-            // Call server-side endpoint (credentials are handled server-side)
-            const response = await fetch(url, {
+            const response = await fetch('/Api/Materials', {
                 method: 'GET',
-                headers: {
-                    'Accept': 'application/json'
-                }
+                headers: { 'Accept': 'application/json' }
             });
 
             if (!response.ok) {
@@ -173,108 +193,109 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const data = await response.json();
+            populateMaterials(data);
+        } catch (error) {
+            materialError.textContent = 'Error loading materials. ' + (error.message || 'Please refresh the page to retry.');
+            materialError.style.display = 'block';
+            materialSelect.innerHTML = '<option value="">Error loading materials. See error message below.</option>';
+        } finally {
+            materialLoading.style.display = 'none';
+            materialSelect.style.opacity = '1';
+            materialSelect.disabled = false;
+        }
+    }
 
+    function normalizePrintingItems(payload) {
+        if (!payload) return [];
+        if (Array.isArray(payload)) return payload;
+        if (Array.isArray(payload.data)) return payload.data;
+        if (Array.isArray(payload.Data)) return payload.Data;
+        if (Array.isArray(payload.items)) return payload.items;
+        if (Array.isArray(payload.results)) return payload.results;
+        return [];
+    }
 
-            // Use QuoteValidation for validation functions
-            const validateEmail = QuoteValidation.validateEmail;
-            const validatePhone = QuoteValidation.validatePhone;
-            const validateName = QuoteValidation.validateName;
-            function validateDiameter() {
-                QuoteValidation.validateDiameter(diameterInput, diameterValidation);
-            }
-            function validateLabelSize() {
-                if (!isLabelSizeWidthHeightVisible()) {
-                    sizeValidation.style.display = 'none';
-                    return;
-                }
-                QuoteValidation.validateLabelSize(widthInput, heightInput, sizeValidation);
-            }
-        
-        colorCodes.forEach((colorCode, index) => {
-            console.log(`Processing color code ${index}:`, colorCode);
-            
-            // Handle both nested (ColourBacking) and flat structures
-            // Some endpoints return {ColourBacking: {Id, Descriptions}}
-            // Others return {Id, Descriptions} directly
-            const colourBacking = colorCode.ColourBacking || colorCode.colourBacking;
-            console.log(`  ColourBacking for item ${index}:`, colourBacking);
-            
-            // If ColourBacking is null, the data might be directly on the colorCode object
-            const dataSource = colourBacking || colorCode;
-            
-            // Get the ID - handle both Id and id (case-insensitive)
-            // Check both nested and flat structures
-            // Also check for other possible property names
-            let colorCodeId = null;
-            if (colourBacking) {
-                colorCodeId = colourBacking.Id || colourBacking.id || colourBacking.ID;
-                console.log(`  ID from ColourBacking for item ${index}:`, colorCodeId);
-            } else {
-                // Try all possible ID property names
-                colorCodeId = colorCode.Id || colorCode.id || colorCode.ID || 
-                             colorCode.ColourCodeId || colorCode.colourCodeId ||
-                             colorCode.ColorCodeId || colorCode.colorCodeId;
-                console.log(`  ID from flat structure for item ${index}:`, colorCodeId);
-                console.log(`  All properties on colorCode ${index}:`, Object.keys(colorCode));
-            }
-                
-            if (!colorCodeId) {
-                //console.warn(`Skipping printing option ${index} - missing Id. Full object:`, JSON.stringify(colorCode, null, 2));
-                return; // Skip this option
-            }
-            
-            // Skip if we've already seen this Id (deduplication)
-            if (printingMap.has(colorCodeId)) {
-                console.log('Skipping duplicate printing option Id:', colorCodeId);
-                return;
-            }
-            
-            // Get description - specifically look for en-US, fallback to first if not found
-            let description = 'Unknown';
-            
-            // Handle both "Descriptions" and "Discriptions" (typo in API)
-            // Handle both PascalCase and camelCase
-            // Check both nested and flat structures
-            const descriptionsArray = dataSource.Descriptions || dataSource.Discriptions || 
-                                     dataSource.descriptions || dataSource.discriptions;
-            if (descriptionsArray && Array.isArray(descriptionsArray) && descriptionsArray.length > 0) {
-                // First, try to find exact match for "en-US"
-                const enUSDesc = descriptionsArray.find(d => {
-                    const langCode = d.ISOLanguageCode || d.isoLanguageCode || d.ISOLanguagecode;
-                    return langCode === 'en-US' || langCode === 'en-us';
-                });
-                
-                if (enUSDesc) {
-                    description = enUSDesc.Description || enUSDesc.description || 'Unknown';
-                } else {
-                    // Fallback to first description if en-US not found
-                    const firstDesc = descriptionsArray[0];
-                    description = firstDesc.Description || firstDesc.description || 'Unknown';
-                }
-            }
-            
-            console.log('Adding printing option - Id:', colorCodeId, 'Description:', description);
-            
-            // Store in map using Id as key (value is description)
-            // This ensures the ID from the API is used, not the description
-            printingMap.set(colorCodeId, description);
-        });
-
-        // Sort by description text
-        const sortedPrintingOptions = Array.from(printingMap.entries()).sort((a, b) => 
-            a[1].localeCompare(b[1])
-        );
-
-        console.log('Unique printing options after deduplication:', sortedPrintingOptions.length);
-        console.log('Printing options being displayed:', sortedPrintingOptions.map(([id, desc]) => `${id}: ${desc}`));
-        
-        if (sortedPrintingOptions.length === 0) {
-            console.warn('No printing options after processing');
-            printingFilter.innerHTML = '<div class="text-muted">No printing options available after processing.</div>';
+    function populatePrintingOptions(colorCodes) {
+        if (!printingFilter) {
             return;
         }
 
-        // Create buttons for each unique printing option
+        const items = normalizePrintingItems(colorCodes);
+        const printingMap = new Map();
+
+        items.forEach(colorCode => {
+            const colourBacking = colorCode?.ColourBacking || colorCode?.colourBacking;
+            const dataSource = colourBacking || colorCode;
+            let colorCodeId = null;
+            if (colourBacking) {
+                colorCodeId = colourBacking.Id || colourBacking.id || colourBacking.ID;
+            } else {
+                colorCodeId = colorCode.Id || colorCode.id || colorCode.ID
+                    || colorCode.ColourCodeId || colorCode.colourCodeId
+                    || colorCode.ColorCodeId || colorCode.colorCodeId;
+            }
+            if (!colorCodeId || printingMap.has(colorCodeId)) {
+                return;
+            }
+
+            let description = 'Unknown';
+            const descriptionsArray = dataSource?.Descriptions || dataSource?.Discriptions
+                || dataSource?.descriptions || dataSource?.discriptions;
+            if (Array.isArray(descriptionsArray) && descriptionsArray.length > 0) {
+                const enUSDesc = descriptionsArray.find(d => {
+                    const lang = d?.ISOLanguageCode || d?.isoLanguageCode || d?.ISOLanguagecode;
+                    return lang?.toLowerCase() === 'en-us';
+                });
+                const useDesc = enUSDesc || descriptionsArray[0];
+                description = useDesc?.Description || useDesc?.description || description;
+            }
+
+            printingMap.set(colorCodeId, description);
+        });
+
+        const sortedPrintingOptions = Array.from(printingMap.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+
+        printingFilter.innerHTML = '';
+
+        if (sortedPrintingOptions.length === 0) {
+            printingFilter.innerHTML = '<div class="text-muted">No printing options available.</div>';
+            return;
+        }
+
+        const initialPrintingId = (printingFilter.dataset.initialId || '').trim();
+        const initialPrintingLabel = (printingFilter.dataset.initialLabel || '').trim();
+
+        const applyPrintingSelection = (button, triggerUpdates) => {
+            printingFilter.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            button.classList.add('active');
+
+            const selectedPrintingText = button.getAttribute('data-printing-text') || button.textContent.trim();
+            const selectedPrintingId = button.getAttribute('data-printing-id') || '';
+
+            if (printingInput) printingInput.value = selectedPrintingText;
+            if (printingValueInput) printingValueInput.value = selectedPrintingId;
+
+            if (!triggerUpdates) {
+                return;
+            }
+
+            const currentShape = document.querySelector('input[name="shape"]:checked')?.value;
+            if (isCuttingDieApplicableForShape(currentShape) && getDieSizeMode() === 'existing') {
+                if (selectedPrintingId || selectedPrintingText) {
+                    loadCuttingDieOptions(selectedPrintingId || selectedPrintingText);
+                } else {
+                    const cuttingDieSelect = document.getElementById('cutting-die');
+                    if (cuttingDieSelect) {
+                        cuttingDieSelect.innerHTML = '<option value="">Please select a Printing option first</option>';
+                        cuttingDieSelect.disabled = true;
+                    }
+                }
+            }
+
+            filterFinishingOptions(selectedPrintingText);
+            updateSummaryPanel();
+        };
+
         sortedPrintingOptions.forEach(([id, description]) => {
             const button = document.createElement('button');
             button.type = 'button';
@@ -282,104 +303,26 @@ document.addEventListener('DOMContentLoaded', function() {
             button.textContent = description;
             button.setAttribute('data-printing-id', id);
             button.setAttribute('data-printing-text', description);
-            
-            // Add click handler - this triggers Materials loading
-            button.addEventListener('click', function(e) {
+
+            button.addEventListener('click', e => {
                 e.preventDefault();
-                // Remove active from all buttons in this filter group
-                printingFilter.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-                // Add active to clicked button
-                this.classList.add('active');
-                
-                // Get selected printing (both Id and display text)
-                const selectedPrintingText = this.getAttribute('data-printing-text') || this.textContent.trim();
-                const selectedPrintingId = this.getAttribute('data-printing-id') || '';
-                
-                // Load cutting die options based on printing selection
-                // Prefer passing the Id (e.g. "2F") so the server can reliably determine materie_
-                const currentShape = document.querySelector('input[name="shape"]:checked')?.value;
-                if (isCuttingDieApplicableForShape(currentShape) && getDieSizeMode() === 'existing' && (selectedPrintingId || selectedPrintingText)) {
-                    loadCuttingDieOptions(selectedPrintingId || selectedPrintingText);
-                } else {
-                    // Clear cutting die if no printing selected
-                    const cuttingDieSelect = document.getElementById('cutting-die');
-                    if (cuttingDieSelect) {
-                        cuttingDieSelect.innerHTML = isCuttingDieApplicableForShape(currentShape)
-                            ? '<option value="">Please select a Printing option first</option>'
-                            : '<option value="">Cutting die not applicable for selected shape</option>';
-                        cuttingDieSelect.disabled = true;
-                    }
-                }
-                
-
-                // Use QuoteApi for API/data-fetching functions
-                function loadMaterials() {
-                    QuoteApi.loadMaterials(materialLoading, materialError, materialSelect, populateMaterials);
-                }
-
-                function loadPrintingOptions() {
-                    QuoteApi.loadPrintingOptions(printingFilter, printingLoading, printingError, populatePrintingOptions);
-                }
-
-                function loadCuttingDieOptions(printing) {
-                    const cuttingDieSelect = document.getElementById('cutting-die');
-                    const cuttingDieLoading = document.getElementById('cutting-die-loading');
-                    const cuttingDieError = document.getElementById('cutting-die-error');
-                    QuoteApi.loadCuttingDieOptions(printing, cuttingDieSelect, cuttingDieLoading, cuttingDieError);
-                }
-                    // Remove leading "QQ-R-" prefix if present
-                    const cleanedRef = optionElement.textContent.replace(/^QQ-R-/, '');
-
-                    // Preserve the original raw reference for server-side needs
-                    if (optionValue) {
-                        optionElement.dataset.rawRef = cleanedRef;
-                        optionElement.text = cleanedRef;
-                    }
-
-                    cuttingDieSelect.appendChild(optionElement);
-                });
+                applyPrintingSelection(button, true);
             });
-            
-            // Restore saved value if available
-            const savedDataScript = document.getElementById('saved-quote-data');
-            if (savedDataScript) {
-                try {
-                    const savedData = JSON.parse(savedDataScript.textContent);
-                    const savedCuttingDieValue = savedData.cuttingDieValue || savedData.cuttingDie;
-                    if (savedCuttingDieValue) {
-                        const optionToSelect = Array.from(cuttingDieSelect.options).find(opt => 
-                            opt.value === savedCuttingDieValue || opt.text === savedCuttingDieValue
-                        );
-                        if (optionToSelect) {
-                            cuttingDieSelect.value = optionToSelect.value;
-                        }
-                    }
-                } catch (e) {
-                    console.error('Error restoring cutting die:', e);
-                }
+
+            printingFilter.appendChild(button);
+
+            const matchesSavedId = initialPrintingId && id === initialPrintingId;
+            const matchesSavedLabel = !initialPrintingId && initialPrintingLabel
+                && description.localeCompare(initialPrintingLabel, undefined, { sensitivity: 'accent' }) === 0;
+            if (matchesSavedId || matchesSavedLabel) {
+                applyPrintingSelection(button, true);
             }
-            
-        } catch (error) {
-            console.error('Error loading cutting die options:', error);
-            let errorMessage = 'Error loading cutting die options. ';
-            if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
-                errorMessage += 'Please check your network connection or database availability.';
-            } else {
-                errorMessage += (error.message || 'Please try again.');
-            }
-            cuttingDieError.textContent = errorMessage;
-            cuttingDieError.style.display = 'block';
-            cuttingDieSelect.innerHTML = '<option value="">Error loading cutting die options</option>';
-        } finally {
-            cuttingDieLoading.style.display = 'none';
-            cuttingDieSelect.style.opacity = '1';
-            cuttingDieSelect.disabled = false;
-        }
+        });
     }
 
     // Function to filter Finishing options based on Printing selection
     function filterFinishingOptions(printingText) {
-        const finishSelect = document.getElementById('finish');
+        const finishSelect = document.getElementById('finish-select');
         if (!finishSelect) return;
         
         console.log('filterFinishingOptions called with printingText:', printingText);
@@ -1473,7 +1416,7 @@ function toggleSizeSections() {
             }
 
             // Validate finish selection
-            const finishSelect = document.getElementById('finish');
+            const finishSelect = document.getElementById('finish-select');
             const selectedFinish = finishSelect?.value;
             if (!selectedFinish) {
                 alert('Please select a finish option.');

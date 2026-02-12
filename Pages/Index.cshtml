@@ -6,7 +6,8 @@
 
 <div class="dashboard-container">
     @await Html.PartialAsync("_DashboardSidebar")
-    <main class="dashboard-main"><!--
+    <main class="dashboard-main">
+        <!--
         <h1 class="dashboard-page-title">Quote Dashboard</h1>
         <div class="dashboard-stats-row">
             <div class="dashboard-stat-card">
@@ -49,7 +50,10 @@
         <div class="dashboard-content-section">
             <h2 class="dashboard-section-title">Quick Actions</h2>
             <div class="d-flex gap-3">
-                <a asp-page="/Customers" class="btn btn-primary">Start New Quote</a>
+                <a asp-page="/Customers" class="btn btn-primary">Repeat Quote</a>
+            </div>
+            <div class="d-flex gap-3">
+                <a asp-page="/GetQuote" class="btn btn-primary">Start New Quote</a>
             </div>
         </div>
         <div class="dashboard-content-section">

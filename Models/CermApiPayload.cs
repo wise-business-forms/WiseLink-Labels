@@ -17,7 +17,8 @@ namespace WiseLabels.Models
         public string WindingId { get; set; } = "10"; // Sheeted
 
         [JsonPropertyName("Outline")]
-        public string? Outline { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int? Outline { get; set; }
 
         [JsonPropertyName("DieSizeId")]
         public string? DieSizeId { get; set; }

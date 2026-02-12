@@ -12,7 +12,7 @@ namespace WiseLabels.Services
     public interface IQuoteService
     {
         Task<string> StoreQuoteAsync(QuoteRequest quote);
-        Task<(bool Success, string? CalculationId, string? EstimateId, string? ErrorMessage)> SubmitToCermApiAsync(QuoteRequest quote);
+        Task<(bool Success, string? CalculationId, string? EstimateId, string? ErrorMessage, string? ResponseJson)> SubmitToCermApiAsync(QuoteRequest quote);
         CermApiPayload TransformToApiPayload(QuoteRequest quote);
         /// <summary>
         /// Updates contact info (name, email, phone) in the CERM database for the given estimate ID.
@@ -81,14 +81,16 @@ namespace WiseLabels.Services
             root["NumberOfProducts"] = 1;
 
             // Optional - add only when non-empty
+            var normalizedShape = NormalizeShapeKey(quote.ShapeValue, quote.Shape);
             var outline = MapShapeToCermOutline(quote.ShapeValue, quote.Shape);
-            AddIfNotEmpty(root, "Outline", outline);
+            if (outline.HasValue)
+                root["Outline"] = outline.Value;
             AddIfNotEmpty(root, "DieSizeId", quote.CuttingDieValue ?? quote.CuttingDie);
             AddIfNotEmpty(root, "SubstrateId", quote.MaterialValue ?? quote.Material);
             AddIfNotEmpty(root, "Description", quote.Description);
 
             // Dimensions - for Circle, Width and Height = Radius (diameter/2)
-            var isCircle = string.Equals(outline, "Circle", StringComparison.OrdinalIgnoreCase);
+            var isCircle = normalizedShape == "circle";
             if (isCircle && TryParseDouble(quote.Diameter, out var circleDiameter))
             {
                 var radius = circleDiameter / 2.0;
@@ -107,7 +109,7 @@ namespace WiseLabels.Services
             }
 
             // PressRuns - only add properties with values
-            var colourCodeId = NullIfEmpty(quote.Printing ?? quote.PrintingValue ?? quote.ColorCodeValue ?? quote.ColorCode);
+            var colourCodeId = NullIfEmpty(quote.PrintingValue ?? quote.ColorCodeValue ?? quote.Printing ?? quote.ColorCode);
             var finishValue = NullIfEmpty(quote.FinishValue ?? quote.Finish);
             var pressRun = new JsonObject();
             if (!string.IsNullOrEmpty(colourCodeId))
@@ -164,7 +166,7 @@ namespace WiseLabels.Services
                 {
                     new PressRun
                     {
-                        ColourCodeIdFront = quote.Printing ?? quote.PrintingValue ?? quote.ColorCodeValue ?? quote.ColorCode,
+                        ColourCodeIdFront = quote.PrintingValue ?? quote.ColorCodeValue ?? quote.Printing ?? quote.ColorCode,
                         FinishingTypes = (!string.IsNullOrWhiteSpace(quote.FinishValue) || !string.IsNullOrWhiteSpace(quote.Finish))
                             ? new List<string> { quote.FinishValue ?? quote.Finish ?? string.Empty }
                             : new List<string>()
@@ -188,27 +190,54 @@ namespace WiseLabels.Services
         /// <summary>
         /// Maps form shape value/ID to CERM API Outline (shape name): Rectangle, Circle, Oval, Special.
         /// </summary>
-        private static string? MapShapeToCermOutline(string? shapeValue, string? shape)
+        private static string? NormalizeShapeKey(string? shapeValue, string? shape)
         {
-            var v = (shapeValue ?? shape ?? "").Trim().ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(shapeValue))
+            {
+                var trimmed = shapeValue.Trim();
+                return trimmed switch
+                {
+                    "1" => "rectangle",
+                    "2" => "square",
+                    "3" => "circle",
+                    "4" => "oval",
+                    _ => trimmed.ToLowerInvariant()
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(shape))
+            {
+                return shape.Trim().ToLowerInvariant();
+            }
+
+            return null;
+        }
+
+        private static int? MapShapeToCermOutline(string? shapeValue, string? shape)
+        {
+            if (!string.IsNullOrWhiteSpace(shapeValue))
+            {
+                var trimmed = shapeValue.Trim();
+                if (trimmed is "1" or "2" or "3" or "4")
+                {
+                    return int.Parse(trimmed, System.Globalization.CultureInfo.InvariantCulture);
+                }
+            }
+
+            var v = NormalizeShapeKey(shapeValue, shape);
             if (string.IsNullOrEmpty(v)) return null;
 
-            // Already PascalCase (e.g. from form display label)
-            if (v is "rectangle" or "circle" or "oval" or "special")
-                return char.ToUpperInvariant(v[0]) + v[1..];
-
-            // Shape ID from data-shape-id: 1=Rectangle, 3=Circle, 4=Oval, 5=Special
             return v switch
             {
-                "1" => "Rectangle",
-                "3" => "Circle",
-                "4" => "Oval",
-                "5" => "Special",
+                "rectangle" => 1,
+                "square" => 2,
+                "circle" => 3,
+                "oval" => 4,
                 _ => null
             };
         }
 
-        public async Task<(bool Success, string? CalculationId, string? EstimateId, string? ErrorMessage)> SubmitToCermApiAsync(QuoteRequest quote)
+        public async Task<(bool Success, string? CalculationId, string? EstimateId, string? ErrorMessage, string? ResponseJson)> SubmitToCermApiAsync(QuoteRequest quote)
         {
             _logger.LogInformation("Submitting quote to CERM API");
             _logger.LogDebug("Quote data: {QuoteData}", JsonSerializer.Serialize(quote));
@@ -225,7 +254,7 @@ namespace WiseLabels.Services
                 if (string.IsNullOrWhiteSpace(accessToken))
                 {
                     _logger.LogError("CERM OAuth failed; cannot submit quote");
-                    return (false, null, null, "Authentication failed. Unable to connect to the quote service.");
+                    return (false, null, null, "Authentication failed. Unable to connect to the quote service.", null);
                 }
 
                 var httpClient = _httpClientFactory.CreateClient();
@@ -259,13 +288,13 @@ namespace WiseLabels.Services
                         ex,
                         "QuoteService.SubmitToCermApiAsync - CERM API returned non-success",
                         parameters);
-                    return (false, null, null, errorMessage);
+                    return (false, null, null, errorMessage, responseBody);
                 }
 
                 // Parse response: { "Data": { "Id": "129071", "EstimateId": "113230", ... } }
                 var (calculationId, estimateId) = ParseCermCalculationResponse(responseBody);
                 _logger.LogInformation("CERM API success. CalculationId={CalculationId}, EstimateId={EstimateId}", calculationId, estimateId);
-                return (true, calculationId, estimateId, null);
+                return (true, calculationId, estimateId, null, responseBody);
             }
             catch (Exception ex)
             {
@@ -286,7 +315,7 @@ namespace WiseLabels.Services
                     ex,
                     "QuoteService.SubmitToCermApiAsync - unhandled exception",
                     parameters);
-                return (false, null, null, ex.Message);
+                return (false, null, null, ex.Message, null);
             }
         }
 
