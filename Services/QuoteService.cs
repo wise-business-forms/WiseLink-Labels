@@ -12,6 +12,7 @@ namespace WiseLabels.Services
     public interface IQuoteService
     {
         Task<string> StoreQuoteAsync(QuoteRequest quote);
+        Task<QuickQuotePricingResult> GetQuickQuotePricingAsync(QuoteRequest quote);
         Task<(bool Success, string? CalculationId, string? EstimateId, string? ErrorMessage, string? ResponseJson)> SubmitToCermApiAsync(QuoteRequest quote);
         CermApiPayload TransformToApiPayload(QuoteRequest quote);
         /// <summary>
@@ -74,20 +75,49 @@ namespace WiseLabels.Services
             // Required / always-present
             root["CustomerId"] = _configuration["Cerm:CustomerID"] ?? "108620";
             root["ContactId"] = _configuration["Cerm:ContactID"] ?? "001";
-            root["WindingId"] = "10";
-            root["PackingProcedureId"] = "152";
-            root["PackingPriority"] = "Diameter";
-            root["PackingNumber"] = 500;
-            root["NumberOfProducts"] = 1;
 
-            // Optional - add only when non-empty
+            // PressRuns - only add properties with values
+            var colourCodeId = NullIfEmpty(quote.PrintingValue ?? quote.ColorCodeValue ?? quote.Printing ?? quote.ColorCode);
+            var finishValue = NullIfEmpty(quote.FinishValue ?? quote.Finish);
+            var pressRun = new JsonObject();
+            if (!string.IsNullOrEmpty(colourCodeId))
+                pressRun["ColourCodeIdFront"] = colourCodeId;
+            if (!string.IsNullOrEmpty(finishValue))
+            {
+                var finishes = new JsonArray
+                {
+                    JsonValue.Create(finishValue)!
+                };
+                pressRun["FinishingTypes"] = finishes;
+            }
+            root["PressRuns"] = new JsonArray(pressRun);
+
+            root["WindingId"] = "10";
+
+            // Outline - add only when non-empty
             var normalizedShape = NormalizeShapeKey(quote.ShapeValue, quote.Shape);
             var outline = MapShapeToCermOutline(quote.ShapeValue, quote.Shape);
             if (outline.HasValue)
                 root["Outline"] = outline.Value;
-            AddIfNotEmpty(root, "DieSizeId", quote.CuttingDieValue ?? quote.CuttingDie);
+
             AddIfNotEmpty(root, "SubstrateId", quote.MaterialValue ?? quote.Material);
             AddIfNotEmpty(root, "Description", quote.Description);
+            root["NumberOfProducts"] = 1;
+            AddIfNotEmpty(root, "DieSizeId", quote.CuttingDieValue ?? quote.CuttingDie);
+
+            // Quantities (array, max 5)
+            var quantityList = quote.Quantities?.Where(q => q >= 1).Take(5).ToList();
+            if (quantityList == null || quantityList.Count == 0)
+            {
+                if (int.TryParse(quote.TotalQuantity?.Trim(), out var singleQty) && singleQty >= 1)
+                    quantityList = new List<int> { singleQty };
+            }
+            if (quantityList != null && quantityList.Count > 0)
+            {
+                var qtyArray = new JsonArray();
+                foreach (var q in quantityList) qtyArray.Add(q);
+                root["Quantities"] = qtyArray;
+            }
 
             // Dimensions - for Circle, Width and Height = Radius (diameter/2)
             var isCircle = normalizedShape == "circle";
@@ -108,29 +138,9 @@ namespace WiseLabels.Services
                     root["Radius"] = diameter / 2.0;
             }
 
-            // PressRuns - only add properties with values
-            var colourCodeId = NullIfEmpty(quote.PrintingValue ?? quote.ColorCodeValue ?? quote.Printing ?? quote.ColorCode);
-            var finishValue = NullIfEmpty(quote.FinishValue ?? quote.Finish);
-            var pressRun = new JsonObject();
-            if (!string.IsNullOrEmpty(colourCodeId))
-                pressRun["ColourCodeIdFront"] = colourCodeId;
-            if (!string.IsNullOrEmpty(finishValue))
-                pressRun["FinishingTypes"] = new JsonArray(finishValue);
-            root["PressRuns"] = new JsonArray(pressRun);
-
-            // Quantities (array, max 5)
-            var quantityList = quote.Quantities?.Where(q => q >= 1).Take(5).ToList();
-            if (quantityList == null || quantityList.Count == 0)
-            {
-                if (int.TryParse(quote.TotalQuantity?.Trim(), out var singleQty) && singleQty >= 1)
-                    quantityList = new List<int> { singleQty };
-            }
-            if (quantityList != null && quantityList.Count > 0)
-            {
-                var qtyArray = new JsonArray();
-                foreach (var q in quantityList) qtyArray.Add(q);
-                root["Quantities"] = qtyArray;
-            }
+            root["PackingProcedureId"] = "152";
+            root["PackingPriority"] = "Diameter";
+            root["PackingNumber"] = 500;
 
             return root.ToJsonString();
         }
@@ -140,6 +150,68 @@ namespace WiseLabels.Services
             var v = NullIfEmpty(value);
             if (!string.IsNullOrEmpty(v))
                 obj[key] = v;
+        }
+
+        public async Task<QuickQuotePricingResult> GetQuickQuotePricingAsync(QuoteRequest quote)
+        {
+            _logger.LogInformation("Requesting quick-quote pricing preview");
+
+            try
+            {
+                var payloadJson = BuildCermPayloadJson(quote);
+                var baseUrl = _configuration["Cerm:BaseUrl"] ?? "https://brandmark-api.cerm.be/";
+                var quickQuoteUrl = _configuration["Cerm:QuickQuoteUrl"] ?? "quote-api/v1/calculations/narrow-web/quick-quote/price";
+                var fullUrl = BuildUrl(baseUrl, quickQuoteUrl);
+
+                var accessToken = await _cermAuthService.GetAccessTokenAsync();
+                if (string.IsNullOrWhiteSpace(accessToken))
+                {
+                    _logger.LogError("Quick-quote pricing failed: OAuth token not available");
+                    return new QuickQuotePricingResult
+                    {
+                        Success = false,
+                        ErrorMessage = "Authentication failed. Unable to connect to the quote service."
+                    };
+                }
+
+                var httpClient = _httpClientFactory.CreateClient();
+                httpClient.Timeout = TimeSpan.FromSeconds(240);
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                using var content = new StringContent(payloadJson, System.Text.Encoding.UTF8, "application/json");
+                using var response = await httpClient.PostAsync(fullUrl, content);
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogError("CERM quick-quote API returned {StatusCode}: {Body}", response.StatusCode, responseBody);
+                    return new QuickQuotePricingResult
+                    {
+                        Success = false,
+                        ResponseJson = responseBody,
+                        ErrorMessage = $"Quick-quote pricing failed ({(int)response.StatusCode} {response.StatusCode})."
+                    };
+                }
+
+                var breakdown = QuotePriceBreakdownParser.Parse(responseBody);
+                return new QuickQuotePricingResult
+                {
+                    Success = true,
+                    ResponseJson = responseBody,
+                    Breakdown = breakdown
+                };
+            }
+            
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving quick-quote pricing");
+                return new QuickQuotePricingResult
+                {
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+            }
         }
 
         public CermApiPayload TransformToApiPayload(QuoteRequest quote)
@@ -237,6 +309,13 @@ namespace WiseLabels.Services
             };
         }
 
+        private static string BuildUrl(string baseUrl, string relativePath)
+        {
+            baseUrl ??= string.Empty;
+            relativePath ??= string.Empty;
+            return string.Concat(baseUrl.TrimEnd('/'), "/", relativePath.TrimStart('/'));
+        }
+
         public async Task<(bool Success, string? CalculationId, string? EstimateId, string? ErrorMessage, string? ResponseJson)> SubmitToCermApiAsync(QuoteRequest quote)
         {
             _logger.LogInformation("Submitting quote to CERM API");
@@ -247,8 +326,9 @@ namespace WiseLabels.Services
                 var payloadJson = BuildCermPayloadJson(quote);
                 _logger.LogInformation("Transformed API payload: {Payload}", payloadJson);
 
-                var baseUrl = _configuration["Cerm:BaseUrl"] ?? "https://brandmark-api.cerm.be/quote-api/v1";
-                var calculationsUrl = $"{baseUrl.TrimEnd('/')}/calculations";
+                var baseUrl = _configuration["Cerm:BaseUrl"] ?? "https://brandmark-api.cerm.be/";
+                var calculationsUrl = _configuration["Cerm:CalulationsUrl"] ?? "/quote-api/v1/calculations";
+                var fullUrl = BuildUrl(baseUrl, calculationsUrl);
 
                 var accessToken = await _cermAuthService.GetAccessTokenAsync();
                 if (string.IsNullOrWhiteSpace(accessToken))
@@ -258,12 +338,12 @@ namespace WiseLabels.Services
                 }
 
                 var httpClient = _httpClientFactory.CreateClient();
-                httpClient.Timeout = TimeSpan.FromSeconds(60);
+                httpClient.Timeout = TimeSpan.FromSeconds(120);
                 httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
                 httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
                 using var content = new StringContent(payloadJson, System.Text.Encoding.UTF8, "application/json");
-                using var response = await httpClient.PostAsync(calculationsUrl, content);
+                using var response = await httpClient.PostAsync(fullUrl, content);
 
                 var responseBody = await response.Content.ReadAsStringAsync();
 

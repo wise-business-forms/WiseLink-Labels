@@ -143,13 +143,17 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "DinkToPdf": {
+              "target": "Package",
+              "version": "[1.0.8, )"
+            },
             "Markdig": {
               "target": "Package",
               "version": "[0.37.0, )"
             },
             "Microsoft.Identity.Web": {
               "target": "Package",
-              "version": "[3.3.1, )"
+              "version": "[3.8.2, )"
             },
             "Microsoft.Identity.Web.UI": {
               "target": "Package",

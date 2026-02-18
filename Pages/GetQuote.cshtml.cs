@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Primitives;
 using WiseLabels;
 using WiseLabels.Models;
+using WiseLabels.Services;
 
 namespace WiseLabels.Pages
 {
@@ -18,12 +19,14 @@ namespace WiseLabels.Pages
         private readonly ILogger<GetQuoteModel> _logger;
         private readonly CermDbContext _context;
         private readonly IConfiguration _configuration;
+        private readonly IQuoteService _quoteService;
 
-        public GetQuoteModel(ILogger<GetQuoteModel> logger, CermDbContext context, IConfiguration configuration)
+        public GetQuoteModel(ILogger<GetQuoteModel> logger, CermDbContext context, IConfiguration configuration, IQuoteService quoteService)
         {
             _logger = logger;
             _context = context;
             _configuration = configuration;
+            _quoteService = quoteService;
             PrintingFinishFilters = _configuration
                 .GetSection("QuoteOptions:PrintingFinishFilters")
                 .Get<Dictionary<string, string[]>>()
@@ -107,7 +110,7 @@ namespace WiseLabels.Pages
             }
         }
 
-        public IActionResult OnPostSubmit()
+        public async Task<IActionResult> OnPostSubmitAsync()
         {
             var form = Request.Form;
             var materialId = GetFormValue(form, "material", "materialValue");
@@ -152,6 +155,20 @@ namespace WiseLabels.Pages
                 CuttingDieValue = form["cuttingDieValue"].ToString(),
                 PrintingValue = form["printingValue"].ToString()
             };
+
+            var pricingResult = await _quoteService.GetQuickQuotePricingAsync(quoteRequest);
+            if (!pricingResult.Success)
+            {
+                ModelState.AddModelError(string.Empty, pricingResult.ErrorMessage ?? "Unable to retrieve quick quote pricing. Please try again.");
+                SavedQuoteRequest = quoteRequest;
+                return Page();
+            }
+
+            quoteRequest.QuickQuoteResponseJson = pricingResult.ResponseJson;
+            if (pricingResult.Breakdown.Count > 0)
+            {
+                quoteRequest.PriceBreakdown = new List<QuotePriceBreakdown>(pricingResult.Breakdown);
+            }
 
             TempData["QuoteRequest"] = JsonSerializer.Serialize(quoteRequest);
             return RedirectToPage("/Confirm");

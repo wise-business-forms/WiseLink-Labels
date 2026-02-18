@@ -10,6 +10,10 @@
     <link rel="stylesheet" href="~/WiseLabels.styles.css" asp-append-version="true" />
 </head>
 @{
+    var userEmail = User?.FindFirst("email")?.Value
+        ?? User?.FindFirst("upn")?.Value
+        ?? User?.FindFirst("preferred_username")?.Value
+                ?? string.Empty;
     var userDisplayName = User?.FindFirst("name")?.Value
         ?? User?.FindFirst("preferred_username")?.Value
         ?? User?.Identity?.Name
@@ -25,6 +29,7 @@
                 <div class="text-end">
                     <div class="small text-muted">Signed in as</div>
                     <div class="fw-semibold">@userDisplayName</div>
+                    <div class="fw-semibold">@userEmail</div>
                 </div>
             }
         </div>

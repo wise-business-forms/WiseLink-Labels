@@ -29,11 +29,14 @@ namespace WiseLabels.Authorization
             bool hasFullUserOverride = !string.IsNullOrWhiteSpace(userIdentifier) &&
                 _options.FullAccessUsers.Any(u => string.Equals(u, userIdentifier, StringComparison.OrdinalIgnoreCase));
 
+            bool hasLimitedUserOverride = !string.IsNullOrWhiteSpace(userIdentifier) &&
+                _options.LimitedAccessUsers.Any(u => string.Equals(u, userIdentifier, StringComparison.OrdinalIgnoreCase));
+
             bool hasFullGroup = _options.FullAccessGroups.Any(value => groupValues.Contains(value));
             bool hasLimitedGroup = _options.LimitedAccessGroups.Any(value => groupValues.Contains(value));
 
             var hasFullAccess = hasFullGroup || hasFullUserOverride;
-            var hasLimitedAccess = hasFullAccess || hasLimitedGroup;
+            var hasLimitedAccess = hasFullAccess || hasLimitedGroup || hasLimitedUserOverride;
 
             if (requirement.Level == AccessLevel.Full && hasFullAccess)
             {

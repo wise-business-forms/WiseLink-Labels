@@ -4,6 +4,33 @@
         <name>WiseLabels</name>
     </assembly>
     <members>
+        <member name="T:WiseLabels.CustomAssemblyLoadContext">
+            <summary>
+            Custom assembly load context for loading assemblies and unmanaged libraries.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.CustomAssemblyLoadContext.LoadUnmanagedLibrary(System.String)">
+            <summary>
+            Loads an unmanaged library from the specified absolute path.
+            </summary>
+            <param name="absolutePath">The absolute path to the unmanaged library.</param>
+            <returns>A handle to the loaded unmanaged library.</returns>
+        </member>
+        <member name="M:WiseLabels.CustomAssemblyLoadContext.LoadUnmanagedDll(System.String)">
+            <summary>
+            Loads an unmanaged DLL with the specified name.
+            </summary>
+            <param name="unmanagedDllName">The name or path of the unmanaged DLL to load.</param>
+            <returns>A handle to the loaded unmanaged DLL.</returns>
+        </member>
+        <member name="M:WiseLabels.CustomAssemblyLoadContext.Load(System.Reflection.AssemblyName)">
+            <summary>
+            Loads a managed assembly with the specified name.
+            </summary>
+            <param name="assemblyName">The name of the assembly to load.</param>
+            <returns>The loaded assembly.</returns>
+            <exception cref="T:System.NotImplementedException">This method is not implemented.</exception>
+        </member>
         <member name="P:WiseLabels.Pages.Api.CuttingDieModel.CuttingDieOption.StnsRef">
             <summary>
             Die Identifier

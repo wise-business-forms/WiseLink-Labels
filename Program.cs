@@ -1,12 +1,33 @@
 using CERM.DataAccess;
+using DinkToPdf;
+using DinkToPdf.Contracts;
+using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
+using WiseLabels;
 using WiseLabels.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// DinkToPdf
+var architectureFolder = RuntimeInformation.ProcessArchitecture switch
+{
+    Architecture.X64 => "64bit",
+    Architecture.X86 => "32bit",
+    _ => throw new PlatformNotSupportedException("wkhtmltopdf is only configured for Windows x64/x86")
+};
+var wkhtmlPath = Path.Combine(AppContext.BaseDirectory, "Libraries", architectureFolder, "libwkhtmltox.dll");
+if (!File.Exists(wkhtmlPath))
+{
+    throw new FileNotFoundException($"wkhtmltopdf native library not found at {wkhtmlPath}.");
+}
+
+var context = new CustomAssemblyLoadContext();
+context.LoadUnmanagedLibrary(wkhtmlPath);
+builder.Services.AddSingleton<IConverter>(_ => new SynchronizedConverter(new PdfTools()));
 
 // Add services to the container.
 builder.Services
@@ -17,9 +38,9 @@ builder.Services.Configure<AccessControlOptions>(builder.Configuration.GetSectio
 builder.Services.AddSingleton<IAuthorizationHandler, GroupAccessHandler>();
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("FullAccess", policy => policy.Requirements.Add(new GroupAccessRequirement(AccessLevel.Full)));
-    options.AddPolicy("LimitedAccess", policy => policy.Requirements.Add(new GroupAccessRequirement(AccessLevel.Limited)));
-    options.FallbackPolicy = options.GetPolicy("LimitedAccess");
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
 });
 
 builder.Services.AddRazorPages()

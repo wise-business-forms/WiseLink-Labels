@@ -46,6 +46,9 @@ namespace WiseLabels.Models
         public string? CuttingDieValue { get; set; }
         public string? PrintingValue { get; set; }
         
+        public List<QuotePriceBreakdown>? PriceBreakdown { get; set; }
+        public string? QuickQuoteResponseJson { get; set; }
+
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     }
 }

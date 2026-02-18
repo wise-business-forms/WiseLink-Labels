@@ -31,6 +31,26 @@
         <form class="quote-form" method="post" id="quote-form" asp-page-handler="Submit">
             @Html.AntiForgeryToken()
 
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div class="alert alert-danger" role="alert">
+                    <ul class="mb-0">
+                        @{
+                            foreach (var entry in ViewData.ModelState.Values)
+                            {
+                                foreach (var error in entry.Errors)
+                                {
+                                    if (!string.IsNullOrWhiteSpace(error.ErrorMessage))
+                                    {
+                                        <li>@error.ErrorMessage</li>
+                                    }
+                                }
+                            }
+                        }
+                    </ul>
+                </div>
+            }
+
             <div class="mb-4">
                 <label for="description" class="form-label fw-semibold">Project description</label>
                 <textarea
@@ -109,45 +129,46 @@
                         </div>
                     </div>
 
+                    <div class="mb-4" id="existing-die-section">
+                        <label class="form-label fw-semibold" for="existing-die-select">Existing Die Size</label>
+                        <select class="form-select" id="existing-die-select" name="existingDie">
+                            <option value="">Select a die size</option>
+                        </select>
+                        <div id="die-loading" class="form-text text-muted d-none">Loading die sizes…</div>
+                        <div id="die-error" class="form-text text-danger d-none"></div>
+                    </div>
             <div class="mb-4" id="dimensions-rectangles">
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label for="label-width" class="form-label fw-semibold">Width (inches)</label>
-                        <input type="number"
-                               class="form-control"
-                               id="label-width"
-                               name="labelWidth"
-                               min="0"
-                               step="0.001"
-                               value="@(Model.SavedQuoteRequest?.LabelWidth ?? string.Empty)"
-                               placeholder="e.g., 2.500" />
+                        <select class="form-select"
+                                id="label-width"
+                                name="labelWidth"
+                                data-initial-value="@(Model.SavedQuoteRequest?.LabelWidth ?? string.Empty)">
+                            <option value="">Select a width</option>
+                        </select>
                     </div>
                     <div class="col-md-6">
                         <label for="label-height" class="form-label fw-semibold">Height (inches)</label>
-                        <input type="number"
-                               class="form-control"
-                               id="label-height"
-                               name="labelHeight"
-                               min="0"
-                               step="0.001"
-                               value="@(Model.SavedQuoteRequest?.LabelHeight ?? string.Empty)"
-                               placeholder="e.g., 1.750" />
+                        <select class="form-select"
+                                id="label-height"
+                                name="labelHeight"
+                                data-initial-value="@(Model.SavedQuoteRequest?.LabelHeight ?? string.Empty)">
+                            <option value="">Select a height</option>
+                        </select>
                     </div>
                 </div>
-                <div class="form-text">Shown for rectangle or square labels.</div>
             </div>
 
             <div class="mb-4 d-none" id="dimensions-radius">
                 <label for="label-radius" class="form-label fw-semibold">Radius (inches)</label>
-                <input type="number"
-                       class="form-control"
-                       id="label-radius"
-                       name="diameter"
-                       min="0"
-                       step="0.001"
-                       value="@(Model.SavedQuoteRequest?.Diameter ?? string.Empty)"
-                       placeholder="e.g., 1.250" />
-                <div class="form-text">Shown for circle or oval labels.</div>
+                <select class="form-select"
+                        id="label-radius"
+                        name="diameter"
+                        data-initial-value="@(Model.SavedQuoteRequest?.Diameter ?? string.Empty)">
+                    <option value="">Select a radius</option>
+                </select>
+                <div class="form-text">Displayed for circle or oval labels and populated from available die sizes.</div>
             </div>
 
             <div class="mb-4">
@@ -189,27 +210,6 @@
                 </select>
                 <div id="finish-loading" class="form-text text-muted">Loading finishes…</div>
                 <div id="finish-error" class="form-text text-danger d-none"></div>
-            </div>
-
-            <div class="mb-4">
-                <label for="label-size-type" class="form-label fw-semibold">Label Size Type</label>
-                <select class="form-select" id="label-size-type" name="labelSizeType">
-                    <option value="existing-die" selected>Existing Die</option>
-                    <option value="custom-die">Custom Die</option>
-                </select>
-            </div>
-
-            <div class="mb-4 d-none" id="existing-die-section">
-                <label class="form-label fw-semibold" for="existing-die-select">Existing Die Size</label>
-                <select class="form-select" id="existing-die-select" name="existingDie">
-                    <option value="">Select a die size</option>
-                </select>
-                <div id="die-loading" class="form-text text-muted d-none">Loading die sizes…</div>
-                <div id="die-error" class="form-text text-danger d-none"></div>
-            </div>
-
-            <div class="alert alert-info d-none" id="custom-die-info" role="status">
-                Custom die selections may require additional tooling costs and extended lead times.
             </div>
 
             <div class="mb-4">
@@ -346,10 +346,9 @@
             </div>
 
             <div class="text-end mt-4">
-                <button type="submit" class="btn btn-primary">Submit Quote Request</button>
+                <button type="submit" class="btn btn-primary">Get Quote Prices</button>
             </div>
 
-            <!-- ...rest of the form markup from the old Index.cshtml... -->
         </form>
 
         <script>
@@ -865,33 +864,261 @@
             })();
 
             (function () {
-                const finishSelect = document.getElementById('finish-select');
-                const labelSizeType = document.getElementById('label-size-type');
                 const dieSection = document.getElementById('existing-die-section');
                 const dieSelect = document.getElementById('existing-die-select');
                 const dieLoading = document.getElementById('die-loading');
                 const dieError = document.getElementById('die-error');
                 const printingInput = document.getElementById('printing-input');
-                const customDieInfo = document.getElementById('custom-die-info');
-                if (!finishSelect || !labelSizeType || !dieSection || !dieSelect || !dieLoading || !dieError || !printingInput || !customDieInfo) {
+                const widthInput = document.getElementById('label-width');
+                const heightInput = document.getElementById('label-height');
+                const radiusSelect = document.getElementById('label-radius');
+                if (!dieSection || !dieSelect || !dieLoading || !dieError || !printingInput || !widthInput || !heightInput || !radiusSelect) {
                     return;
                 }
 
                 let dieOptionsCache = [];
                 let cachedPrintingKey = null;
+                let suppressRadiusSync = false;
+                let suppressDimensionSync = false;
+                let radiusInitialValue = (radiusSelect.dataset.initialValue || '').trim();
+                let widthInitialValue = (widthInput.dataset.initialValue || '').trim();
+                let heightInitialValue = (heightInput.dataset.initialValue || '').trim();
+                const widthToHeights = new Map();
+                const heightToWidths = new Map();
+                const dimensionMap = new Map();
 
-                function toggleLabelSizeAvailability(enable) {
-                    labelSizeType.disabled = !enable;
-                    if (!enable) {
-                        dieSection.classList.add('d-none');
-                        customDieInfo.classList.add('d-none');
+                function formatDimension(value) {
+                    const num = Number(value);
+                    if (!Number.isFinite(num)) {
+                        return '';
+                    }
+                    return (Math.round(num * 1000) / 1000).toString();
+                }
+
+                function clearWidthOptions(message = 'Select a width') {
+                    widthInput.innerHTML = `<option value="">${message}</option>`;
+                    suppressDimensionSync = true;
+                    widthInput.value = '';
+                    suppressDimensionSync = false;
+                }
+
+                function clearHeightOptions(message = 'Select a height') {
+                    heightInput.innerHTML = `<option value="">${message}</option>`;
+                    suppressDimensionSync = true;
+                    heightInput.value = '';
+                    suppressDimensionSync = false;
+                }
+
+                function clearRadiusOptions(message = 'Select a radius') {
+                    radiusSelect.innerHTML = `<option value="">${message}</option>`;
+                    suppressRadiusSync = true;
+                    radiusSelect.value = '';
+                    suppressRadiusSync = false;
+                }
+
+                function clearDimensions() {
+                    suppressDimensionSync = true;
+                    widthInput.value = '';
+                    heightInput.value = '';
+                    suppressDimensionSync = false;
+                    suppressRadiusSync = true;
+                    radiusSelect.value = '';
+                    suppressRadiusSync = false;
+                    if (typeof validateLabelSize === 'function') validateLabelSize();
+                    if (typeof validateDiameter === 'function') validateDiameter();
+                    if (typeof updateSummaryPanel === 'function') updateSummaryPanel();
+                }
+
+                function selectDieByDimensions(widthValue, heightValue) {
+                    const key = `${widthValue}|${heightValue}`;
+                    const match = dimensionMap.get(key);
+                    if (!match) {
+                        return false;
+                    }
+                    if (dieSelect.value !== match.dieValue) {
+                        dieSelect.value = match.dieValue;
+                    }
+                    return true;
+                }
+
+                function syncRadiusSelection(dieValue, radiusValue) {
+                    if (!radiusSelect) {
+                        return;
+                    }
+                    suppressRadiusSync = true;
+                    let matched = null;
+                    if (dieValue) {
+                        matched = Array.from(radiusSelect.options).find(opt => opt.dataset?.dieValue === dieValue);
+                    }
+                    if (!matched && radiusValue) {
+                        matched = Array.from(radiusSelect.options).find(opt => opt.value === radiusValue);
+                    }
+                    radiusSelect.value = matched ? matched.value : '';
+                    suppressRadiusSync = false;
+                }
+
+                function syncDimensionsFromDie() {
+                    const option = dieSelect.selectedOptions[0];
+                    if (!option || !option.value) {
+                        clearDimensions();
+                        return;
+                    }
+
+                    const widthValue = formatDimension(option.dataset.width);
+                    const heightValue = formatDimension(option.dataset.height);
+                    suppressDimensionSync = true;
+                    if (widthValue) {
+                        if (!Array.from(widthInput.options).some(opt => opt.value === widthValue)) {
+                            const opt = document.createElement('option');
+                            opt.value = widthValue;
+                            opt.textContent = `${widthValue}"`;
+                            widthInput.appendChild(opt);
+                        }
+                        widthInput.value = widthValue;
+                    }
+                    if (heightValue) {
+                        if (!Array.from(heightInput.options).some(opt => opt.value === heightValue)) {
+                            const opt = document.createElement('option');
+                            opt.value = heightValue;
+                            opt.textContent = `${heightValue}"`;
+                            heightInput.appendChild(opt);
+                        }
+                        heightInput.value = heightValue;
+                    }
+                    suppressDimensionSync = false;
+                    const radiusValue = formatDimension(option.dataset.radius);
+                    syncRadiusSelection(option.value, radiusValue);
+
+                    if (typeof validateLabelSize === 'function') validateLabelSize();
+                    if (typeof validateDiameter === 'function') validateDiameter();
+                    if (typeof updateSummaryPanel === 'function') updateSummaryPanel();
+                }
+
+                function rebuildWidthHeightOptions() {
+                    clearWidthOptions('Select a width');
+                    clearHeightOptions('Select a height');
+                    dimensionMap.clear();
+                    widthToHeights.clear();
+                    heightToWidths.clear();
+
+                    dieOptionsCache.forEach(option => {
+                        const ref = option.StnsRef || option.stnsRef || '';
+                        const widthValue = formatDimension(option.etiket_b ?? option.etiket_B ?? '');
+                        const heightValue = formatDimension(option.etiket_h ?? option.etiket_H ?? '');
+                        if (!ref || !widthValue || !heightValue) {
+                            return;
+                        }
+                        const key = `${widthValue}|${heightValue}`;
+                        if (!dimensionMap.has(key)) {
+                            dimensionMap.set(key, {
+                                dieValue: ref,
+                                width: widthValue,
+                                height: heightValue,
+                                radius: formatDimension(option.Radius__ ?? option.radius__ ?? '')
+                            });
+                        }
+                        if (!widthToHeights.has(widthValue)) {
+                            widthToHeights.set(widthValue, new Set());
+                        }
+                        widthToHeights.get(widthValue).add(heightValue);
+                        if (!heightToWidths.has(heightValue)) {
+                            heightToWidths.set(heightValue, new Set());
+                        }
+                        heightToWidths.get(heightValue).add(widthValue);
+                    });
+
+                    if (!widthToHeights.size) {
+                        clearWidthOptions('No widths available');
+                        clearHeightOptions('No heights available');
+                        return;
+                    }
+
+                    const sortedWidths = Array.from(widthToHeights.keys()).sort((a, b) => parseFloat(a) - parseFloat(b));
+                    sortedWidths.forEach(widthValue => {
+                        const opt = document.createElement('option');
+                        opt.value = widthValue;
+                        opt.textContent = `${widthValue}"`;
+                        widthInput.appendChild(opt);
+                    });
+
+                    const sortedHeights = Array.from(heightToWidths.keys()).sort((a, b) => parseFloat(a) - parseFloat(b));
+                    sortedHeights.forEach(heightValue => {
+                        const opt = document.createElement('option');
+                        opt.value = heightValue;
+                        opt.textContent = `${heightValue}"`;
+                        heightInput.appendChild(opt);
+                    });
+
+                    if (widthInitialValue && widthToHeights.has(widthInitialValue)) {
+                        widthInput.value = widthInitialValue;
                     } else {
-                        handleLabelSizeTypeChange();
+                        widthInput.value = '';
+                    }
+                    if (heightInitialValue && heightToWidths.has(heightInitialValue)) {
+                        heightInput.value = heightInitialValue;
+                    } else {
+                        heightInput.value = '';
                     }
                 }
 
-                function clearDieOptions(message) {
+                function rebuildRadiusOptions() {
+                    clearRadiusOptions('Select a radius');
+                    const radiusMap = new Map();
+                    dieOptionsCache.forEach(option => {
+                        const radiusRaw = option.Radius__ ?? option.radius__ ?? option.radius ?? '';
+                        const ref = option.StnsRef || option.stnsRef || '';
+                        if (!radiusRaw || !ref) {
+                            return;
+                        }
+                        const radiusValue = formatDimension(radiusRaw);
+                        if (!radiusValue) {
+                            return;
+                        }
+                        if (!radiusMap.has(radiusValue)) {
+                            radiusMap.set(radiusValue, { dieValue: ref });
+                        }
+                    });
+
+                    if (radiusMap.size === 0) {
+                        const option = document.createElement('option');
+                        option.value = '';
+                        option.textContent = 'No radius values available';
+                        option.disabled = true;
+                        option.selected = true;
+                        radiusSelect.appendChild(option);
+                        suppressRadiusSync = true;
+                        radiusSelect.value = '';
+                        suppressRadiusSync = false;
+                        return;
+                    }
+
+                    const sortedRadii = Array.from(radiusMap.entries())
+                        .sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
+
+                    sortedRadii.forEach(([radiusValue, meta]) => {
+                        const radiusOption = document.createElement('option');
+                        radiusOption.value = radiusValue;
+                        radiusOption.textContent = `${radiusValue}"`;
+                        radiusOption.dataset.dieValue = meta.dieValue;
+                        radiusSelect.appendChild(radiusOption);
+                    });
+
+                    if (radiusInitialValue) {
+                        const match = radiusSelect.querySelector(`option[value="${radiusInitialValue}"]`);
+                        if (match) {
+                            radiusSelect.value = radiusInitialValue;
+                            if (match.dataset.dieValue) {
+                                dieSelect.value = match.dataset.dieValue;
+                            }
+                        }
+                        radiusInitialValue = '';
+                    }
+                }
+
+                function clearDieOptions(message = 'Select a die size') {
                     dieSelect.innerHTML = `<option value="">${message}</option>`;
+                    clearRadiusOptions('Select a radius');
+                    clearDimensions();
                 }
 
                 function rebuildDieOptions() {
@@ -903,6 +1130,10 @@
                         option.disabled = true;
                         option.selected = true;
                         dieSelect.appendChild(option);
+                        clearWidthOptions('No widths available');
+                        clearHeightOptions('No heights available');
+                        clearRadiusOptions('No radius values available');
+                        clearDimensions();
                         return;
                     }
 
@@ -921,16 +1152,34 @@
                         if (radius) {
                             dieOption.textContent += ` • Radius ${radius}"`;
                         }
+                        if (across) dieOption.dataset.width = across;
+                        if (around) dieOption.dataset.height = around;
+                        if (radius) dieOption.dataset.radius = radius;
                         dieSelect.appendChild(dieOption);
                     });
+
+                    rebuildWidthHeightOptions();
+                    rebuildRadiusOptions();
+
+                    if (widthInitialValue && heightInitialValue) {
+                        selectDieByDimensions(widthInitialValue, heightInitialValue);
+                    }
+
+                    syncDimensionsFromDie();
+                    widthInitialValue = '';
+                    heightInitialValue = '';
                 }
 
-                async function loadDieOptions() {
+                async function loadDieOptions({ suppressErrors = false } = {}) {
                     const printingSelection = (printingInput.value || '').trim();
                     if (!printingSelection) {
-                        dieError.textContent = 'Select a printing option to see die sizes.';
-                        dieError.classList.remove('d-none');
-                        clearDieOptions('Printing selection required');
+                        if (!suppressErrors) {
+                            dieError.textContent = 'Select a printing option to see die sizes.';
+                            dieError.classList.remove('d-none');
+                        } else {
+                            dieError.classList.add('d-none');
+                        }
+                        clearDieOptions('Select a printing option to see die sizes');
                         return;
                     }
 
@@ -966,40 +1215,87 @@
                     }
                 }
 
-                async function handleLabelSizeTypeChange() {
-                    if (labelSizeType.disabled) {
-                        dieSection.classList.add('d-none');
-                        return;
-                    }
-
-                    if (labelSizeType.value === 'existing-die') {
-                        dieSection.classList.remove('d-none');
-                        await loadDieOptions();
-                    } else {
-                        dieSection.classList.add('d-none');
-                    }
-
-                    const showCustomInfo = labelSizeType.value === 'custom-die';
-                    customDieInfo.classList.toggle('d-none', !showCustomInfo);
-                }
-
-                finishSelect.addEventListener('change', () => {
-                    toggleLabelSizeAvailability(!!finishSelect.value);
+                dieSelect.addEventListener('change', () => {
+                    syncDimensionsFromDie();
                 });
 
-                labelSizeType.addEventListener('change', () => {
-                    handleLabelSizeTypeChange();
+                radiusSelect.addEventListener('change', () => {
+                    if (suppressRadiusSync) {
+                        return;
+                    }
+                    const selected = radiusSelect.selectedOptions[0];
+                    const dieValue = selected?.dataset?.dieValue;
+                    if (dieValue) {
+                        dieSelect.value = dieValue;
+                        syncDimensionsFromDie();
+                    } else {
+                        clearDimensions();
+                    }
+                });
+
+                widthInput.addEventListener('change', () => {
+                    if (suppressDimensionSync) {
+                        return;
+                    }
+                    const widthValue = widthInput.value;
+                    if (!widthValue || !widthToHeights.has(widthValue)) {
+                        dieSelect.value = '';
+                        clearDimensions();
+                        return;
+                    }
+                    const possibleHeights = Array.from(widthToHeights.get(widthValue));
+                    let heightValue = heightInput.value;
+                    if (!heightValue || !possibleHeights.includes(heightValue)) {
+                        suppressDimensionSync = true;
+                        heightInput.value = possibleHeights[0];
+                        suppressDimensionSync = false;
+                        heightValue = possibleHeights[0];
+                    }
+                    if (selectDieByDimensions(widthValue, heightValue)) {
+                        syncDimensionsFromDie();
+                    } else {
+                        dieSelect.value = '';
+                        clearDimensions();
+                    }
+                });
+
+                heightInput.addEventListener('change', () => {
+                    if (suppressDimensionSync) {
+                        return;
+                    }
+                    const heightValue = heightInput.value;
+                    if (!heightValue || !heightToWidths.has(heightValue)) {
+                        dieSelect.value = '';
+                        clearDimensions();
+                        return;
+                    }
+                    const possibleWidths = Array.from(heightToWidths.get(heightValue));
+                    let widthValue = widthInput.value;
+                    if (!widthValue || !possibleWidths.includes(widthValue)) {
+                        suppressDimensionSync = true;
+                        widthInput.value = possibleWidths[0];
+                        suppressDimensionSync = false;
+                        widthValue = possibleWidths[0];
+                    }
+                    if (selectDieByDimensions(widthValue, heightValue)) {
+                        syncDimensionsFromDie();
+                    } else {
+                        dieSelect.value = '';
+                        clearDimensions();
+                    }
                 });
 
                 window.addEventListener('printingSelectionChanged', () => {
                     cachedPrintingKey = null;
                     dieOptionsCache = [];
-                    if (!dieSection.classList.contains('d-none')) {
-                        loadDieOptions();
-                    }
+                    loadDieOptions({ suppressErrors: true });
                 });
 
-                toggleLabelSizeAvailability(!!finishSelect.value);
+                if ((printingInput.value || '').trim()) {
+                    loadDieOptions({ suppressErrors: true });
+                } else {
+                    clearDieOptions('Select a printing option to see die sizes');
+                }
             })();
 
             (function () {

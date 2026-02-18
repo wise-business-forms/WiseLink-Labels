@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const dieSizeModeSelect = document.getElementById('die-size-mode');
     const dieSizeModeContainer = document.getElementById('die-size-mode-container');
     const customLabelSizeInputs = document.getElementById('custom-label-size-inputs');
-    const diameterInput = document.getElementById('diameter');
+    const diameterInput = document.getElementById('label-radius');
     const sizeValidation = document.getElementById('size-validation');
     const diameterValidation = document.getElementById('diameter-validation');
     const cornersSection = document.getElementById('corners-section');
@@ -119,8 +119,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Lock the manual inputs when using an existing die (they'll be populated from Cutting Die)
-        if (widthInput) widthInput.disabled = !showCustom;
-        if (heightInput) heightInput.disabled = !showCustom;
+        if (widthInput && widthInput.tagName !== 'SELECT') widthInput.disabled = !showCustom;
+        if (heightInput && heightInput.tagName !== 'SELECT') heightInput.disabled = !showCustom;
 
         // When switching to custom, clear cutting die (since it won't be used)
         if (showCustom) {
@@ -764,7 +764,7 @@ function toggleSizeSections() {
         // Size (Width x Height or Diameter)
         const selectedShape = shape ? shape.value : '';
         if (selectedShape === 'circle' || selectedShape === 'oval') {
-            const diameter = document.getElementById('diameter')?.value.trim();
+            const diameter = document.getElementById('label-radius')?.value.trim();
             if (diameter) {
                 choices.push({ label: 'Diameter', value: `${diameter}"` });
             }
@@ -785,12 +785,10 @@ function toggleSizeSections() {
         }
 
         // Cutting Die
-        const shapeForDie = document.querySelector('input[name="shape"]:checked')?.value;
-        const cuttingDie = document.getElementById('cutting-die')?.value;
-        if (isCuttingDieApplicableForShape(shapeForDie) && cuttingDie) {
-            const cuttingDieSelect = document.getElementById('cutting-die');
-            const selectedOption = cuttingDieSelect.options[cuttingDieSelect.selectedIndex];
-            choices.push({ label: 'Cutting Die', value: selectedOption.text });
+        const existingDieSelect = document.getElementById('existing-die-select');
+        if (existingDieSelect && existingDieSelect.value) {
+            const selectedOption = existingDieSelect.options[existingDieSelect.selectedIndex];
+            choices.push({ label: 'Existing Die Size', value: selectedOption.text });
         }
 
         // Printing
@@ -886,33 +884,21 @@ function toggleSizeSections() {
     // Customer autocomplete logic has been moved to wwwroot/js/quote/quote-autocomplete.js
     // Please ensure that file is included in your HTML after quote.js
     if (widthInput) {
-        widthInput.addEventListener('blur', function() { 
-            handleSizeInputBlur(this);
+        widthInput.addEventListener('change', function() {
+            validateLabelSize();
             updateSummaryPanel();
         });
     }
     if (heightInput) {
-        heightInput.addEventListener('input', function() {
-            if (validateNumericInput(this)) {
-                validateLabelSize();
-                updateSummaryPanel();
-            }
-        });
-        heightInput.addEventListener('blur', function() { 
-            handleSizeInputBlur(this);
+        heightInput.addEventListener('change', function() {
+            validateLabelSize();
             updateSummaryPanel();
         });
     }
     // Diameter input handlers
     if (diameterInput) {
-        diameterInput.addEventListener('input', function() {
-            if (validateNumericInput(this)) {
-                validateDiameter();
-                updateSummaryPanel();
-            }
-        });
-        diameterInput.addEventListener('blur', function() { 
-            handleDiameterInputBlur(this);
+        diameterInput.addEventListener('change', function() {
+            validateDiameter();
             updateSummaryPanel();
         });
     }
@@ -1680,7 +1666,7 @@ function toggleSizeSections() {
         set('contact-name', '');
         set('contact-email', '');
         set('contact-phone', '');
-        set('diameter', '');
+        set('label-radius', '');
         // Reset quantities to single empty input
         const qtyContainer = document.getElementById('quantity-inputs-container');
         if (qtyContainer) {

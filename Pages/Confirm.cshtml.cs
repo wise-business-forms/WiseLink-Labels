@@ -24,6 +24,7 @@ namespace WiseLabels.Pages
 
         public string? ApiPayloadJson { get; set; }
         public string? FormValuesJson { get; set; }
+        public List<QuotePriceBreakdown> PriceBreakdown { get; } = new();
 
         public void OnGet()
         {
@@ -44,6 +45,8 @@ namespace WiseLabels.Pages
                     QuoteRequest = new QuoteRequest();
                 }
             }
+
+            LoadPriceBreakdown();
         }
 
         public async Task<IActionResult> OnPostConfirmAsync()
@@ -51,12 +54,14 @@ namespace WiseLabels.Pages
             // Get quote data from TempData
             if (!TempData.TryGetValue("QuoteRequest", out var quoteData))
             {
-                return RedirectToPage("/Index");
+            return Redirect("~/GetQuote");
             }
+
+            QuoteRequest? quote = null;
 
             try
             {
-                var quote = JsonSerializer.Deserialize<QuoteRequest>(quoteData.ToString() ?? "{}");
+                quote = JsonSerializer.Deserialize<QuoteRequest>(quoteData.ToString() ?? "{}");
                 if (quote == null)
                 {
                     return RedirectToPage("/Index");
@@ -86,6 +91,12 @@ namespace WiseLabels.Pages
 
                 // Submit to CERM API
                 var (apiSuccess, cermCalculationId, cermEstimateId, cermErrorMessage, cermResponseJson) = await _quoteService.SubmitToCermApiAsync(quote);
+
+                var estimateIdForContact = cermEstimateId ?? cermCalculationId;
+                if (!string.IsNullOrWhiteSpace(estimateIdForContact))
+                {
+                    quote.EstimateId = estimateIdForContact;
+                }
 
                 TempData["QuoteId"] = quoteId;
                 TempData["ApiSuccess"] = apiSuccess.ToString();
@@ -120,7 +131,6 @@ namespace WiseLabels.Pages
                 }
 
                 // Update contact info in CERM database when we have the estimate ID
-                var estimateIdForContact = cermEstimateId ?? cermCalculationId;
                 if (!string.IsNullOrWhiteSpace(estimateIdForContact))
                 {
                     var contactUpdated = await _quoteService.UpdateContactInfoAsync(
@@ -136,6 +146,8 @@ namespace WiseLabels.Pages
                 }
 
                 // Send confirmation email to customer (use estimate ID as quote reference when available)
+                var priceBreakdownSnapshot = BuildPriceBreakdownSnapshot(quote);
+                TempData["PriceBreakdown"] = JsonSerializer.Serialize(priceBreakdownSnapshot);
                 var quoteRefForEmail = estimateIdForContact ?? quoteId;
                 if (!string.IsNullOrWhiteSpace(quote.Email))
                 {
@@ -144,7 +156,9 @@ namespace WiseLabels.Pages
                         var emailSent = await _emailService.SendQuoteConfirmationAsync(
                             quote.Email,
                             quoteRefForEmail,
-                            quote.Name ?? ""
+                            quote.Name ?? "",
+                            quote,
+                            priceBreakdownSnapshot
                         );
                         TempData["EmailSent"] = emailSent.ToString();
                         if (emailSent)
@@ -172,6 +186,8 @@ namespace WiseLabels.Pages
                 // Preserve quote data in case of error
                 TempData.Keep("QuoteRequest");
                 ModelState.AddModelError("", "An error occurred while processing your quote. Please try again.");
+                QuoteRequest = quote ?? new QuoteRequest();
+                LoadPriceBreakdown();
                 return Page();
             }
         }
@@ -185,6 +201,7 @@ namespace WiseLabels.Pages
                 // Repopulate TempData to ensure it survives the redirect to Index
                 var quoteJson = quoteData.ToString() ?? "{}";
                 TempData["QuoteRequest"] = quoteJson;
+                TempData.Keep("QuoteRequest");
                 _logger.LogInformation("Quote data preserved in TempData for edit redirect");
             }
             else
@@ -193,6 +210,7 @@ namespace WiseLabels.Pages
                 if (QuoteRequest != null && !string.IsNullOrEmpty(QuoteRequest.Description))
                 {
                     TempData["QuoteRequest"] = JsonSerializer.Serialize(QuoteRequest);
+                    TempData.Keep("QuoteRequest");
                     _logger.LogInformation("Quote data serialized from QuoteRequest property for edit redirect");
                 }
                 else
@@ -202,6 +220,36 @@ namespace WiseLabels.Pages
             }
             
             return RedirectToPage("/Index");
+        }
+
+        private void LoadPriceBreakdown()
+        {
+            PriceBreakdown.Clear();
+            if (QuoteRequest?.PriceBreakdown is { Count: > 0 } cached)
+            {
+                PriceBreakdown.AddRange(cached);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(QuoteRequest?.QuickQuoteResponseJson))
+            {
+                PriceBreakdown.AddRange(QuotePriceBreakdownParser.Parse(QuoteRequest.QuickQuoteResponseJson));
+            }
+        }
+
+        private static IReadOnlyList<QuotePriceBreakdown> BuildPriceBreakdownSnapshot(QuoteRequest quote)
+        {
+            if (quote.PriceBreakdown is { Count: > 0 } cached)
+            {
+                return cached;
+            }
+
+            if (!string.IsNullOrWhiteSpace(quote.QuickQuoteResponseJson))
+            {
+                return QuotePriceBreakdownParser.Parse(quote.QuickQuoteResponseJson);
+            }
+
+            return Array.Empty<QuotePriceBreakdown>();
         }
 
     }

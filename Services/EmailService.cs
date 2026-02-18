@@ -1,9 +1,10 @@
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+using System.Globalization;
 using System.Net;
 using System.Net.Mail;
+using System.Text;
 using Microsoft.Extensions.Configuration;
+using WiseLabels.Models;
 
 namespace WiseLabels.Services
 {
@@ -18,7 +19,14 @@ namespace WiseLabels.Services
             _configuration = configuration;
         }
 
-        public async Task<bool> SendQuoteConfirmationAsync(string toEmail, string quoteId, string customerName)
+
+
+        public async Task<bool> SendQuoteConfirmationAsync(
+            string toEmail,
+            string quoteId,
+            string customerName,
+            QuoteRequest quoteDetails,
+            IReadOnlyList<QuotePriceBreakdown> priceBreakdown)
         {
             try
             {
@@ -42,7 +50,6 @@ namespace WiseLabels.Services
                     EnableSsl = enableSsl
                 };
 
-                // Only set credentials if username is provided (allows unauthenticated internal relays)
                 if (!string.IsNullOrEmpty(smtpUsername) && !string.IsNullOrEmpty(smtpPassword))
                 {
                     client.Credentials = new NetworkCredential(smtpUsername, smtpPassword);
@@ -52,7 +59,7 @@ namespace WiseLabels.Services
                 {
                     From = new MailAddress(fromEmail, fromName),
                     Subject = $"Quote Request Confirmation - #{quoteId}",
-                    Body = GenerateEmailBody(quoteId, customerName),
+                    Body = GenerateEmailBody(quoteId, customerName, quoteDetails, priceBreakdown),
                     IsBodyHtml = true
                 };
 
@@ -315,47 +322,214 @@ pre {{ margin: 0; white-space: pre-wrap; word-wrap: break-word; font-size: 11px;
             return value.ToString() ?? "(null)";
         }
 
-        private string GenerateEmailBody(string quoteId, string customerName)
+        private string GenerateEmailBody(
+            string quoteId,
+            string customerName,
+            QuoteRequest quote,
+            IReadOnlyList<QuotePriceBreakdown> priceBreakdown)
         {
-            var greeting = !string.IsNullOrWhiteSpace(customerName) ? $"Hello {customerName}," : "Hello,";
-            
-            return $@"
+            var greeting = !string.IsNullOrWhiteSpace(customerName) ? $"Hello {WebUtility.HtmlEncode(customerName)}," : "Hello,";
+            var contactTable = BuildDefinitionTable(GetContactRows(quote));
+            var detailTable = BuildDefinitionTable(GetDetailRows(quote));
+            var pricingTable = BuildPricingTable(priceBreakdown);
+
+            var sb = new StringBuilder();
+            sb.Append("""
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset=""utf-8"">
+    <meta charset="utf-8">
     <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background-color: #007bff; color: white; padding: 20px; text-align: center; }}
-        .content {{ background-color: #f9f9f9; padding: 20px; }}
-        .quote-id {{ background-color: #fff; padding: 15px; margin: 20px 0; border-left: 4px solid #007bff; }}
-        .footer {{ text-align: center; padding: 20px; font-size: 12px; color: #666; }}
+        body { font-family: Arial, sans-serif; color: #333; margin: 0; padding: 24px; background-color: #f4f6f8; }
+        .container { max-width: 720px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.06); overflow: hidden; }
+        .header { background-color: #0b5ed7; color: #fff; padding: 24px; }
+        .header h1 { margin: 0; font-size: 22px; }
+        .content { padding: 24px; line-height: 1.6; }
+        .quote-id { font-size: 26px; font-weight: 700; color: #0b5ed7; }
+        .section { margin-top: 24px; }
+        .section h3 { margin: 0 0 12px; font-size: 18px; color: #0b5ed7; }
+        table.data-table { width: 100%; border-collapse: collapse; border: 1px solid #dee2e6; }
+        table.data-table th { text-align: left; width: 35%; padding: 10px; background: #f8f9fa; border-right: 1px solid #dee2e6; }
+        table.data-table td { padding: 10px; border-top: 1px solid #dee2e6; }
+        table.data-table tr:first-child td { border-top: none; }
+        table.price-table th, table.price-table td { border: 1px solid #dee2e6; padding: 10px; text-align: left; }
+        table.price-table th { background: #f8f9fa; }
+        .pre { white-space: pre-wrap; }
+        .footer { padding: 16px 24px 24px; font-size: 12px; color: #6c757d; text-align: center; }
     </style>
 </head>
 <body>
-    <div class=""container"">
-        <div class=""header"">
-            <h1>Thank You for Your Quote Request</h1>
+    <div class="container">
+        <div class="header">
+            <h1>Quote Summary</h1>
+            <div>Reference #<span class="quote-id">
+""");
+            sb.Append(WebUtility.HtmlEncode(quoteId));
+            sb.Append("""
+</span></div>
         </div>
-        <div class=""content"">
-            <p>{greeting}</p>
-            <p>Thank you for requesting a quote from WiseLink Labels. We have successfully received your quote request and our team will review it shortly.</p>
-            <div class=""quote-id"">
-                <strong>Your Quote Reference:</strong><br>
-                <span style=""font-size: 24px; font-weight: bold; color: #007bff;"">#{quoteId}</span>
-            </div>
-            <p>Please save this reference number for your records. We will contact you soon with pricing and additional details.</p>
-            <p>If you have any questions, please don't hesitate to contact us.</p>
-            <p>Best regards,<br>WiseLink Labels Team</p>
+        <div class="content">
+            <p>
+""");
+            sb.Append(greeting);
+            sb.Append("""
+</p>
+            <p>Thank you for your submission. Below is a copy of the information you reviewed on the confirmation page.</p>
+""");
+
+            if (!string.IsNullOrEmpty(contactTable))
+            {
+                sb.Append(@"<div class=""section""><h3>Contact Information</h3>" + contactTable + "</div>");
+            }
+
+            if (!string.IsNullOrEmpty(detailTable))
+            {
+                sb.Append(@"<div class=""section""><h3>Quote Details</h3>" + detailTable + "</div>");
+            }
+
+            if (!string.IsNullOrEmpty(pricingTable))
+            {
+                sb.Append(@"<div class=""section""><h3>Pricing Preview</h3>" + pricingTable + "</div>");
+            }
+
+            sb.Append("""
+            <p>If anything looks incorrect, simply reply to this email and we'll help you make adjustments.</p>
         </div>
-        <div class=""footer"">
-            <p>This is an automated confirmation email. Please do not reply to this message.</p>
+        <div class="footer">
+            Sent automatically by WiseLink Labels • Please keep this email for your records.
         </div>
     </div>
 </body>
-</html>";
+</html>
+""");
+            return sb.ToString();
         }
+
+        private static string BuildDefinitionTable(IEnumerable<(string Label, string? Value, bool PreserveWhitespace)> rows)
+        {
+            var filtered = rows
+                .Where(r => !string.IsNullOrWhiteSpace(r.Value))
+                .ToList();
+
+            if (filtered.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var sb = new StringBuilder();
+            sb.Append("<table class=\"data-table\"><tbody>");
+            foreach (var (label, value, preserveWhitespace) in filtered)
+            {
+                var encodedValue = WebUtility.HtmlEncode(value);
+                if (preserveWhitespace)
+                {
+                    encodedValue = encodedValue?.Replace("\r\n", "\n").Replace("\n", "<br />");
+                }
+
+                sb.Append("<tr><th>")
+                  .Append(WebUtility.HtmlEncode(label))
+                  .Append("</th><td")
+                  .Append(preserveWhitespace ? " class=\"pre\"" : string.Empty)
+                  .Append(">")
+                  .Append(encodedValue)
+                  .Append("</td></tr>");
+            }
+
+            sb.Append("</tbody></table>");
+            return sb.ToString();
+        }
+
+        private static string BuildPricingTable(IReadOnlyList<QuotePriceBreakdown> priceBreakdown)
+        {
+            if (priceBreakdown == null || priceBreakdown.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var sb = new StringBuilder();
+            sb.Append("""
+<table class="price-table" cellspacing="0" cellpadding="0">
+    <thead>
+        <tr>
+            <th>Quantity</th>
+            <th>Unit Price</th>
+            <th>Total Price</th>
+            <th>Currency</th>
+        </tr>
+    </thead>
+    <tbody>
+""");
+
+            foreach (var price in priceBreakdown)
+            {
+                sb.Append("<tr>")
+                  .Append("<td>").Append(price.Quantity?.ToString("N0", CultureInfo.CurrentCulture) ?? "-").Append("</td>")
+                  .Append("<td>").Append(price.UnitPrice.HasValue ? price.UnitPrice.Value.ToString("C2", CultureInfo.CurrentCulture) : "-").Append("</td>")
+                  .Append("<td>").Append(price.TotalPrice.HasValue ? price.TotalPrice.Value.ToString("C2", CultureInfo.CurrentCulture) : "-").Append("</td>")
+                  .Append("<td>").Append(WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(price.Currency) ? "USD" : price.Currency)).Append("</td>")
+                  .Append("</tr>");
+            }
+
+            sb.Append("</tbody></table>");
+            return sb.ToString();
+        }
+
+        private static IEnumerable<(string Label, string? Value, bool PreserveWhitespace)> GetContactRows(QuoteRequest quote) =>
+            new List<(string, string?, bool)>
+            {
+                ("Name", quote.Name, false),
+                ("Company", quote.Company, false),
+                ("Email", quote.Email, false),
+                ("Phone", quote.Phone, false),
+                ("Comments", quote.Comments, true)
+            };
+
+        private static IEnumerable<(string Label, string? Value, bool PreserveWhitespace)> GetDetailRows(QuoteRequest quote)
+        {
+            string? formattedShape = string.IsNullOrWhiteSpace(quote.Shape)
+                ? null
+                : char.ToUpper(quote.Shape[0], CultureInfo.InvariantCulture) + quote.Shape[1..];
+
+            string? dimensions = !string.IsNullOrWhiteSpace(quote.Diameter)
+                ? $"{quote.Diameter}\""
+                : (!string.IsNullOrWhiteSpace(quote.LabelWidth) || !string.IsNullOrWhiteSpace(quote.LabelHeight))
+                    ? $"{quote.LabelWidth ?? "—"}\" × {quote.LabelHeight ?? "—"}\""
+                    : null;
+
+            string? quantities = quote.Quantities?.Count > 0
+                ? string.Join(" / ", quote.Quantities)
+                : quote.TotalQuantity;
+
+            return new List<(string, string?, bool)>
+            {
+                ("Estimate ID", quote.EstimateId, false),
+                (FormatReferenceType(quote.ReferenceType), quote.ReferenceValue, false),
+                ("Description", quote.Description, false),
+                ("Shape", formattedShape, false),
+                ("Size", dimensions, false),
+                ("Corners", quote.Corners, false),
+                ("Cutting Die", quote.CuttingDie, false),
+                ("Printing", quote.Printing, false),
+                ("Material", quote.Material, false),
+                ("Color Code", quote.ColorCode, false),
+                ("Finish", quote.Finish, false),
+                ("Application Method", quote.ApplicationMethod, false),
+                ("Unwind Direction", quote.UnwindDirection, false),
+                ("Quantities", quantities, false),
+                ("Artwork", quote.ArtworkOption, false)
+            };
+        }
+
+        private static string FormatReferenceType(string? referenceType) =>
+            referenceType switch
+            {
+                "company-name" => "Company Name",
+                "account-number" => "Account Number",
+                "purchase-order-number" => "Purchase Order Number",
+                "invoice-number" => "Invoice Number",
+                _ => "Reference"
+            };
+
     }
 }
 

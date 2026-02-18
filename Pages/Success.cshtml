@@ -1,303 +1,484 @@
 @page
 @model WiseLabels.Pages.SuccessModel
+@using WiseLabels.Models
+@using System.Globalization
 @{
     ViewData["Title"] = Model.ApiSuccess ? "Quote Submitted Successfully" : "Quote Request Received";
+
+    string FormatMaybeValue(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+    string FormatDimension(string? width, string? height)
+    {
+        if (string.IsNullOrWhiteSpace(width) && string.IsNullOrWhiteSpace(height))
+        {
+            return "—";
+        }
+        return $"{width ?? "?"}\" × {height ?? "?"}\"";
+    }
+    string FormatCurrency(decimal? value) => value.HasValue ? value.Value.ToString("C2") : "$ -";
+    string Capitalize(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "—";
+        }
+        return text.Length == 1 ? char.ToUpper(text[0]).ToString() : char.ToUpper(text[0]) + text[1..];
+    }
+    string FormatQuoteDate(DateTime date)
+    {
+        var culture = CultureInfo.InvariantCulture;
+        return $"{date.ToString("ddd", culture)}, {date:MMM dd, yyyy}";
+    }
+    string FormatSubmittedDate(DateTime date) => date.ToString("MMM dd, yyyy 'at' h:mm tt 'EST'");
+
+    var quoteReference = Model.DisplayQuoteId ?? Model.QuoteId ?? "Pending Reference";
+    var issuedOn = Model.SubmittedDateEastern;
+    var expiresOn = issuedOn.AddDays(30);
+    var pricingRows = Model.PriceBreakdown?.ToList() ?? new List<QuotePriceBreakdown>();
+    if (!pricingRows.Any() && Model.QuoteRequest?.Quantities?.Count > 0)
+    {
+        pricingRows = Model.QuoteRequest.Quantities.Select(q => new QuotePriceBreakdown { Quantity = q }).ToList();
+    }
+
+    var subtotal = pricingRows.Where(p => p.TotalPrice.HasValue).Sum(p => p.TotalPrice!.Value);
+    var discount = 0m;
+    var shipping = 0m;
+    var tax = 0m;
+    var totalDue = subtotal - discount + shipping + tax;
+    var hasPriceValues = pricingRows.Any(p => p.TotalPrice.HasValue || p.UnitPrice.HasValue);
+    var statusMessage = Model.ApiSuccess
+        ? "Quote submitted successfully."
+        : (string.IsNullOrWhiteSpace(Model.CermErrorMessage)
+            ? "Quote request was captured, but CERM did not return a confirmation."
+            : Model.CermErrorMessage);
 }
 
-<div class="container">
-    <div class="row">
-        <div class="col-lg-8 mx-auto">
-            @if (Model.ApiSuccess)
-            {
-                <div class="text-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" fill="#28a745" class="bi bi-check-circle" viewBox="0 0 16 16">
-                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                        <path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 2.384 4.323a.75.75 0 0 1 1.06-1.061l4.033 4.033a.75.75 0 0 0 1.08-.022l3.468-4.387a.75.75 0 0 1 1.08.022z"/>
-                    </svg>
-                </div>
-                <h1 class="text-center mb-3">Quote Submitted Successfully!</h1>
-                <p class="lead text-center text-muted mb-4">
-                    Thank you for your quote request. We have received your information and will process it shortly.
+<style>
+    .invoice-container {
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-start;
+    }
+
+    .invoice-wrapper {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 2.5rem;
+        background: #fff;
+        border: 1px solid #d9dee6;
+        border-radius: 14px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+        font-family: "Segoe UI", Roboto, Arial, sans-serif;
+        color: #0f172a;
+    }
+
+    .print-panel {
+        flex: 0 0 220px;
+        background: #0f172a;
+        color: #fff;
+        border-radius: 14px;
+        padding: 1.25rem;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+        position: sticky;
+        top: 1.5rem;
+        height: fit-content;
+    }
+
+    .print-panel h3 {
+        margin-top: 0;
+        font-size: 1.05rem;
+        font-weight: 600;
+    }
+
+    .print-panel p {
+        margin-bottom: 1rem;
+        color: rgba(255,255,255,0.8);
+        font-size: 0.9rem;
+    }
+
+    .print-button {
+        width: 100%;
+        background: #fff;
+        color: #0f172a;
+        border: none;
+        border-radius: 999px;
+        padding: 0.45rem 1.25rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease;
+        margin-bottom: 0.75rem;
+    }
+
+    .print-button:hover {
+        background: rgba(255,255,255,0.85);
+    }
+
+    .invoice-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 1.75rem;
+        margin-bottom: 1.75rem;
+    }
+
+    .invoice-meta {
+        text-align: right;
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: #e0f2fe;
+        color: #0369a1;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .status-banner {
+        border-left: 4px solid #0ea5e9;
+        background: #ecfeff;
+        padding: 1rem 1.25rem;
+        border-radius: 10px;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+    }
+
+    .status-banner.error {
+        border-left-color: #f87171;
+        background: #fef2f2;
+        color: #991b1b;
+    }
+
+    .invoice-panels {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 2rem;
+    }
+
+    .info-panel {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        background: #f8fafc;
+    }
+
+    .info-panel h3 {
+        margin-top: 0;
+        font-size: 0.95rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #475569;
+    }
+
+    .info-panel p {
+        margin: 0.15rem 0;
+    }
+
+    .line-items {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+    }
+
+    .line-items thead {
+        background: #0f172a;
+        color: #fff;
+    }
+
+    .line-items th,
+    .line-items td {
+        padding: 0.85rem 0.75rem;
+        border: 1px solid #e2e8f0;
+    }
+
+    .totals {
+        width: 320px;
+        margin-left: auto;
+        border-collapse: collapse;
+    }
+
+    .totals td {
+        padding: 0.55rem 0.35rem;
+    }
+
+    .totals tr:last-child td {
+        font-size: 1.2rem;
+        font-weight: 600;
+        border-top: 2px solid #0f172a;
+        padding-top: 0.9rem;
+    }
+
+    .notes {
+        margin-top: 2rem;
+        padding: 1.25rem;
+        border-left: 4px solid #0ea5e9;
+        background: #ecfeff;
+        border-radius: 10px;
+        color: #0f172a;
+    }
+
+    .additional-charges {
+        margin-top: 2rem;
+    }
+
+    .additional-charges h3 {
+        margin: 0 0 0.75rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    .additional-charges table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+    }
+
+    .additional-charges th,
+    .additional-charges td {
+        border: 1px solid #e2e8f0;
+        padding: 0.75rem;
+        text-align: left;
+    }
+
+    .additional-charges th {
+        background: #f1f5f9;
+        color: #475569;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.05em;
+    }
+
+    .action-buttons {
+        margin-top: 2rem;
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    @@media print {
+        body {
+            background: #fff;
+        }
+
+        .invoice-container
+        {
+            display: block;
+            width: 100%;
+        }
+
+        .invoice-wrapper {
+            border: none;
+            box-shadow: none;
+            padding: 0;
+            margin: 0 auto;
+        }
+
+        .print-panel {
+            display: none !important;
+        }
+
+        header.invoice-header {
+            display: flex !important;
+        }
+
+        .action-buttons,
+        .action-buttons * {
+            display: none !important;
+        }
+    }
+</style>
+
+<div class="invoice-container">
+    <aside class="print-panel">
+        <h3>Quote Actions</h3>
+        <p>Download or print the confirmation that includes your CERM reference.</p>
+        <button type="button" id="print-btn" class="print-button">Print Quote</button>
+        <!--<button type="button" id="pdf-btn" class="print-button">Download PDF</button>-->
+        <p style="font-size:0.85rem; color:rgba(255,255,255,0.75);">
+            Reference: <strong>@quoteReference</strong><br />
+            Submitted: @FormatSubmittedDate(issuedOn)
+        </p>
+    </aside>
+
+    <div class="invoice-wrapper">
+        <header class="invoice-header">
+            <div class="invoice-branding">
+                <p>
+                    601 Vanguard Road<br />
+                    Anderson SC, 29625<br />
+                    (888) 817-7036 • labels@wbf.com
                 </p>
-            }
-
-            @if (!string.IsNullOrEmpty(Model.DisplayQuoteIdForCard))
-            {
-                <div class="card mb-4">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Quote Reference</h5>
-                        <p class="card-text">
-                            <strong>Quote ID:</strong> <code>@Model.DisplayQuoteIdForCard</code>
-                        </p>
-                        <p class="card-text">
-                            <strong>Submitted Date:</strong> @Model.SubmittedDateEastern.ToString("MMMM dd, yyyy 'at' h:mm tt EST")
-                        </p>
-                        <p class="card-text text-muted small">
-                            Please save this reference number for your records.
-                        </p>
-                    </div>
-                </div>
-            }
-            else if (!string.IsNullOrEmpty(Model.QuoteId))
-            {
-                <div class="card mb-4">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Quote Request Received</h5>
-                        <p class="card-text">
-                            <strong>Submitted Date:</strong> @Model.SubmittedDateEastern.ToString("MMMM dd, yyyy 'at' h:mm tt EST")
-                        </p>
-                        <p class="card-text text-muted small">
-                            Your request has been received. A quote reference will be sent to you by email once processed.
-                        </p>
-                    </div>
-                </div>
-            }
-
-            @if (Model.ApiSuccess)
-            {
-                <div class="alert alert-success mb-4" role="alert">
-                    <strong>✓</strong> Quote has been submitted successfully.
-                </div>
-            }
-            else
-            {
-                <div class="text-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" fill="#dc3545" class="bi bi-exclamation-triangle" viewBox="0 0 16 16">
-                        <path d="M7.938 2.016A.13.13 0 0 1 8.002 2a.13.13 0 0 1 .063.016.146.146 0 0 1 .054.057l6.857 11.667c.036.06.035.124.002.183a.163.163 0 0 1-.054.06.116.116 0 0 1-.066.017H1.146a.115.115 0 0 1-.066-.017.163.163 0 0 1-.054-.06.176.176 0 0 1 .002-.183L7.884 2.073a.147.147 0 0 1 .054-.057zm1.044-.45a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566z"/>
-                        <path d="M7.002 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 5.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995z"/>
-                    </svg>
-                </div>
-                <h1 class="text-center mb-3">There Was a Problem</h1>
-                <div class="alert alert-danger mb-4" role="alert">
-                    <strong>We were unable to generate your quote.</strong>
-                    <p class="mt-2 mb-0">Please call our customer support team for assistance with your quote request.</p>
-                </div>
-            }
-
-            @if (Model.EmailSent && !string.IsNullOrEmpty(Model.QuoteRequest?.Email))
-            {
-                <div class="alert alert-info mb-4" role="alert">
-                    <strong>✓</strong> A confirmation email has been sent to <strong>@Model.QuoteRequest.Email</strong>.
-                </div>
-            }
-            else if (!Model.EmailSent && !string.IsNullOrEmpty(Model.QuoteRequest?.Email))
-            {
-                <div class="alert alert-warning mb-4" role="alert">
-                    <strong>!</strong> We were unable to send a confirmation email. Please save your quote reference for your records.
-                </div>
-            }
-
-            @if (Model.QuoteRequest != null)
-            {
-                @if (!string.IsNullOrEmpty(Model.QuoteRequest.Name)
-                    || !string.IsNullOrEmpty(Model.QuoteRequest.Email)
-                    || !string.IsNullOrEmpty(Model.QuoteRequest.Phone)
-                    || !string.IsNullOrEmpty(Model.QuoteRequest.Company)
-                    || !string.IsNullOrEmpty(Model.QuoteRequest.Comments))
-                {
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h2 class="h5 mb-0">Contact Information</h2>
-                        </div>
-                        <div class="card-body">
-                            <dl class="row">
-                                @if (!string.IsNullOrEmpty(Model.QuoteRequest.Name))
-                                {
-                                    <dt class="col-sm-4">Name:</dt>
-                                    <dd class="col-sm-8">@Model.QuoteRequest.Name</dd>
-                                }
-
-                                @if (!string.IsNullOrEmpty(Model.QuoteRequest.Company))
-                                {
-                                    <dt class="col-sm-4">Company:</dt>
-                                    <dd class="col-sm-8">@Model.QuoteRequest.Company</dd>
-                                }
-
-                                @if (!string.IsNullOrEmpty(Model.QuoteRequest.Email))
-                                {
-                                    <dt class="col-sm-4">Email:</dt>
-                                    <dd class="col-sm-8">@Model.QuoteRequest.Email</dd>
-                                }
-
-                                @if (!string.IsNullOrEmpty(Model.QuoteRequest.Phone))
-                                {
-                                    <dt class="col-sm-4">Phone:</dt>
-                                    <dd class="col-sm-8">@Model.QuoteRequest.Phone</dd>
-                                }
-
-                                @if (!string.IsNullOrEmpty(Model.QuoteRequest.Comments))
-                                {
-                                    <dt class="col-sm-4">Comments:</dt>
-                                    <dd class="col-sm-8 text-break" style="white-space: pre-line;">@Model.QuoteRequest.Comments</dd>
-                                }
-                            </dl>
-                        </div>
-                    </div>
-                }
-
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h2 class="h5 mb-0">Quote Details</h2>
-                    </div>
-                    <div class="card-body">
-                        <dl class="row">
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Description))
-                            {
-                                <dt class="col-sm-4">Description:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.Description</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Shape))
-                            {
-                                <dt class="col-sm-4">Shape:</dt>
-                                <dd class="col-sm-8">@(Model.QuoteRequest.Shape.Length > 0 ? Model.QuoteRequest.Shape.Substring(0, 1).ToUpper() + Model.QuoteRequest.Shape.Substring(1) : Model.QuoteRequest.Shape)</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Diameter))
-                            {
-                                <dt class="col-sm-4">Diameter:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.Diameter"</dd>
-                            }
-                            else if (!string.IsNullOrEmpty(Model.QuoteRequest.LabelWidth) || !string.IsNullOrEmpty(Model.QuoteRequest.LabelHeight))
-                            {
-                                <dt class="col-sm-4">Size:</dt>
-                                <dd class="col-sm-8">@(Model.QuoteRequest.LabelWidth ?? "")" × @(Model.QuoteRequest.LabelHeight ?? "")"</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Corners))
-                            {
-                                <dt class="col-sm-4">Corners:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.Corners</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Material))
-                            {
-                                <dt class="col-sm-4">Material:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.Material</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.CuttingDie))
-                            {
-                                <dt class="col-sm-4">Cutting Die:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.CuttingDie</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Printing))
-                            {
-                                <dt class="col-sm-4">Printing:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.Printing</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Material))
-                            {
-                                <dt class="col-sm-4">Material:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.Material</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.ColorCode))
-                            {
-                                <dt class="col-sm-4">Color Code:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.ColorCode</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Finish))
-                            {
-                                <dt class="col-sm-4">Finish:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.Finish</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.ApplicationMethod))
-                            {
-                                <dt class="col-sm-4">Application Method:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.ApplicationMethod</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.UnwindDirection))
-                            {
-                                <dt class="col-sm-4">Unwind Direction:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.UnwindDirection</dd>
-                            }
-
-                            @if (Model.QuoteRequest?.Quantities?.Count > 0)
-                            {
-                                <dt class="col-sm-4">Quantities:</dt>
-                                <dd class="col-sm-8">@string.Join(" / ", Model.QuoteRequest.Quantities)</dd>
-                            }
-                            else if (!string.IsNullOrEmpty(Model.QuoteRequest?.TotalQuantity))
-                            {
-                                <dt class="col-sm-4">Total Quantity:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.TotalQuantity</dd>
-                            }
-
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.ArtworkOption))
-                            {
-                                <dt class="col-sm-4">Artwork:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.ArtworkOption</dd>
-                            }
-                        </dl>
-                    </div>
-                </div>
-
-                @if (Model.PriceBreakdown?.Count > 0)
-                {
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h2 class="h5 mb-0">Pricing Breakdown</h2>
-                        </div>
-                        <div class="card-body p-0">
-                            <div class="table-responsive">
-                                <table class="table mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">Quantity</th>
-                                            <th scope="col">Unit Price</th>
-                                            <th scope="col">Total Price</th>
-                                            <th scope="col">Currency</th>
-                                            <th scope="col">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var price in Model.PriceBreakdown)
-                                        {
-                                            <tr>
-                                                <td>@(price.Quantity?.ToString("N0") ?? "—")</td>
-                                                <td>@(price.UnitPrice.HasValue ? price.UnitPrice.Value.ToString("C2") : "—")</td>
-                                                <td>@(price.TotalPrice.HasValue ? price.TotalPrice.Value.ToString("C2") : "—")</td>
-                                                <td>@(string.IsNullOrWhiteSpace(price.Currency) ? "—" : price.Currency)</td>
-                                                <td>
-                                                    @if (price.ValidQuantity == false)
-                                                    {
-                                                        <span class="text-danger">Invalid @price.ValidErrorCode</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="text-success">Valid</span>
-                                                    }
-                                                </td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                }
-
-            }
-
-            <div class="d-flex gap-3 justify-content-center flex-wrap mb-4">
-                <button type="button" id="print-btn" class="btn btn-outline-primary btn-lg">Print</button>
-                <button type="button" id="pdf-btn" class="btn btn-outline-primary btn-lg">Save as PDF</button>
             </div>
-
-            <div class="d-flex gap-3 justify-content-center">
-                <a href="/" class="btn btn-primary">Submit Another Quote</a>
-                <a href="/" class="btn btn-outline-secondary">Return to Home</a>
+            <div style="flex:0 0 auto; padding:0 1.5rem; display:flex; align-items:center;">
+                <img src="~/img/wise-logo-blue.png" alt="WiseLabels" style="max-height:72px; width:auto;" />
             </div>
+            <div class="invoice-meta">
+                <span class="badge">
+                    <span>@(Model.ApiSuccess ? "Quote Confirmation" : "Quote Received")</span>
+                </span>
+                <h2 style="margin: 0.5rem 0 0;">@quoteReference</h2>
+                <p style="margin: 0.2rem 0;">Submitted @FormatQuoteDate(issuedOn)</p>
+                <p style="margin: 0.2rem 0;">Quote expires on @FormatQuoteDate(expiresOn)</p>
+            </div>
+        </header>
 
-            @if (!string.IsNullOrEmpty(Model.ApiResponseJson))
+        <div class="@(Model.ApiSuccess ? "status-banner" : "status-banner error")">
+            <strong>@(Model.ApiSuccess ? "Success" : "Attention")</strong>
+            <p style="margin:0.25rem 0 0;">@statusMessage</p>
+            @if (Model.EmailSent && !string.IsNullOrWhiteSpace(Model.QuoteRequest?.Email))
             {
-                <div class="card mt-5">
+                <p style="margin:0.25rem 0 0;">Confirmation sent to <strong>@Model.QuoteRequest.Email</strong>.</p>
+            }
+            else if (!Model.EmailSent && !string.IsNullOrWhiteSpace(Model.QuoteRequest?.Email))
+            {
+                <p style="margin:0.25rem 0 0;">We could not send email to <strong>@Model.QuoteRequest.Email</strong>. Please retain this reference.</p>
+            }
+        </div>
+        <!--
+        <section class="invoice-panels">
+            <article class="info-panel">
+                <h3>Bill To</h3>
+                <p style="font-weight:600;">@FormatMaybeValue(Model.QuoteRequest?.Company)</p>
+                <p>Attn: @FormatMaybeValue(Model.QuoteRequest?.Name)</p>
+                <p>@FormatMaybeValue(Model.QuoteRequest?.Email)</p>
+                <p>@FormatMaybeValue(Model.QuoteRequest?.Phone)</p>
+            </article>
+            <article class="info-panel">
+                <h3>Submission</h3>
+                <p>Estimate ID: @FormatMaybeValue(Model.CermEstimateId ?? Model.CermCalculationId)</p>
+                <p>Internal ID: @FormatMaybeValue(Model.QuoteId)</p>
+                <p>Submitted: @FormatSubmittedDate(issuedOn)</p>
+                <p>Status: @(Model.ApiSuccess ? "Delivered to CERM" : "Pending manual review")</p>
+            </article>
+            <article class="info-panel">
+                <h3>Project</h3>
+                <p>Description: @FormatMaybeValue(Model.QuoteRequest?.Description)</p>
+                <p>Reference: @FormatMaybeValue(Model.QuoteRequest?.ReferenceValue)</p>
+                <p>Artwork: @FormatMaybeValue(Model.QuoteRequest?.ArtworkOption)</p>
+                <p>Comments: @FormatMaybeValue(Model.QuoteRequest?.Comments)</p>
+            </article>
+        </section>
+        -->
+        <section class="info-panel" style="margin-bottom:2rem;">
+            <h3>Production Details</h3>
+            <div style="display:flex; flex-wrap:wrap; gap:1.25rem; font-size:0.95rem;">
+                <div>
+                    <p style="margin:0.15rem 0;">Shape: @Capitalize(Model.QuoteRequest?.Shape)</p>
+                    <p style="margin:0.15rem 0;">Size: @(string.IsNullOrWhiteSpace(Model.QuoteRequest?.Diameter)
+                        ? FormatDimension(Model.QuoteRequest?.LabelWidth, Model.QuoteRequest?.LabelHeight)
+                        : $"{Model.QuoteRequest?.Diameter}\" Diameter")
+                    </p>
+                    <p style="margin:0.15rem 0;">Corners: @FormatMaybeValue(Model.QuoteRequest?.Corners)</p>
+                </div>
+                <div>
+                    <p style="margin:0.15rem 0;">Material: @FormatMaybeValue(Model.QuoteRequest?.Material)</p>
+                    <p style="margin:0.15rem 0;">Finish: @FormatMaybeValue(Model.QuoteRequest?.Finish)</p>
+                    <p style="margin:0.15rem 0;">Printing: @FormatMaybeValue(Model.QuoteRequest?.Printing)</p>
+                </div>
+                <div>
+                    <p style="margin:0.15rem 0;">Application: @FormatMaybeValue(Model.QuoteRequest?.ApplicationMethod)</p>
+                    <p style="margin:0.15rem 0;">Unwind: @FormatMaybeValue(Model.QuoteRequest?.UnwindDirection)</p>
+                    <p style="margin:0.15rem 0;">Quantities: @(
+                        Model.QuoteRequest?.Quantities?.Count > 0
+                            ? string.Join(", ", Model.QuoteRequest.Quantities)
+                            : FormatMaybeValue(Model.QuoteRequest?.TotalQuantity))
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <table class="line-items">
+            <thead>
+                <tr>
+                    <th style="width: 25%;" class="text-right">Quantity</th>
+                    <th style="width: 25%;" class="text-right">Unit Price</th>
+                    <th style="width: 30%;" class="text-right">Line Total</th>
+                    <th style="width: 20%;" class="text-right">Currency</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (pricingRows.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" class="text-center" style="color:#94a3b8;">Pricing will be supplied after estimator review.</td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var price in pricingRows)
+                    {
+                        <tr>
+                            <td class="text-right">@(price.Quantity?.ToString("N0") ?? "—")</td>
+                            <td class="text-right">@FormatCurrency(price.UnitPrice)</td>
+                            <td class="text-right">@FormatCurrency(price.TotalPrice)</td>
+                            <td class="text-right">@(string.IsNullOrWhiteSpace(price.Currency) ? "USD" : price.Currency)</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <table class="totals">
+            <tr>
+                <td>Total</td>
+                <td class="text-right">@FormatCurrency(hasPriceValues ? totalDue : (decimal?)null)</td>
+            </tr>
+        </table>
+
+        <section class="notes">
+            <strong>Notes & Next Steps</strong>
+            <p style="margin: 0.35rem 0 0;">
+                Keep this confirmation handy when referencing estimate <strong>@quoteReference</strong>.
+            </p>
+        </section>
+
+        <p style="margin-top:1.5rem; margin-bottom:1.5rem; font-size:0.95rem; color:#0f172a; line-height:1.6;">
+            Please include this quote reference when placing an order. Freight is estimated and subject to change at shipment. Quotes expire after 30 days.
+            Dies and tooling are a one-time charge. Materials should be tested in production and end-use environments to confirm fit for purpose.
+        </p>
+
+        <section class="additional-charges">
+            <h3>Additional Charges (if applicable)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 55%;">Description</th>
+                        <th style="width: 10%;"></th>
+                        <th style="width: 20%;" class="text-right">Price</th>
+                        <th style="width: 15%;">Units</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="4" style="text-align:center; color:#94a3b8; font-style:italic;">
+                            No additional charges were added to this quote.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <p style="text-align: center; margin-top: 2rem; font-size: 0.95rem; color: #475569;">
+            Thank you for partnering with WiseLabels. We look forward to supporting your next release.
+        </p>
+
+        <div class="action-buttons">
+            <a href="/" class="btn btn-primary btn-lg">Submit Another Quote</a>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.ApiResponseJson))
+        {
+            <!--
+            <section style="margin-top:3rem;">
+                <div class="card">
                     <div class="card-header">
                         <h2 class="h5 mb-0">CERM API Response</h2>
                     </div>
@@ -306,8 +487,9 @@
                         <pre class="bg-light p-3 rounded border" style="max-height: 500px; overflow-y: auto; font-size: 0.875rem; white-space: pre-wrap; word-wrap: break-word; margin-bottom: 0;"><code>@Model.ApiResponseJson</code></pre>
                     </div>
                 </div>
-            }
-        </div>
+            </section>
+            -->
+        }
     </div>
 </div>
 
@@ -321,15 +503,13 @@
         const cermCalculationId = '@(Model.CermCalculationId ?? "")';
         const pdfId = cermEstimateId || cermCalculationId || quoteId;
         const submittedDate = '@Model.SubmittedDate.ToString("yyyy-MM-dd")';
-        
-        // Print functionality
+
         if (printBtn) {
             printBtn.addEventListener('click', function() {
                 window.print();
             });
         }
-        
-        // PDF download functionality (official CERM PDF via server-side proxy)
+
         if (pdfBtn) {
             pdfBtn.addEventListener('click', async function() {
                 const originalText = pdfBtn.textContent;

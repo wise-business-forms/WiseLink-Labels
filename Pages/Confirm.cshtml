@@ -1,211 +1,523 @@
 @page
 @model WiseLabels.Pages.ConfirmModel
+@using WiseLabels.Models
+@using System.Globalization
 @{
     ViewData["Title"] = "Confirm Quote Request";
-    string FormatReferenceType(string? t) => t switch {
+
+    string FormatReferenceType(string? t) => t switch
+    {
         "company-name" => "Company Name",
         "account-number" => "Account Number",
         "purchase-order-number" => "Purchase Order Number",
         "invoice-number" => "Invoice Number",
         _ => "Reference"
     };
+
+    string FormatMaybeValue(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+    string FormatDimension(string? width, string? height)
+    {
+        if (string.IsNullOrWhiteSpace(width) && string.IsNullOrWhiteSpace(height))
+        {
+            return "—";
+        }
+        return $"{width ?? "?"}\" × {height ?? "?"}\"";
+    }
+    string FormatCurrency(decimal? value) => value.HasValue ? value.Value.ToString("C2") : "$ -";
+    string Capitalize(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "—";
+        }
+        return text.Length == 1 ? char.ToUpper(text[0]).ToString() : char.ToUpper(text[0]) + text[1..];
+    }
+
+    string FormatQuoteDate(DateTime date)
+    {
+        var culture = CultureInfo.InvariantCulture;
+        return $"{date.ToString("ddd", culture)}, {date:MMM dd, yyyy}";
+    }
+
+    var issuedOn = DateTime.Today;
+    var expiresOn = issuedOn.AddDays(30);
+    var quoteReference = !string.IsNullOrWhiteSpace(Model.QuoteRequest?.ReferenceValue)
+        ? Model.QuoteRequest.ReferenceValue
+        : (!string.IsNullOrWhiteSpace(Model.QuoteRequest?.Description) ? Model.QuoteRequest.Description : "Pending Reference");
+
+    var pricingRows = Model.PriceBreakdown?.ToList() ?? new List<QuotePriceBreakdown>();
+    if (!pricingRows.Any() && Model.QuoteRequest?.Quantities?.Count > 0)
+    {
+        pricingRows = Model.QuoteRequest.Quantities
+            .Select(q => new QuotePriceBreakdown { Quantity = q })
+            .ToList();
+    }
+
+    var subtotal = pricingRows.Where(p => p.TotalPrice.HasValue).Sum(p => p.TotalPrice!.Value);
+    var discount = 0m;
+    var shipping = 0m;
+    var taxRate = 0m;
+    var tax = Math.Round(subtotal * taxRate, 2, MidpointRounding.AwayFromZero);
+    var totalDue = subtotal - discount + shipping + tax;
+    var hasPriceValues = pricingRows.Any(p => p.TotalPrice.HasValue || p.UnitPrice.HasValue);
 }
 
-<div class="container">
-    <div class="row">
-        <div class="col-lg-8 mx-auto">
-            <h1 class="mb-4">Confirm Your Quote Request</h1>
-            <p class="text-muted mb-4">Please review your information below. Click "Confirm" to submit or "Edit" to go back and make changes.</p>
+<style>
+    .invoice-container {
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-start;
+    }
 
-            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Name)
-                || !string.IsNullOrEmpty(Model.QuoteRequest.Email)
-                || !string.IsNullOrEmpty(Model.QuoteRequest.Phone)
-                || !string.IsNullOrEmpty(Model.QuoteRequest.Company)
-                || !string.IsNullOrEmpty(Model.QuoteRequest.Comments))
-            {
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h2 class="h5 mb-0">Contact Information</h2>
-                    </div>
-                    <div class="card-body">
-                        <dl class="row">
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Name))
-                            {
-                                <dt class="col-sm-4">Name:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.Name</dd>
-                            }
+    .invoice-wrapper {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 2.5rem;
+        background: #fff;
+        border: 1px solid #d9dee6;
+        border-radius: 14px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+        font-family: "Segoe UI", Roboto, Arial, sans-serif;
+        color: #0f172a;
+    }
 
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Company))
-                            {
-                                <dt class="col-sm-4">Company:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.Company</dd>
-                            }
+    .print-panel {
+        flex: 0 0 220px;
+        background: #0f172a;
+        color: #fff;
+        border-radius: 14px;
+        padding: 1.25rem;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+        position: sticky;
+        top: 1.5rem;
+        height: fit-content;
+    }
 
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Email))
-                            {
-                                <dt class="col-sm-4">Email:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.Email</dd>
-                            }
+    .print-panel h3 {
+        margin-top: 0;
+        font-size: 1.05rem;
+        font-weight: 600;
+    }
 
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Phone))
-                            {
-                                <dt class="col-sm-4">Phone:</dt>
-                                <dd class="col-sm-8">@Model.QuoteRequest.Phone</dd>
-                            }
+    .print-panel p {
+        margin-bottom: 1rem;
+        color: rgba(255,255,255,0.8);
+        font-size: 0.9rem;
+    }
 
-                            @if (!string.IsNullOrEmpty(Model.QuoteRequest.Comments))
-                            {
-                                <dt class="col-sm-4">Comments:</dt>
-                                <dd class="col-sm-8 text-break" style="white-space: pre-line;">@Model.QuoteRequest.Comments</dd>
-                            }
-                        </dl>
-                    </div>
+    .invoice-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 1.75rem;
+        margin-bottom: 1.75rem;
+    }
+
+    .print-button {
+        background: #fff;
+        color: #0f172a;
+        border: none;
+        border-radius: 999px;
+        padding: 0.45rem 1.25rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease;
+    }
+
+    .print-button:hover {
+        background: rgba(255,255,255,0.85);
+    }
+
+    .invoice-meta {
+        text-align: right;
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: #e0f2fe;
+        color: #0369a1;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .invoice-panels {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 2rem;
+    }
+
+    .info-panel {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        background: #f8fafc;
+    }
+
+    .info-panel h3 {
+        margin-top: 0;
+        font-size: 0.95rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #475569;
+    }
+
+    .info-panel p {
+        margin: 0.15rem 0;
+    }
+
+    .line-items {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+    }
+
+    .line-items thead {
+        background: #0f172a;
+        color: #fff;
+    }
+
+    .line-items th,
+    .line-items td {
+        padding: 0.85rem 0.75rem;
+        border: 1px solid #e2e8f0;
+    }
+
+    .line-items td.text-muted {
+        color: #94a3b8;
+    }
+
+    .text-right {
+        text-align: right;
+    }
+
+    .totals {
+        width: 320px;
+        margin-left: auto;
+        border-collapse: collapse;
+    }
+
+    .totals td {
+        padding: 0.55rem 0.35rem;
+    }
+
+    .totals tr:last-child td {
+        font-size: 1.2rem;
+        font-weight: 600;
+        border-top: 2px solid #0f172a;
+        padding-top: 0.9rem;
+    }
+
+    .notes {
+        margin-top: 2rem;
+        padding: 1.25rem;
+        border-left: 4px solid #0ea5e9;
+        background: #ecfeff;
+        border-radius: 10px;
+        color: #0f172a;
+    }
+
+    .additional-charges {
+        margin-top: 2rem;
+    }
+
+    .additional-charges h3 {
+        margin: 0 0 0.75rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    .additional-charges table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+    }
+
+    .additional-charges th,
+    .additional-charges td {
+        border: 1px solid #e2e8f0;
+        padding: 0.75rem;
+        text-align: left;
+    }
+
+    .additional-charges th {
+        background: #f1f5f9;
+        color: #475569;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.05em;
+    }
+
+    .action-buttons {
+        margin-top: 2rem;
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
+    @@media print {
+        body {
+            background: #fff;
+        }
+
+        .invoice-container {
+            display: block;
+            width: 100%;
+        }
+
+        .invoice-wrapper {
+            border: none;
+            box-shadow: none;
+            padding: 0;
+            margin: 0 auto;
+        }
+
+        .print-panel {
+            display: none !important;
+        }
+
+        header.invoice-header {
+            display: flex !important;
+        }
+
+        .action-buttons,
+        .action-buttons * {
+            display: none !important;
+        }
+    }
+</style>
+
+<div class="invoice-container">
+    <aside class="print-panel">
+        <h3>Print Options</h3>
+        <p>Print a clean copy of this confirmation without the sidebar controls.</p>
+        <button type="button" class="print-button" onclick="printInvoice()">Print Quote DRAFT</button>
+        <p class="mt-4" style="font-size:0.8rem; color: rgba(255,255,255,0.65);">
+            Want to make a tweak? Choose Edit to return to the quote form and keep all current entries intact.
+        </p>
+    </aside>
+
+    <div class="invoice-wrapper">
+        <header class="invoice-header">
+            <div class="invoice-branding">
+                <p>
+                    601 Vanguard Road<br />
+                    Anderson SC, 29625<br />
+                    (888) 817-7036 • labels@wbf.com
+                </p>
+            </div>
+            <div style="flex:0 0 auto; padding:0 1.5rem; display:flex; align-items:center;">
+                <img src="~/img/wise-logo-blue.png" alt="WiseLabels" style="max-height:72px; width:auto;" />
+            </div>
+            <div class="invoice-meta">
+                <span class="badge">
+                    <span>Quote Draft</span>
+                </span>
+                <h2 style="margin: 0.5rem 0 0;">@quoteReference</h2>
+                <p style="margin: 0.2rem 0;">Quote Date @FormatQuoteDate(issuedOn)</p>
+                <p style="margin: 0.2rem 0;">Quote expires on @FormatQuoteDate(expiresOn)</p>
+            </div>
+        </header>
+
+        <p style="margin-bottom:1.5rem; font-size:0.95rem; color:#0f172a; line-height:1.6;">
+            Thank you for the opportunity to quote. This quote is not complete.  To complete the quote click Confirm & Submit below.
+        </p>
+        <!--
+        <section class="invoice-panels">
+            <article class="info-panel">
+                <h3>Bill To</h3>
+                <p style="font-weight:600;">@FormatMaybeValue(Model.QuoteRequest?.Company)</p>
+                <p>Attn: @FormatMaybeValue(Model.QuoteRequest?.Name)</p>
+                <p>@FormatMaybeValue(Model.QuoteRequest?.Email)</p>
+                <p>@FormatMaybeValue(Model.QuoteRequest?.Phone)</p>
+            </article>
+            <article class="info-panel">
+                <h3>Project</h3>
+                <p>Description: @FormatMaybeValue(Model.QuoteRequest?.Description)</p>
+                <p>Reference: @FormatMaybeValue(Model.QuoteRequest?.ReferenceValue)</p>
+                <p>Artwork: @FormatMaybeValue(Model.QuoteRequest?.ArtworkOption)</p>
+                <p>Comments: @FormatMaybeValue(Model.QuoteRequest?.Comments)</p>
+            </article>
+            <article class="info-panel">
+                <h3>Specifications</h3>
+                <p>Shape: @Capitalize(Model.QuoteRequest?.Shape)</p>
+                <p>Size: @(string.IsNullOrWhiteSpace(Model.QuoteRequest?.Diameter) ? FormatDimension(Model.QuoteRequest?.LabelWidth, Model.QuoteRequest?.LabelHeight) : $"{Model.QuoteRequest?.Diameter}\" Diameter")</p>
+                <p>Material: @FormatMaybeValue(Model.QuoteRequest?.Material)</p>
+                <p>Finish: @FormatMaybeValue(Model.QuoteRequest?.Finish)</p>
+            </article>
+        </section>
+        -->
+        <section class="info-panel" style="margin-bottom:2rem;">
+            <h3>Production Details</h3>
+            <p style="margin: 0.35rem 0 0;">
+                Project Name: @FormatMaybeValue(Model.QuoteRequest?.Description)
+            </p>
+            <div style="display:flex; flex-wrap:wrap; gap:1.25rem; font-size:0.95rem;">
+                <div>
+                    <p style="margin:0.15rem 0;">Printing: @FormatMaybeValue(Model.QuoteRequest?.Printing)</p>
+                    <p style="margin:0.15rem 0;">Color Code: @FormatMaybeValue(Model.QuoteRequest?.ColorCode)</p>
+                    <p style="margin:0.15rem 0;">Unwind Direction: @FormatMaybeValue(Model.QuoteRequest?.UnwindDirection)</p>
                 </div>
-            }
-            
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h2 class="h5 mb-0">Quote Details</h2>
+                <div>
+                    <p style="margin:0.15rem 0;">Corners: @FormatMaybeValue(Model.QuoteRequest?.Corners)</p>
+                    <p style="margin:0.15rem 0;">Cutting Die: @FormatMaybeValue(Model.QuoteRequest?.CuttingDie)</p>
+                    <p style="margin:0.15rem 0;">Application: @FormatMaybeValue(Model.QuoteRequest?.ApplicationMethod)</p>
                 </div>
-                <div class="card-body">
-                    <dl class="row">
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.ReferenceValue))
-                        {
-                            <dt class="col-sm-4">@(FormatReferenceType(Model.QuoteRequest.ReferenceType)):</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.ReferenceValue</dd>
-                        }
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.Description))
-                        {
-                            <dt class="col-sm-4">Description:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.Description</dd>
-                        }
-
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.Shape))
-                        {
-                            <dt class="col-sm-4">Shape:</dt>
-                            <dd class="col-sm-8">@(Model.QuoteRequest.Shape.Length > 0 ? Model.QuoteRequest.Shape.Substring(0, 1).ToUpper() + Model.QuoteRequest.Shape.Substring(1) : Model.QuoteRequest.Shape)</dd>
-                        }
-
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.Diameter))
-                        {
-                            <dt class="col-sm-4">Diameter:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.Diameter"</dd>
-                        }
-                        else if (!string.IsNullOrEmpty(Model.QuoteRequest.LabelWidth) || !string.IsNullOrEmpty(Model.QuoteRequest.LabelHeight))
-                        {
-                            <dt class="col-sm-4">Size:</dt>
-                            <dd class="col-sm-8">@(Model.QuoteRequest.LabelWidth ?? "")" × @(Model.QuoteRequest.LabelHeight ?? "")"</dd>
-                        }
-
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.Corners))
-                        {
-                            <dt class="col-sm-4">Corners:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.Corners</dd>
-                        }
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.Material))
-                        {
-                            <dt class="col-sm-4">Material:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.Material</dd>
-                        }
-
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.CuttingDie))
-                        {
-                            <dt class="col-sm-4">Cutting Die:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.CuttingDie</dd>
-                        }
-
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.Printing))
-                        {
-                            <dt class="col-sm-4">Printing:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.Printing</dd>
-                        }
-
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.Material))
-                        {
-                            <dt class="col-sm-4">Material:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.Material</dd>
-                        }
-
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.ColorCode))
-                        {
-                            <dt class="col-sm-4">Color Code:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.ColorCode</dd>
-                        }
-
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.Finish))
-                        {
-                            <dt class="col-sm-4">Finish:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.Finish</dd>
-                        }
-
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.ApplicationMethod))
-                        {
-                            <dt class="col-sm-4">Application Method:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.ApplicationMethod</dd>
-                        }
-
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.UnwindDirection))
-                        {
-                            <dt class="col-sm-4">Unwind Direction:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.UnwindDirection</dd>
-                        }
-
-                        @if (Model.QuoteRequest?.Quantities?.Count > 0)
-                        {
-                            <dt class="col-sm-4">Quantities:</dt>
-                            <dd class="col-sm-8">@string.Join(" / ", Model.QuoteRequest.Quantities)</dd>
-                        }
-                        else if (!string.IsNullOrEmpty(Model.QuoteRequest?.TotalQuantity))
-                        {
-                            <dt class="col-sm-4">Total Quantity:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.TotalQuantity</dd>
-                        }
-
-                        @if (!string.IsNullOrEmpty(Model.QuoteRequest.ArtworkOption))
-                        {
-                            <dt class="col-sm-4">Artwork:</dt>
-                            <dd class="col-sm-8">@Model.QuoteRequest.ArtworkOption</dd>
-                        }
-                    </dl>
+                <div>
+                    <p style="margin:0.15rem 0;">Quantities: @(
+                        Model.QuoteRequest?.Quantities?.Count > 0
+                            ? string.Join(", ", Model.QuoteRequest.Quantities)
+                            : FormatMaybeValue(Model.QuoteRequest?.TotalQuantity))
+                    </p>
+                    <p style="margin:0.15rem 0;">Customer: @FormatMaybeValue(Model.QuoteRequest?.CustomerDisplayName)</p>
+                    <p style="margin:0.15rem 0;">Shape Outline: @FormatMaybeValue(Model.QuoteRequest?.ShapeValue)</p>
                 </div>
             </div>
+        </section>
 
-            @if (!string.IsNullOrEmpty(Model.ApiPayloadJson))
-            {
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <div class="card border-info h-100">
-                            <div class="card-header bg-info text-white">
-                                <h2 class="h5 mb-0">Debug: API Payload</h2>
-                            </div>
-                            <div class="card-body">
-                                <p class="text-muted small mb-2">The API payload structure:</p>
-                                <pre class="bg-light p-3 rounded border" style="max-height: 600px; overflow-y: auto; font-size: 0.875rem; white-space: pre-wrap; word-wrap: break-word; margin-bottom: 0;"><code>@Model.ApiPayloadJson</code></pre>
+        <table class="line-items">
+            <thead>
+                <tr>
+                    <th style="width: 25%;" class="text-right">Quantity</th>
+                    <th style="width: 25%;" class="text-right">Unit Price</th>
+                    <th style="width: 30%;" class="text-right">Line Total</th>
+                    <th style="width: 20%;" class="text-right">Currency</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (pricingRows.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">No pricing information has been provided yet.</td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var price in pricingRows)
+                    {
+                        var qtyLabel = price.Quantity?.ToString("N0")
+                            ?? (Model.QuoteRequest?.Quantities?.Count > 0 ? string.Empty : "—");
+                        <tr>
+                            <td class="text-right">@(string.IsNullOrWhiteSpace(qtyLabel) ? "—" : qtyLabel)</td>
+                            <td class="text-right">@FormatCurrency(price.UnitPrice)</td>
+                            <td class="text-right">@FormatCurrency(price.TotalPrice)</td>
+                            <td class="text-right">@(string.IsNullOrWhiteSpace(price.Currency) ? "USD" : price.Currency)</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <table class="totals">
+            <!--
+            <tr>
+                <td>Subtotal</td>
+                <td class="text-right">@FormatCurrency(hasPriceValues ? subtotal : (decimal?)null)</td>
+            </tr>
+            <tr>
+                <td>Shipping & Handling</td>
+                <td class="text-right">@FormatCurrency(shipping > 0 ? shipping : (decimal?)null)</td>
+            </tr>
+            <tr>
+                <td>Tax</td>
+                <td class="text-right">@FormatCurrency(hasPriceValues ? tax : (decimal?)null)</td>
+            </tr>
+            -->
+            <tr>
+                <td>Total</td>
+                <td class="text-right">@FormatCurrency(hasPriceValues ? totalDue : (decimal?)null)</td>
+            </tr>
+        </table>
+
+        <section class="notes">
+            <strong>Next Steps</strong>
+            
+            <p style="margin: 0.35rem 0 0;">
+                <ol>
+                    <li>Please confirm that each specification is final. Any changes after submission may require a new quote or amended lead time.</li>
+                    <li>Click Confirm & Submit below.</li>
+                </ol>
+
+            </p>
+        </section>
+
+        <section class="additional-charges">
+            <h3>Additional Charges (if applicable)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 55%;">Description</th>
+                        <th style="width: 10%;"></th>
+                        <th style="width: 20%;" class="text-right">Price</th>
+                        <th style="width: 15%;">Units</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="4" style="text-align:center; color:#94a3b8; font-style:italic;">
+                            No additional charges were added to this quote.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <p style="text-align: center; margin-top: 2rem; font-size: 0.95rem; color: #475569;">
+            Thank you for partnering with WiseLabels. We look forward to supporting your next release.
+        </p>
+
+        <form method="post" id="confirm-form">
+            @Html.AntiForgeryToken()
+            <div class="action-buttons">
+                <button type="submit" asp-page-handler="Edit" class="btn btn-outline-secondary btn-lg">Edit</button>
+                <button type="submit" asp-page-handler="Confirm" class="btn btn-primary btn-lg" id="confirm-submit-btn">Confirm &amp; Submit</button>
+            </div>
+        </form>
+
+        @if (!string.IsNullOrEmpty(Model.ApiPayloadJson) || !string.IsNullOrEmpty(Model.FormValuesJson))
+        {
+            <section style="margin-top:3rem;">
+                <div class="row g-4">
+                    @if (!string.IsNullOrEmpty(Model.ApiPayloadJson))
+                    {
+                        <div class="col-md-6">
+                            <div class="card border-info h-100">
+                                <div class="card-header bg-info text-white">
+                                    <h2 class="h5 mb-0">Debug: API Payload</h2>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-2">Payload submitted to CERM.</p>
+                                    <pre class="bg-light p-3 rounded border" style="max-height: 600px; overflow-y: auto; font-size: 0.875rem; white-space: pre-wrap; word-wrap: break-word; margin-bottom: 0;"><code>@Model.ApiPayloadJson</code></pre>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card border-success h-100">
-                            <div class="card-header bg-success text-white">
-                                <h2 class="h5 mb-0">Debug: Form Values</h2>
-                            </div>
-                            <div class="card-body">
-                                <p class="text-muted small mb-2">The form values to map from:</p>
-                                <pre class="bg-light p-3 rounded border" style="max-height: 600px; overflow-y: auto; font-size: 0.875rem; white-space: pre-wrap; word-wrap: break-word; margin-bottom: 0;"><code>@Model.FormValuesJson</code></pre>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.FormValuesJson))
+                    {
+                        <div class="col-md-6">
+                            <div class="card border-success h-100">
+                                <div class="card-header bg-success text-white">
+                                    <h2 class="h5 mb-0">Debug: Form Values</h2>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-2">Raw form data captured prior to submission.</p>
+                                    <pre class="bg-light p-3 rounded border" style="max-height: 600px; overflow-y: auto; font-size: 0.875rem; white-space: pre-wrap; word-wrap: break-word; margin-bottom: 0;"><code>@Model.FormValuesJson</code></pre>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    }
                 </div>
-            }
-
-            <form method="post" id="confirm-form">
-                @Html.AntiForgeryToken()
-                <div class="d-flex gap-3 justify-content-end flex-wrap">
-                    <button type="submit" asp-page-handler="Edit" class="btn btn-outline-secondary btn-lg">Edit</button>
-                    <button type="submit" asp-page-handler="Confirm" class="btn btn-primary btn-lg" id="confirm-submit-btn">Confirm & Submit</button>
-                </div>
-            </form>
-        </div>
+            </section>
+        }
     </div>
 </div>
 
@@ -213,6 +525,12 @@
 {
     <script id="quote-payload-data" type="application/json">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.QuoteRequest, new System.Text.Json.JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }))</script>
 }
+
+<script>
+    function printInvoice() {
+        window.print();
+    }
+</script>
 
 <script src="~/js/site.js"></script>
 <script src="~/js/submit.js" asp-append-version="true"></script>

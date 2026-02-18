@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using WiseLabels.Models;
 using WiseLabels.Services;
 
 namespace WiseLabels.Pages
@@ -63,10 +64,21 @@ namespace WiseLabels.Pages
             {
                 _logger.LogInformation("Sending test email to {Email}", ToEmail);
 
+                var quoteDetails = new QuoteRequest
+                {
+                    Name = CustomerName ?? "Test User",
+                    Email = ToEmail,
+                    Description = "Test email payload",
+                    ReferenceValue = QuoteId ?? "TEST-001",
+                    ReferenceType = "invoice-number"
+                };
+
                 var result = await _emailService.SendQuoteConfirmationAsync(
                     ToEmail,
                     QuoteId ?? "TEST-001",
-                    CustomerName ?? "Test User"
+                    CustomerName ?? "Test User",
+                    quoteDetails,
+                    Array.Empty<QuotePriceBreakdown>()
                 );
 
                 if (result)

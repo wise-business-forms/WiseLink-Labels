@@ -167,6 +167,11 @@ body {
   margin-bottom: 2rem;
 }
 
+#existing-die-section .form-label,
+#existing-die-section .form-select {
+  opacity: 0.5;
+}
+
 .quote-form-header h1 {
   font-size: 2rem;
   font-weight: 600;
@@ -571,6 +576,7 @@ select.form-control {
   .container {
     position: absolute;
     left: 0;
+    right: 0;
     top: 0;
     width: 100%;
   }

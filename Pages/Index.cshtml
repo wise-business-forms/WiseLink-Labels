@@ -49,11 +49,14 @@
         -->
         <div class="dashboard-content-section">
             <h2 class="dashboard-section-title">Quick Actions</h2>
+            <!--
             <div class="d-flex gap-3">
                 <a asp-page="/Customers" class="btn btn-primary">Repeat Quote</a>
             </div>
+            -->
             <div class="d-flex gap-3">
                 <a asp-page="/GetQuote" class="btn btn-primary">Start New Quote</a>
+                <a asp-page="/Confirm-template" class="btn btn-outline-secondary">View Invoice Template</a>
             </div>
         </div>
         <div class="dashboard-content-section">
@@ -109,40 +112,6 @@
                                 <span class="d-block text-muted">Now that the quote has been generated take note of the Quote number and notifiy the customer.</span>
                             </li>
                         </ol>
-                    </div>
-                    <div class="col-lg-6">
-                        <h3 class="h6 text-uppercase text-muted mb-3">Status updates</h3>
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <div class="p-3 bg-white rounded shadow-sm h-100">
-                                    <h4 class="h6 text-success mb-2">Working</h4>
-                                    <ul class="list-unstyled mb-0">
-                                        <li class="d-flex align-items-start"><span class="me-2 text-success">&#10003;</span><span>Past job lookup by company name</span></li>
-                                        <li class="d-flex align-items-start"><span class="me-2 text-success">&#10003;</span><span>Copy past job for exact repeat</span></li>
-                                        <li class="d-flex align-items-start"><span class="me-2 text-success">&#10003;</span><span>Estimate creation flow</span></li>
-                                    </ul>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <div class="p-3 bg-white rounded shadow-sm h-100">
-                                    <h4 class="h6 text-warning mb-2">In progress</h4>
-                                    <ul class="list-unstyled mb-0">
-                                        <li class="d-flex align-items-start"><span class="me-2 status-warning-icon">&#x2610;</span><span>Prepopulate form with previous job <span class="fst-italic text-decoration-underline">Needed to go live.</span></span></li>                                        
-                                    </ul>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <div class="p-3 bg-white rounded shadow-sm h-100">
-                                    <h4 class="h6 text-secondary mb-2">Backlog</h4>
-                                    <ul class="list-unstyled mb-0">
-                                        <li class="d-flex align-items-start"><span class="me-2 text-secondary">&#x2796;</span><span>View past quote letters</span></li>
-                                        <li class="d-flex align-items-start"><span class="me-2 status-warning-icon">&#x2796;</span><span>Past job lookup via PO</span></li>
-                                        <li class="d-flex align-items-start"><span class="me-2 status-warning-icon">&#x2796;</span><span>Past job lookup via invoice number</span></li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                        <p><a href="https://github.com/orgs/wise-business-forms/projects/1" target="_blank">Project details</a></p>
                     </div>
                 </div>
             </div>

@@ -1,0 +1,435 @@
+﻿@page
+@model WiseLabels.Pages.Confirm_templateModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Quote Invoice Template";
+
+    var invoiceNumber = "113281";
+    var issuedOn = DateTime.Today;
+    var dueDate = issuedOn.AddDays(15);
+    var unitPerPrice = 1000;
+
+    var billTo = new
+    {
+        Company = "Brightview Foods, LLC",
+        Contact = "Jordan Matthews",
+        Email = "jordan.matthews@example.com",
+        Phone = "(555) 019-2234",
+        Address = "2216 Meridian Industrial Blvd, Suite 400, Chicago, IL 60605"
+    };
+
+    var shipTo = new
+    {
+        Company = "Brightview Foods, LLC - Plant 2",
+        Contact = "Receiving Dock 3",
+        Address = "4925 W. Bradley Rd, Milwaukee, WI 53223"
+    };
+
+    var lineItems = new[]
+    {
+        new { Sku = "LBL-PS-4060", Description = "4\" x 6\" Polyester Labels – Permanent Adhesive", Quantity = 1000, UnitPrice = 280.88m },
+        new { Sku = "LBL-UV-VRN", Description = "UV Varnish Finish (Inline)", Quantity = 2500, UnitPrice = 126.60m },
+        new { Sku = "LBL-ART-SVC", Description = "Prepress & Artwork Adjustment", Quantity = 5000, UnitPrice = 74.87m }
+    };
+
+    decimal subtotal = 0m;
+    foreach (var item in lineItems)
+    {
+        subtotal += (item.Quantity / unitPerPrice) * item.UnitPrice;
+    }
+
+    var discount = 45m;
+    var shipping = 25m;
+    var taxableAmount = subtotal - discount;
+    var taxRate = 0.0675m;
+    var tax = Math.Round(taxableAmount * taxRate, 2, MidpointRounding.AwayFromZero);
+    var totalDue = taxableAmount + tax + shipping;
+
+    string Money(decimal value) => value.ToString("C", CultureInfo.CurrentCulture);
+    string FormatQuoteDate(DateTime date)
+    {
+        var culture = CultureInfo.InvariantCulture;
+        var day = date.ToString("ddd", culture);
+        var friendlyDay = day switch
+        {
+            "Tue" => "Tues",
+            "Thu" => "Thurs",
+            _ => day
+        };
+        return $"{friendlyDay}, {date:MMM dd, yyyy}";
+    }
+}
+
+<style>
+    .invoice-container {
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-start;
+    }
+
+    .invoice-wrapper {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 2.5rem;
+        background: #fff;
+        border: 1px solid #d9dee6;
+        border-radius: 14px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+        font-family: "Segoe UI", Roboto, Arial, sans-serif;
+        color: #0f172a;
+    }
+
+    .print-panel {
+        flex: 0 0 220px;
+        background: #0f172a;
+        color: #fff;
+        border-radius: 14px;
+        padding: 1.25rem;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+        position: sticky;
+        top: 1.5rem;
+        height: fit-content;
+    }
+
+    .print-panel h3 {
+        margin-top: 0;
+        font-size: 1.05rem;
+        font-weight: 600;
+    }
+
+    .print-panel p {
+        margin-bottom: 1rem;
+        color: rgba(255,255,255,0.8);
+        font-size: 0.9rem;
+    }
+
+    .invoice-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 1.75rem;
+        margin-bottom: 1.75rem;
+    }
+
+    .print-button {
+        background: #fff;
+        color: #0f172a;
+        border: none;
+        border-radius: 999px;
+        padding: 0.4rem 1rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease;
+    }
+
+    .print-button:hover {
+        background: rgba(255,255,255,0.85);
+    }
+
+    .invoice-branding h1 {
+        margin: 0;
+        font-size: 1.75rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .invoice-meta {
+        text-align: right;
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: #e0f2fe;
+        color: #0369a1;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .invoice-panels {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 2rem;
+    }
+
+    .info-panel {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        background: #f8fafc;
+    }
+
+    .info-panel h3 {
+        margin-top: 0;
+        font-size: 0.95rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #475569;
+    }
+
+    .line-items {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+    }
+
+    .line-items thead {
+        background: #0f172a;
+        color: #fff;
+    }
+
+    .line-items th,
+    .line-items td {
+        padding: 0.85rem 0.75rem;
+        border: 1px solid #e2e8f0;
+    }
+
+    .text-right {
+        text-align: right;
+    }
+
+    .totals {
+        width: 320px;
+        margin-left: auto;
+        border-collapse: collapse;
+    }
+
+    .totals td {
+        padding: 0.55rem 0.35rem;
+    }
+
+    .totals tr:last-child td {
+        font-size: 1.2rem;
+        font-weight: 600;
+        border-top: 2px solid #0f172a;
+        padding-top: 0.9rem;
+    }
+
+    .notes {
+        margin-top: 2rem;
+        padding: 1.25rem;
+        border-left: 4px solid #0ea5e9;
+        background: #ecfeff;
+        border-radius: 10px;
+        color: #0f172a;
+    }
+
+    .additional-charges {
+        margin-top: 2rem;
+    }
+
+    .additional-charges h3 {
+        margin: 0 0 0.75rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    .additional-charges table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+    }
+
+    .additional-charges th,
+    .additional-charges td {
+        border: 1px solid #e2e8f0;
+        padding: 0.75rem;
+        text-align: left;
+    }
+
+    .additional-charges th {
+        background: #f1f5f9;
+        color: #475569;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.05em;
+    }
+
+    @@media print {
+        body {
+            background: #fff;
+        }
+
+        .invoice-container {
+            display: block;
+            width: 100%;
+        }
+
+        .invoice-wrapper {
+            border: none;
+            box-shadow: none;
+            padding: 0;
+            margin: 0 auto;
+        }
+
+        .print-panel {
+            display: none !important;
+        }
+
+        header.invoice-header {
+            display: flex !important;
+        }
+    }
+</style>
+
+<div class="invoice-container">
+    <aside class="print-panel">
+        <h3>Print Options</h3>
+        <p>Print a clean copy of this quote without the header information.</p>
+        <button type="button" class="print-button" onclick="printInvoice()">Print Quote</button>
+    </aside>
+    <div class="invoice-wrapper">
+    <header class="invoice-header">
+        <div class="invoice-branding">
+            <!--
+                <h1>Wise Labels</h1>
+                <p class="text-muted">Premium Label Solutions</p>
+            -->
+            <p>
+                601 Vanguard Road<br />
+                Anderson SC, 29625<br />
+                (555) 555-0148 • billing@wiselabels.com
+            </p>
+        </div>
+        <div style="flex:0 0 auto; padding:0 1.5rem; display:flex; align-items:center;">
+            <img src="~/img/wise-logo-blue.png" alt="WiseLabels" style="max-height:72px; width:auto;" />
+        </div>
+        <div class="invoice-meta">
+            <h2 style="margin: 0.5rem 0 0;">Quote #@invoiceNumber</h2>
+        <p style="margin: 0.2rem 0;">Quote Date @FormatQuoteDate(issuedOn)</p>
+        <p style="margin: 0.2rem 0;">Quote expires on @FormatQuoteDate(dueDate)</p>
+        </div>
+    </header>
+
+    <p style="margin-bottom:1.5rem; font-size:0.95rem; color:#0f172a; line-height:1.6;">
+        Thank you for the opportunity to quote. This quote reflects the specifications provided to us and our best interpretation of them.
+        Please review the details below to confirm that we will meet your requirements, and let us know if you have any questions.
+    </p>
+    <!--
+    <section class="invoice-panels">
+        <article class="info-panel">
+            <h3>Bill To</h3>
+            <p style="margin: 0.15rem 0; font-weight: 600;">@billTo.Company</p>
+            <p style="margin: 0.15rem 0;">Attn: @billTo.Contact</p>
+            <p style="margin: 0.15rem 0;">@billTo.Address</p>
+            <p style="margin: 0.15rem 0;">@billTo.Phone</p>
+            <p style="margin: 0.15rem 0;">@billTo.Email</p>
+        </article>
+        <article class="info-panel">
+            <h3>Ship To</h3>
+            <p style="margin: 0.15rem 0; font-weight: 600;">@shipTo.Company</p>
+            <p style="margin: 0.15rem 0;">@shipTo.Contact</p>
+            <p style="margin: 0.15rem 0;">@shipTo.Address</p>
+        </article>
+        <article class="info-panel">
+            <h3>Summary</h3>
+            <p style="margin: 0.15rem 0;">Payment Terms: Net 15</p>
+            <p style="margin: 0.15rem 0;">Customer PO: 550174-A</p>
+            <p style="margin: 0.15rem 0;">CSR: Dana Hensley</p>
+            <p style="margin: 0.15rem 0;">Estimator: Chris Schroeder</p>
+        </article>
+    </section>
+    -->
+    <table class="line-items">
+        <thead>
+            <tr>
+                <th style="width: 15%;" class="text-right">Quantity</th>
+                <th style="width: 15%;" class="text-right">Unit Price</th>
+                <th style="width: 18%;" class="text-right">Line Total</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var item in lineItems)
+        {
+            var lineTotal = (item.Quantity / unitPerPrice) * item.UnitPrice;
+            <tr>
+                <td class="text-right">@item.Quantity.ToString("N0")</td>
+                <td class="text-right">@Money(item.UnitPrice)</td>
+                <td class="text-right">@Money(lineTotal)</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    <table class="totals">
+        <tr>
+            <td>Subtotal</td>
+            <td class="text-right">@Money(subtotal)</td>
+        </tr>
+        <tr>
+            <td>Promotional Discount</td>
+            <td class="text-right">-@Money(discount)</td>
+        </tr>
+        <tr>
+            <td>Shipping & Handling</td>
+            <td class="text-right">@Money(shipping)</td>
+        </tr>
+        <tr>
+            <td>Tax (@(taxRate * 100):0.##%)</td>
+            <td class="text-right">@Money(tax)</td>
+        </tr>
+        <tr>
+            <td>Total Due</td>
+            <td class="text-right">@Money(totalDue)</td>
+        </tr>
+    </table>
+    <section class="fine-print">
+        Payment Terms - Net 30 Lead Time - TBD
+        Orders are subject to +-10% overruns and underruns unless otherwise noted.
+    </section>
+    <section class="notes">
+        <strong>Notes & Next Steps</strong>
+        <p style="margin: 0.35rem 0 0;">
+            Project Name: Bob's Test'
+        </p>
+    </section>
+    <p style="margin-top:1.5rem; margin-bottom:1.5rem; font-size:0.95rem; color:#0f172a; line-height:1.6;">
+        Please refer to Quote # when placing an order. Shipping / freight costs are not included in price unless specified. Shipping / freight costs are estimatedand could increase at the time the order is shipped. Quotes expire after 30 days. Dies and tooling are a one-time charge. FOB shipping point unlessotherwise stated. Pricing is subject to change upon receipt of artwork, if not provided with the quote request. Materials should be tested in the printing,label application, and end use environments to ensure proper performance. Material samples available upon request. Hard proofs are required at noextra charge for new orders greater than $3,000.
+    </p>
+    <section class="additional-charges">
+        <h3>Additional Charges (if applicable)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 55%;">Description</th>
+                    <th style="width: 10%;"></th>
+                    <th style="width: 20%;" class="text-right">Price</th>
+                    <th style="width: 15%;">Units</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>PDF Proof</td>
+                    <td>per Proof</td>
+                    <td>$ - </td>
+                    <td>each</td>                    
+                </tr>
+                <!--
+                <tr>
+                    <td colspan="4" style="text-align:center; color:#94a3b8; font-style:italic;">
+                        No additional charges were added to this quote.
+                    </td>
+                </tr>
+                -->
+            </tbody>
+        </table>
+    </section>
+    <p style="text-align: center; margin-top: 2rem; font-size: 0.95rem; color: #475569;">
+        Thank you for partnering with WiseLabels. We look forward to supporting your next release.
+    </p>
+</div>
+</div>
+
+<script>
+    function printInvoice() {
+        window.print();
+    }
+</script>
