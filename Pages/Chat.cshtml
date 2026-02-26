@@ -1,0 +1,449 @@
+@page "/Chat"
+@model WiseLabels.Pages.ChatModel
+@{
+    ViewData["Title"] = "Chat";
+}
+
+<style>
+    .chat-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        height: calc(100vh - 140px);
+        min-height: 520px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .chat-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 0.75rem;
+    }
+
+    .chat-history {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .chat-message {
+        max-width: 75%;
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        line-height: 1.4;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1);
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    .chat-message.system {
+        align-self: flex-start;
+        background: #e0f2fe;
+        color: #0c4a6e;
+    }
+
+    /* Markdown formatting within chat messages */
+    .chat-message.system p {
+        margin: 0 0 0.5rem 0;
+    }
+
+    .chat-message.system p:last-child {
+        margin-bottom: 0;
+    }
+
+    .chat-message.system ul,
+    .chat-message.system ol {
+        margin: 0.5rem 0;
+        padding-left: 1.5rem;
+    }
+
+    .chat-message.system li {
+        margin: 0.25rem 0;
+    }
+
+    .chat-message.system strong {
+        font-weight: 600;
+        color: #075985;
+    }
+
+    .chat-message.system em {
+        font-style: italic;
+    }
+
+    .chat-message.system code {
+        background: #bfdbfe;
+        padding: 0.125rem 0.375rem;
+        border-radius: 0.25rem;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 0.875em;
+    }
+
+    .chat-message.system pre {
+        background: #dbeafe;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        margin: 0.5rem 0;
+    }
+
+    .chat-message.system pre code {
+        background: transparent;
+        padding: 0;
+    }
+
+    .chat-message.system blockquote {
+        border-left: 3px solid #0ea5e9;
+        padding-left: 0.75rem;
+        margin: 0.5rem 0;
+        font-style: italic;
+        color: #0369a1;
+    }
+
+    .chat-message.system h1,
+    .chat-message.system h2,
+    .chat-message.system h3,
+    .chat-message.system h4 {
+        margin: 0.75rem 0 0.5rem 0;
+        font-weight: 600;
+        color: #075985;
+    }
+
+    .chat-message.system h1 { font-size: 1.25rem; }
+    .chat-message.system h2 { font-size: 1.125rem; }
+    .chat-message.system h3 { font-size: 1rem; }
+    .chat-message.system h4 { font-size: 0.95rem; }
+
+    .chat-message.user {
+        align-self: flex-end;
+        background: #0f172a;
+        color: #fff;
+    }
+
+    .chat-input-panel {
+        border-top: 1px solid #e2e8f0;
+        padding-top: 1rem;
+    }
+
+    .chat-input-panel textarea {
+        resize: none;
+        min-height: 80px;
+    }
+
+    .chat-actions {
+        margin-top: 0.5rem;
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+    }
+
+    @@media (max-width: 768px) {
+        .chat-shell {
+            height: auto;
+            min-height: 0;
+        }
+    }
+</style>
+
+<div class="dashboard-container">
+    @await Html.PartialAsync("_LeftSidebar")
+    <main class="dashboard-main">
+        <div class="chat-shell" id="chat-shell">
+            <header class="chat-header">
+                <div>
+                    <h1 class="h4 mb-0">Estimator Chat</h1>
+                    <small class="text-muted">Discuss quote requirements or follow-up items in real time.</small>
+                </div>
+                <span class="badge bg-success-subtle text-success">Connected</span>
+            </header>
+
+            <section class="chat-history" id="chat-history" aria-live="polite">
+                <!--
+                <div class="chat-message system">
+                    Welcome! Share project details or ask about next steps and we'll keep everything attached to this quote.
+                </div>                
+                -->
+            </section>
+
+            <section class="chat-input-panel">
+                <label for="chat-input" class="form-label fw-semibold">Message</label>
+                <textarea class="form-control" id="chat-input" placeholder="Type your update or question..."></textarea>
+                <div class="chat-actions">
+                    <button type="button" class="btn btn-outline-secondary" id="chat-reset">Clear</button>
+                    <button type="button" class="btn btn-primary" id="chat-send">Send</button>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+<script>
+    (function () {
+        const historyEl = document.getElementById('chat-history');
+        const inputEl = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('chat-send');
+        const resetBtn = document.getElementById('chat-reset');
+        const statusBadge = document.querySelector('.chat-header .badge');
+
+        if (!historyEl || !inputEl || !sendBtn || !resetBtn) {
+            return;
+        }
+
+        // Configure marked for better formatting
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
+
+        function appendMessage(text, role = 'user') {
+            const bubble = document.createElement('div');
+            bubble.className = `chat-message ${role}`;
+
+            if (role === 'system') {
+                // Render markdown for system messages
+                const rawHtml = marked.parse(text);
+                bubble.innerHTML = DOMPurify.sanitize(rawHtml);
+            } else {
+                // Plain text for user messages
+                bubble.textContent = text.trim();
+            }
+
+            historyEl.appendChild(bubble);
+            historyEl.scrollTop = historyEl.scrollHeight;
+            return bubble;
+        }
+
+        function setUiBusy(isBusy) {
+            sendBtn.disabled = isBusy;
+            resetBtn.disabled = isBusy;
+            inputEl.disabled = isBusy;
+            if (statusBadge) {
+                statusBadge.textContent = isBusy ? 'Thinking…' : 'Connected';
+                statusBadge.classList.toggle('bg-warning-subtle', isBusy);
+                statusBadge.classList.toggle('text-warning', isBusy);
+                statusBadge.classList.toggle('bg-success-subtle', !isBusy);
+                statusBadge.classList.toggle('text-success', !isBusy);
+            }
+        }
+
+        async function sendToModel(userMessage) {
+            setUiBusy(true);
+
+            const assistantBubble = appendMessage('…', 'system');
+            let rawResponse = '';
+            let extractedQuoteData = null;
+
+            try {
+                const response = await fetch('/Api/ChatStream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream'
+                    },
+                    body: JSON.stringify({ message: userMessage })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server responded with ${response.status} ${response.statusText}`);
+                }
+
+                const reader = response.body?.getReader();
+                if (!reader) {
+                    throw new Error('Response body not available');
+                }
+
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (!line.trim() || !line.startsWith('data: ')) continue;
+
+                        try {
+                            const jsonStr = line.substring(6); // Remove 'data: ' prefix
+                            const data = JSON.parse(jsonStr);
+
+                            if (data.error) {
+                                assistantBubble.textContent = `Error: ${data.error}`;
+                                assistantBubble.classList.add('text-danger');
+                                break;
+                            }
+
+                            if (data.done) {
+                                break;
+                            }
+
+                            if (data.quoteData) {
+                                extractedQuoteData = data.quoteData;
+                                console.log('Quote data extracted:', extractedQuoteData);
+                            }
+
+                            if (data.content) {
+                                rawResponse += data.content;
+                                // Show streaming indicator while collecting response
+                                assistantBubble.textContent = '…';
+                            }
+                        }
+                        catch (err) {
+                            console.warn('Failed to parse SSE chunk', err, line);
+                        }
+                    }
+                }
+
+                // Parse the complete response to extract and format the message
+                let displayMessage = rawResponse;
+
+                if (rawResponse) {
+                    console.log('Raw AI response:', rawResponse);
+
+                    try {
+                        const parsed = JSON.parse(rawResponse);
+                        console.log('Parsed AI response:', parsed);
+
+                        if (parsed.message) {
+                            displayMessage = parsed.message;
+                        }
+
+                        // Check if quoteData was already extracted or is in the parsed response
+                        if (!extractedQuoteData && parsed.quoteData && parsed.quoteData !== null) {
+                            extractedQuoteData = parsed.quoteData;
+                            console.log('Quote data from parsed response:', extractedQuoteData);
+                        }
+                    }
+                    catch (e) {
+                        // Not valid JSON, use raw response
+                        console.warn('Response is not valid JSON:', e);
+                        console.warn('Raw response was:', rawResponse);
+
+                        // Show helpful error in UI if response looks malformed
+                        if (rawResponse.includes("'quoteData'") || rawResponse.includes("'message'")) {
+                            displayMessage = "⚠️ The AI returned incorrectly formatted data (using single quotes instead of double quotes). Please try again.\n\nRaw response: " + rawResponse;
+                        }
+                    }
+                }
+
+                if (!displayMessage) {
+                    displayMessage = 'No response returned by the model.';
+                }
+
+                // Render message as markdown
+                const rawHtml = marked.parse(displayMessage);
+                assistantBubble.innerHTML = DOMPurify.sanitize(rawHtml);
+                historyEl.scrollTop = historyEl.scrollHeight;
+
+                // If quote data was extracted, add a "Create Quote" button
+                if (extractedQuoteData) {
+                    addCreateQuoteButton(extractedQuoteData);
+                }
+            }
+            catch (error) {
+                const fallback = error instanceof Error ? error.message : 'Unknown error contacting chat service.';
+                assistantBubble.textContent = `Unable to reach chat service: ${fallback}`;
+                assistantBubble.classList.add('text-danger');
+            }
+            finally {
+                setUiBusy(false);
+            }
+        }
+
+        function handleSend() {
+            const text = inputEl.value.trim();
+            if (!text) {
+                inputEl.focus();
+                return;
+            }
+
+            appendMessage(text, 'user');
+            inputEl.value = '';
+            sendToModel(text);
+        }
+
+        async function handleReset() {
+            try {
+                const response = await fetch('/Api/ChatStream?handler=Reset', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    historyEl.innerHTML = '';
+                    inputEl.value = '';
+                    inputEl.focus();
+                    console.log('Conversation reset');
+                }
+            }
+            catch (error) {
+                console.error('Failed to reset conversation:', error);
+            }
+        }
+
+        sendBtn.addEventListener('click', handleSend);
+        inputEl.addEventListener('keydown', (evt) => {
+            if (evt.key === 'Enter' && !evt.shiftKey) {
+                evt.preventDefault();
+                handleSend();
+            }
+        });
+        resetBtn.addEventListener('click', handleReset);
+
+        function addCreateQuoteButton(quoteData) {
+            const buttonContainer = document.createElement('div');
+            buttonContainer.className = 'chat-message system';
+            buttonContainer.style.cssText = 'background: #dbeafe; border: 1px solid #3b82f6; padding: 1rem;';
+
+            const text = document.createElement('p');
+            text.textContent = '📋 Quote information extracted! Click below to create a quote with this information.';
+            text.style.marginBottom = '0.75rem';
+
+            const button = document.createElement('button');
+            button.className = 'btn btn-primary btn-sm';
+            button.textContent = 'Create Quote →';
+            button.onclick = () => navigateToQuoteForm(quoteData);
+
+            buttonContainer.appendChild(text);
+            buttonContainer.appendChild(button);
+            historyEl.appendChild(buttonContainer);
+            historyEl.scrollTop = historyEl.scrollHeight;
+        }
+
+        function navigateToQuoteForm(quoteData) {
+            // Build query string from quote data
+            const params = new URLSearchParams();
+
+            if (quoteData.description) params.append('description', quoteData.description);
+            if (quoteData.shape) params.append('shape', quoteData.shape);
+            if (quoteData.labelWidth) params.append('labelWidth', quoteData.labelWidth);
+            if (quoteData.labelHeight) params.append('labelHeight', quoteData.labelHeight);
+            if (quoteData.diameter) params.append('diameter', quoteData.diameter);
+            if (quoteData.material) params.append('material', quoteData.material);
+            if (quoteData.printing) params.append('printing', quoteData.printing);
+            if (quoteData.finish) params.append('finish', quoteData.finish);
+            if (quoteData.totalQuantity) params.append('totalQuantity', quoteData.totalQuantity);
+
+            // Navigate to GetQuote page with parameters
+            window.location.href = `/GetQuote?${params.toString()}`;
+        }
+    })();
+</script>
+}

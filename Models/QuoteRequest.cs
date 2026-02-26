@@ -24,10 +24,13 @@ namespace WiseLabels.Models
         public string? Diameter { get; set; }
         public string? Corners { get; set; }
         public string? CuttingDie { get; set; }
+        public string? DieSizeInfo { get; set; }
+        public bool IsCustomDie { get; set; }
         public string? Printing { get; set; }
         public string? Material { get; set; }
         public string? ColorCode { get; set; }
         public string? Finish { get; set; }
+        public string? PackingProcedure { get; set; }
         public string? ApplicationMethod { get; set; }
         public string? UnwindDirection { get; set; }
         public string? TotalQuantity { get; set; }

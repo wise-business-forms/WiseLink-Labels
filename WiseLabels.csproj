@@ -11,7 +11,10 @@
   <ItemGroup>
     <PackageReference Include="DinkToPdf" Version="1.0.8" />
     <PackageReference Include="Markdig" Version="0.37.0" />
+    <PackageReference Include="Microsoft.Graph" Version="5.103.0" />
+    <PackageReference Include="Microsoft.Graph.Core" Version="3.2.5" />
     <PackageReference Include="Microsoft.Identity.Web" Version="3.8.2" />
+    <PackageReference Include="Microsoft.Identity.Web.MicrosoftGraph" Version="4.3.0" />
     <PackageReference Include="Microsoft.Identity.Web.UI" Version="3.3.1" />
     <ProjectReference Include="..\CERM.DataAccess\CERM.DataAccess.csproj" />
   </ItemGroup>

@@ -41,6 +41,14 @@ builder.Services.AddAuthorization(options =>
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();
+
+    // Full access policy - for admin features
+    options.AddPolicy("FullAccess", policy =>
+        policy.Requirements.Add(new GroupAccessRequirement(AccessLevel.Full)));
+
+    // Limited access policy - for regular users
+    options.AddPolicy("LimitedAccess", policy =>
+        policy.Requirements.Add(new GroupAccessRequirement(AccessLevel.Limited)));
 });
 
 builder.Services.AddRazorPages()
@@ -56,6 +64,7 @@ builder.Services.AddSession(options =>
 builder.Services.AddScoped<WiseLabels.Services.IQuoteService, WiseLabels.Services.QuoteService>();
 builder.Services.AddScoped<WiseLabels.Services.IEmailService, WiseLabels.Services.EmailService>();
 builder.Services.AddScoped<WiseLabels.Services.ICermAuthService, WiseLabels.Services.CermAuthService>();
+builder.Services.AddScoped<WiseLabels.Services.IChatService, WiseLabels.Services.ChatService>();
 builder.Services.AddDbContext<CermDbContext>(options =>
 options.UseSqlServer(
     builder.Configuration.GetConnectionString("CermDbConnection"),

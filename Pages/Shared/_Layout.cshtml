@@ -22,14 +22,15 @@
 }
 <body>
     <header class="border-bottom mb-3 bg-light">
-        <div class="container d-flex justify-content-between align-items-center py-2">
+        <div class="container-fluid px-4 d-flex justify-content-between align-items-center py-2">
             <span class="fw-semibold">WiseLabels</span>
             @if (isAuthenticated)
             {
                 <div class="text-end">
-                    <div class="small text-muted">Signed in as</div>
                     <div class="fw-semibold">@userDisplayName</div>
-                    <div class="fw-semibold">@userEmail</div>
+                    <div class="small">
+                        <a asp-page="/Profile" class="text-decoration-none">View Profile</a>
+                    </div>
                 </div>
             }
         </div>

@@ -151,9 +151,21 @@
               "target": "Package",
               "version": "[0.37.0, )"
             },
+            "Microsoft.Graph": {
+              "target": "Package",
+              "version": "[5.103.0, )"
+            },
+            "Microsoft.Graph.Core": {
+              "target": "Package",
+              "version": "[3.2.5, )"
+            },
             "Microsoft.Identity.Web": {
               "target": "Package",
               "version": "[3.8.2, )"
+            },
+            "Microsoft.Identity.Web.MicrosoftGraph": {
+              "target": "Package",
+              "version": "[4.3.0, )"
             },
             "Microsoft.Identity.Web.UI": {
               "target": "Package",

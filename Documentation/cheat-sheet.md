@@ -248,5 +248,203 @@
 
 ---
 
+## Chat AI Example Prompts
+
+### 🎯 Simple Quote Requests
+
+**Basic Specifications:**
+```
+I need 1000 round stickers that are 3 inches wide
+```
+```
+Can you help me with 2x3 inch rectangular labels?
+```
+```
+I want 5000 square labels, 2 inches on each side
+```
+
+**With Material:**
+```
+I need vinyl labels for outdoor use, 4 inches by 2 inches, quantity 2500
+```
+```
+Looking for 3000 paper labels, circular shape, 2.5 inch diameter
+```
+
+---
+
+### 📋 Detailed Quote Requests
+
+**Multiple Specifications:**
+```
+I need labels for our Summer Sale 2024 campaign - 5000 rectangular vinyl labels, 
+2x3 inches, with digital printing and lamination
+```
+```
+Create a quote for 'Product Launch Labels' - round labels, 4 inch diameter, 
+polyester material, flexo printing, quantity 10000
+```
+```
+We need weatherproof oval labels, 3x2 inches, with gloss varnish finish, 
+digital printing, 7500 pieces
+```
+
+**Using Everyday Language:**
+```
+I need waterproof stickers for bottles - about 2 inches tall and 3 inches wide, 
+we need around 5000 of them with full color printing
+```
+```
+Looking for labels that can go outside - they need to be circular, maybe 3 inches across, 
+with a shiny finish, we need 2000
+```
+```
+Can you quote me on some labels for our new product? They should be rectangular, 
+1.5 by 4 inches, printed in color, and we need 15000 of them
+```
+
+---
+
+### ❓ Informational Questions (No Quote Data)
+
+**Industry Terms:**
+```
+What's the difference between flexo and digital printing?
+```
+```
+What is lamination and when should I use it?
+```
+```
+Can you explain what substrate means?
+```
+```
+What's the difference between vinyl and polyester labels?
+```
+
+**Process Questions:**
+```
+How do I know if I need die-cutting?
+```
+```
+What does registration mean in printing?
+```
+```
+What's the purpose of a liner on labels?
+```
+
+---
+
+### 🔄 Mixed Conversations
+
+**Starting General, Then Specific:**
+```
+User: I'm looking into label options for our bottles
+AI: [responds with questions]
+User: They're plastic bottles, need to be dishwasher safe, about 2 inches tall
+AI: [suggests vinyl/polyester]
+User: Ok, let's go with vinyl, 2x1.5 inches, we need 8000
+```
+
+**Refinement:**
+```
+User: I need labels for a project called "Spring Collection"
+AI: [asks for details]
+User: Make them rectangular, 3 by 2 inches, with digital printing, quantity 3000
+```
+
+**Jargon Translation:**
+```
+User: I need labels with that bendy printing method - I think it starts with F?
+AI: You're thinking of Flexo (Flexographic) printing...
+```
+```
+User: We want the labels to have that shiny coating on top
+AI: That's lamination or varnish...
+```
+
+---
+
+### 🎨 Edge Cases
+
+**Unusual Shapes:**
+```
+Do you do custom die-cut shapes? We need labels that look like stars
+```
+
+**Large Quantities:**
+```
+We need a bulk order - 50,000 labels, 2x2 inch squares, paper material
+```
+
+**Minimal Information:**
+```
+Just need basic labels, nothing fancy, about 2000
+```
+
+**Very Specific:**
+```
+Quote request: Job #2024-123, 4.25x2.75 rectangular labels, substrate: BOPP film, 
+2-color flexo (PMS 286C and Black), matte lamination, roll direction: face out, 12,500 labels
+```
+
+---
+
+### 🧪 Quick Copy-Paste Tests
+
+**Test 1 - Full Quote:**
+```
+I need labels for "Cool AI Project" - 2 inch square labels, vinyl material, 
+digital printing with lamination, quantity 5000
+```
+*Expected: Extracts description, shape, labelWidth, labelHeight, material, printing, finish, totalQuantity*
+
+**Test 2 - Information Only:**
+```
+What's the difference between spot color and process printing?
+```
+*Expected: Returns conversational response, quoteData: null*
+
+**Test 3 - Conversational:**
+```
+We're launching a new beer and need labels for the bottles
+```
+*Expected: AI asks follow-up questions about specifications*
+
+**Test 4 - Technical:**
+```
+Quote for rectangular pressure-sensitive labels, 3.5x2", BOPP substrate, 
+4-color process, UV varnish, 25000 pcs
+```
+*Expected: Extracts all technical specifications accurately*
+
+---
+
+### 💡 Chat AI Tips
+
+**What the AI Can Extract:**
+- **description** - Project name or label purpose
+- **shape** - rectangle, square, circle, oval
+- **labelWidth** - Width in inches (numbers only)
+- **labelHeight** - Height in inches (numbers only)
+- **diameter** - Diameter for circular labels
+- **material** - Substrate type (vinyl, paper, polyester, etc.)
+- **printing** - Printing method (digital, flexo, process, etc.)
+- **finish** - Finishing type (lamination, varnish, etc.)
+- **totalQuantity** - Number of labels needed
+
+**Best Practices:**
+- ✅ Be specific with numbers (2 inches, 5000 labels)
+- ✅ Include project name for better organization
+- ✅ Mention material if you know it
+- ✅ Use industry terms OR everyday language (AI translates)
+- ❌ Don't worry about exact technical terms if unsure
+
+**After AI Response:**
+- Look for the **"Create Quote →"** button if quote data was extracted
+- Click to pre-fill the quote form with all specifications
+- Review and adjust before submitting
+
+---
+
 *Last Updated: February 2026*
 *For internal use by the sales team*

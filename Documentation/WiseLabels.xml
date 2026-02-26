@@ -31,6 +31,53 @@
             <returns>The loaded assembly.</returns>
             <exception cref="T:System.NotImplementedException">This method is not implemented.</exception>
         </member>
+        <member name="M:WiseLabels.Examples.ChatServiceExample.SendUserMessageAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Send a user message and accumulate quote data across the conversation
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Examples.ChatServiceExample.ResetConversation">
+            <summary>
+            Reset the conversation and accumulated data
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Examples.ChatServiceExample.GetAccumulatedQuoteData">
+            <summary>
+            Get the current accumulated quote data
+            </summary>
+        </member>
+        <member name="T:WiseLabels.Models.LabelQuoteResponse">
+            <summary>
+            Represents the response from the Ollama chat API for label quote extraction.
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Models.LabelQuoteResponse.Message">
+            <summary>
+            The conversational message to display to the user.
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Models.LabelQuoteResponse.QuoteData">
+            <summary>
+            The extracted quote data from the conversation. Null if no quote data was extracted.
+            </summary>
+        </member>
+        <member name="T:WiseLabels.Models.QuoteData">
+            <summary>
+            Represents the extracted label quote data from a chat conversation.
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteData.Complete">
+            <summary>
+            Indicates whether all required fields have been collected.
+            Set to true when shape, dimensions, material, printing, finish, and totalQuantity are all provided.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.ChatStreamModel.TryExtractJson(System.String,System.String@,System.Object@)">
+            <summary>
+            Attempts to extract JSON from a response that may contain mixed text and JSON.
+            Handles JSON with comments, incomplete JSON, and various formats.
+            </summary>
+        </member>
         <member name="P:WiseLabels.Pages.Api.CuttingDieModel.CuttingDieOption.StnsRef">
             <summary>
             Die Identifier
@@ -130,6 +177,33 @@
             <param name="printing">The printing selection (ColorCode ID or description text)</param>
             <returns>List of allowed material IDs, or null if no filtering should be applied</returns>
         </member>
+        <member name="T:WiseLabels.Pages.Api.PackingProceduresModel">
+            <summary>
+            Proxy Razor Page model that retrieves packing procedures from the external CERM API
+            and returns them as JSON to the client. This decouples the client from direct
+            CORS/auth requirements and centralizes token handling and mapping logic.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.PackingProceduresModel.#ctor(System.Net.Http.IHttpClientFactory,Microsoft.Extensions.Configuration.IConfiguration,Microsoft.Extensions.Logging.ILogger{WiseLabels.Pages.Api.PackingProceduresModel})">
+            <summary>
+            Constructor - dependencies are injected by the Razor Pages framework.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.PackingProceduresModel.OnGetAsync">
+            <summary>
+            GET handler invoked by client-side code at "/Api/PackingProcedures".
+            - Reads CERM configuration values from appsettings.
+            - Authenticates against the OAuth endpoint to retrieve an access token.
+            - Calls the configured PackingProceduresUrl and returns a JSON payload.
+            - Returns guarded error responses for configuration, authentication, and fetch failures.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.PackingProceduresModel.GetAccessTokenAsync(System.String,System.String,System.String,System.String,System.String)">
+            <summary>
+            Attempts to retrieve an OAuth access token from the CERM API.
+            Tries two approaches: body-only and basic auth + body.
+            </summary>
+        </member>
         <member name="P:WiseLabels.Pages.SuccessModel.CermCalculationId">
             <summary>CERM calculation ID (Data.Id) from submission.</summary>
         </member>
@@ -158,6 +232,31 @@
             <summary>
             Obtains OAuth access tokens for the CERM API.
             </summary>
+        </member>
+        <member name="M:WiseLabels.Services.IChatService.SendChatMessageAsync(System.Collections.Generic.List{WiseLabels.Services.ChatMessage},System.Action{System.String},System.Threading.CancellationToken)">
+            <summary>
+            Sends a chat message to the Ollama API and streams the response back.
+            </summary>
+            <param name="messages">Conversation history including the new user message</param>
+            <param name="onChunk">Callback invoked for each chunk of the streaming response</param>
+            <param name="cancellationToken">Cancellation token</param>
+        </member>
+        <member name="M:WiseLabels.Services.IChatService.SendMessageAsync(System.String,System.Collections.Generic.List{WiseLabels.Services.ChatMessage},System.Threading.CancellationToken)">
+            <summary>
+            Sends a message to the Ollama API and returns a structured LabelQuoteResponse.
+            </summary>
+            <param name="userMessage">The user's message</param>
+            <param name="messageHistory">The conversation history</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>A LabelQuoteResponse containing the message and extracted quote data</returns>
+        </member>
+        <member name="M:WiseLabels.Services.IChatService.MergeQuoteData(WiseLabels.Models.QuoteData,WiseLabels.Models.QuoteData)">
+            <summary>
+            Merges new quote data into existing quote data, only overwriting non-null fields.
+            </summary>
+            <param name="existing">The existing quote data</param>
+            <param name="newData">The new quote data to merge</param>
+            <returns>The merged quote data</returns>
         </member>
         <member name="M:WiseLabels.Services.IQuoteService.UpdateContactInfoAsync(System.String,System.String,System.String,System.String)">
             <summary>

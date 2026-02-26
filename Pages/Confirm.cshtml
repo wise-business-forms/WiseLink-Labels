@@ -52,14 +52,6 @@
             .Select(q => new QuotePriceBreakdown { Quantity = q })
             .ToList();
     }
-
-    var subtotal = pricingRows.Where(p => p.TotalPrice.HasValue).Sum(p => p.TotalPrice!.Value);
-    var discount = 0m;
-    var shipping = 0m;
-    var taxRate = 0m;
-    var tax = Math.Round(subtotal * taxRate, 2, MidpointRounding.AwayFromZero);
-    var totalDue = subtotal - discount + shipping + tax;
-    var hasPriceValues = pricingRows.Any(p => p.TotalPrice.HasValue || p.UnitPrice.HasValue);
 }
 
 <style>
@@ -369,8 +361,10 @@
                 </div>
                 <div>
                     <p style="margin:0.15rem 0;">Corners: @FormatMaybeValue(Model.QuoteRequest?.Corners)</p>
+                    <p style="margin:0.15rem 0;">Die Size: @FormatMaybeValue(Model.QuoteRequest?.DieSizeInfo)</p>
                     <p style="margin:0.15rem 0;">Cutting Die: @FormatMaybeValue(Model.QuoteRequest?.CuttingDie)</p>
                     <p style="margin:0.15rem 0;">Application: @FormatMaybeValue(Model.QuoteRequest?.ApplicationMethod)</p>
+                    <p style="margin:0.15rem 0;">Packing: @FormatMaybeValue(Model.QuoteRequest?.PackingProcedure)</p>
                 </div>
                 <div>
                     <p style="margin:0.15rem 0;">Quantities: @(
@@ -390,14 +384,13 @@
                     <th style="width: 25%;" class="text-right">Quantity</th>
                     <th style="width: 25%;" class="text-right">Unit Price</th>
                     <th style="width: 30%;" class="text-right">Line Total</th>
-                    <th style="width: 20%;" class="text-right">Currency</th>
                 </tr>
             </thead>
             <tbody>
                 @if (pricingRows.Count == 0)
                 {
                     <tr>
-                        <td colspan="4" class="text-center text-muted">No pricing information has been provided yet.</td>
+                        <td colspan="3" class="text-center text-muted">No pricing information has been provided yet.</td>
                     </tr>
                 }
                 else
@@ -407,48 +400,16 @@
                         var qtyLabel = price.Quantity?.ToString("N0")
                             ?? (Model.QuoteRequest?.Quantities?.Count > 0 ? string.Empty : "—");
                         <tr>
-                            <td class="text-right">@(string.IsNullOrWhiteSpace(qtyLabel) ? "—" : qtyLabel)</td>
+                            <td class="text-right">@(string.IsNullOrWhiteSpace(qtyLabel) ? "—" : qtyLabel) pcs.</td>
                             <td class="text-right">@FormatCurrency(price.UnitPrice)</td>
                             <td class="text-right">@FormatCurrency(price.TotalPrice)</td>
-                            <td class="text-right">@(string.IsNullOrWhiteSpace(price.Currency) ? "USD" : price.Currency)</td>
                         </tr>
                     }
                 }
+
+                
             </tbody>
         </table>
-
-        <table class="totals">
-            <!--
-            <tr>
-                <td>Subtotal</td>
-                <td class="text-right">@FormatCurrency(hasPriceValues ? subtotal : (decimal?)null)</td>
-            </tr>
-            <tr>
-                <td>Shipping & Handling</td>
-                <td class="text-right">@FormatCurrency(shipping > 0 ? shipping : (decimal?)null)</td>
-            </tr>
-            <tr>
-                <td>Tax</td>
-                <td class="text-right">@FormatCurrency(hasPriceValues ? tax : (decimal?)null)</td>
-            </tr>
-            -->
-            <tr>
-                <td>Total</td>
-                <td class="text-right">@FormatCurrency(hasPriceValues ? totalDue : (decimal?)null)</td>
-            </tr>
-        </table>
-
-        <section class="notes">
-            <strong>Next Steps</strong>
-            
-            <p style="margin: 0.35rem 0 0;">
-                <ol>
-                    <li>Please confirm that each specification is final. Any changes after submission may require a new quote or amended lead time.</li>
-                    <li>Click Confirm & Submit below.</li>
-                </ol>
-
-            </p>
-        </section>
 
         <section class="additional-charges">
             <h3>Additional Charges (if applicable)</h3>
@@ -456,19 +417,48 @@
                 <thead>
                     <tr>
                         <th style="width: 55%;">Description</th>
-                        <th style="width: 10%;"></th>
                         <th style="width: 20%;" class="text-right">Price</th>
                         <th style="width: 15%;">Units</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td colspan="4" style="text-align:center; color:#94a3b8; font-style:italic;">
-                            No additional charges were added to this quote.
-                        </td>
-                    </tr>
+                    @* Additional line items for custom die and other charges *@
+                    @if (Model.QuoteRequest?.IsCustomDie == true)
+                    {
+                        <tr style="background: #fef3c7;">
+                            <td style="font-weight: 600;">
+                                <span style="color: #92400e;">⚠️</span> Custom Die Fabrication
+                                <br />
+                                <small style="color: #78350f; font-weight: normal;">
+                                    Die Size: @FormatMaybeValue(Model.QuoteRequest?.DieSizeInfo)
+                                </small>
+                            </td>
+                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(Model.CustomDiePrice)</td>
+                            <td style="font-weight: 600;">@(Model.CustomDieUnit ?? "each")</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="3" style="text-align:center; color:#94a3b8; font-style:italic;">
+                                No additional charges were added to this quote.
+                            </td>
+                        </tr>
+                    }
                 </tbody>
             </table>
+        </section>
+
+        <section class="notes">
+            <strong>Next Steps</strong>
+
+            <p style="margin: 0.35rem 0 0;">
+                <ol>
+                    <li>Please confirm that each specification is final. Any changes after submission may require a new quote or amended lead time.</li>
+                    <li>Click Confirm & Submit below.</li>
+                </ol>
+
+            </p>
         </section>
 
         <p style="text-align: center; margin-top: 2rem; font-size: 0.95rem; color: #475569;">

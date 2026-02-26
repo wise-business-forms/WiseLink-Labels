@@ -40,6 +40,8 @@ namespace WiseLabels.Pages
         public bool EmailSent { get; set; }
         public QuoteRequest? QuoteRequest { get; set; }
         public DateTime SubmittedDate { get; set; } = DateTime.UtcNow;
+        public decimal? CustomDiePrice { get; set; }
+        public string? CustomDieUnit { get; set; }
         /// <summary>Submitted date/time in Eastern Time for display.</summary>
         public DateTime SubmittedDateEastern =>
             TimeZoneInfo.ConvertTimeFromUtc(
@@ -75,6 +77,14 @@ namespace WiseLabels.Pages
             {
                 EmailSent = emailSent;
             }
+
+            // Load custom die price and unit
+            if (decimal.TryParse(TempData["CustomDiePrice"]?.ToString(), out var customDiePrice))
+            {
+                CustomDiePrice = customDiePrice;
+            }
+
+            CustomDieUnit = TempData["CustomDieUnit"]?.ToString();
 
             // Get quote request data for PDF generation
             if (TempData.TryGetValue("QuoteRequest", out var quoteData))

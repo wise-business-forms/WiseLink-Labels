@@ -376,12 +376,22 @@
                         ? FormatDimension(Model.QuoteRequest?.LabelWidth, Model.QuoteRequest?.LabelHeight)
                         : $"{Model.QuoteRequest?.Diameter}\" Diameter")
                     </p>
+                    <p style="margin:0.15rem 0;">
+                        Die Size: @FormatMaybeValue(Model.QuoteRequest?.DieSizeInfo)
+                        @if (Model.QuoteRequest?.IsCustomDie == true)
+                        {
+                            <span style="background:#fef3c7; color:#92400e; padding:0.15rem 0.5rem; border-radius:4px; font-size:0.85rem; font-weight:600; margin-left:0.5rem;">
+                                ⚠️ CUSTOM DIE
+                            </span>
+                        }
+                    </p>
                     <p style="margin:0.15rem 0;">Corners: @FormatMaybeValue(Model.QuoteRequest?.Corners)</p>
                 </div>
                 <div>
                     <p style="margin:0.15rem 0;">Material: @FormatMaybeValue(Model.QuoteRequest?.Material)</p>
                     <p style="margin:0.15rem 0;">Finish: @FormatMaybeValue(Model.QuoteRequest?.Finish)</p>
                     <p style="margin:0.15rem 0;">Printing: @FormatMaybeValue(Model.QuoteRequest?.Printing)</p>
+                    <p style="margin:0.15rem 0;">Packing: @FormatMaybeValue(Model.QuoteRequest?.PackingProcedure)</p>
                 </div>
                 <div>
                     <p style="margin:0.15rem 0;">Application: @FormatMaybeValue(Model.QuoteRequest?.ApplicationMethod)</p>
@@ -426,25 +436,6 @@
             </tbody>
         </table>
 
-        <table class="totals">
-            <tr>
-                <td>Total</td>
-                <td class="text-right">@FormatCurrency(hasPriceValues ? totalDue : (decimal?)null)</td>
-            </tr>
-        </table>
-
-        <section class="notes">
-            <strong>Notes & Next Steps</strong>
-            <p style="margin: 0.35rem 0 0;">
-                Keep this confirmation handy when referencing estimate <strong>@quoteReference</strong>.
-            </p>
-        </section>
-
-        <p style="margin-top:1.5rem; margin-bottom:1.5rem; font-size:0.95rem; color:#0f172a; line-height:1.6;">
-            Please include this quote reference when placing an order. Freight is estimated and subject to change at shipment. Quotes expire after 30 days.
-            Dies and tooling are a one-time charge. Materials should be tested in production and end-use environments to confirm fit for purpose.
-        </p>
-
         <section class="additional-charges">
             <h3>Additional Charges (if applicable)</h3>
             <table>
@@ -457,14 +448,45 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td colspan="4" style="text-align:center; color:#94a3b8; font-style:italic;">
-                            No additional charges were added to this quote.
-                        </td>
-                    </tr>
+                    @* Additional line items for custom die and other charges *@
+                    @if (Model.QuoteRequest?.IsCustomDie == true)
+                    {
+                        <tr style="background: #fef3c7;">
+                            <td style="font-weight: 600;">
+                                <span style="color: #92400e;">⚠️</span> Custom Die Fabrication
+                                <br />
+                                <small style="color: #78350f; font-weight: normal;">
+                                    Die Size: @FormatMaybeValue(Model.QuoteRequest?.DieSizeInfo)
+                                </small>
+                            </td>
+                            <td></td>
+                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(Model.CustomDiePrice)</td>
+                            <td style="font-weight: 600;">@(Model.CustomDieUnit ?? "each")</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="4" style="text-align:center; color:#94a3b8; font-style:italic;">
+                                No additional charges were added to this quote.
+                            </td>
+                        </tr>
+                    }
                 </tbody>
             </table>
         </section>
+
+        <section class="notes">
+            <strong>Notes & Next Steps</strong>
+            <p style="margin: 0.35rem 0 0;">
+                Keep this confirmation handy when referencing estimate <strong>@quoteReference</strong>.
+            </p>
+        </section>
+
+        <p style="margin-top:1.5rem; margin-bottom:1.5rem; font-size:0.95rem; color:#0f172a; line-height:1.6;">
+            Please include this quote reference when placing an order. Freight is estimated and subject to change at shipment. Quotes expire after 30 days.
+            Dies and tooling are a one-time charge. Materials should be tested in production and end-use environments to confirm fit for purpose.
+        </p>
 
         <p style="text-align: center; margin-top: 2rem; font-size: 0.95rem; color: #475569;">
             Thank you for partnering with WiseLabels. We look forward to supporting your next release.

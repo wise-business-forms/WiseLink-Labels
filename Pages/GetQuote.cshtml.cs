@@ -57,6 +57,15 @@ namespace WiseLabels.Pages
                 || string.Equals(Request.Host.Host, "localhost", StringComparison.OrdinalIgnoreCase);
             SelectedCustomerName = string.IsNullOrWhiteSpace(customerName) ? null : customerName;
 
+            // Check for query parameters from chat (highest priority)
+            var chatQuoteData = BuildQuoteRequestFromQueryParams();
+            if (chatQuoteData != null)
+            {
+                SavedQuoteRequest = chatQuoteData;
+                _logger.LogInformation("Prepopulating quote form from chat data");
+                return;
+            }
+
             if (TempData.TryGetValue("QuoteRequest", out var quoteData))
             {
                 try
@@ -119,8 +128,15 @@ namespace WiseLabels.Pages
             var shapeLabel = form["shape"].ToString();
             var resolvedShapeValue = ResolveShapeOutline(rawShapeValue, shapeLabel);
 
+            // Load customer info from session
+            var selectedQuote = LoadSelectedQuoteFromSession();
+            var customerId = selectedQuote?.CustomerId;
+            var customerDisplayName = selectedQuote?.CustomerDisplayName ?? selectedQuote?.Name;
+
             var quoteRequest = new QuoteRequest
             {
+                CustomerId = customerId,
+                CustomerDisplayName = customerDisplayName,
                 Name = GetFormValue(form, "name", "contactName"),
                 Company = GetFormValue(form, "company", "contactCompany"),
                 Email = GetFormValue(form, "email", "contactEmail"),
@@ -134,11 +150,14 @@ namespace WiseLabels.Pages
                 LabelHeight = form["labelHeight"].ToString(),
                 Diameter = form["diameter"].ToString(),
                 Corners = form["corners"].ToString(),
-                CuttingDie = form["cuttingDie"].ToString(),
+                CuttingDie = form["existingDie"].ToString(),
+                DieSizeInfo = form["dieSizeInfo"].ToString(),
+                IsCustomDie = form["isCustomDie"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase),
                 Printing = form["printing"].ToString(),
                 Material = string.IsNullOrEmpty(materialLabel) ? materialId : materialLabel,
                 ColorCode = form["colorCode"].ToString(),
                 Finish = form["finish"].ToString(),
+                PackingProcedure = form["packingProcedure"].ToString(),
                 ApplicationMethod = form["applicationMethod"].ToString(),
                 UnwindDirection = form["unwindDirection"].ToString(),
                 TotalQuantity = form["totalQuantity"].ToString(),
@@ -266,6 +285,90 @@ namespace WiseLabels.Pages
                 HttpContext.Session.Remove(SessionKeys.SelectedQuote);
                 return null;
             }
+        }
+
+        private QuoteRequest? BuildQuoteRequestFromQueryParams()
+        {
+            var query = Request.Query;
+
+            // Check if any quote-related query parameters exist
+            if (!query.ContainsKey("description") && !query.ContainsKey("shape") && 
+                !query.ContainsKey("labelWidth") && !query.ContainsKey("material"))
+            {
+                return null;
+            }
+
+            var quoteRequest = new QuoteRequest();
+            bool hasData = false;
+
+            if (query.TryGetValue("description", out var description) && !string.IsNullOrWhiteSpace(description))
+            {
+                quoteRequest.Description = description.ToString();
+                hasData = true;
+            }
+
+            if (query.TryGetValue("shape", out var shape) && !string.IsNullOrWhiteSpace(shape))
+            {
+                quoteRequest.Shape = shape.ToString();
+                quoteRequest.ShapeValue = MapShapeToValue(shape.ToString());
+                hasData = true;
+            }
+
+            if (query.TryGetValue("labelWidth", out var width) && !string.IsNullOrWhiteSpace(width))
+            {
+                quoteRequest.LabelWidth = width.ToString();
+                hasData = true;
+            }
+
+            if (query.TryGetValue("labelHeight", out var height) && !string.IsNullOrWhiteSpace(height))
+            {
+                quoteRequest.LabelHeight = height.ToString();
+                hasData = true;
+            }
+
+            if (query.TryGetValue("diameter", out var diameter) && !string.IsNullOrWhiteSpace(diameter))
+            {
+                quoteRequest.Diameter = diameter.ToString();
+                hasData = true;
+            }
+
+            if (query.TryGetValue("material", out var material) && !string.IsNullOrWhiteSpace(material))
+            {
+                quoteRequest.Material = material.ToString();
+                hasData = true;
+            }
+
+            if (query.TryGetValue("printing", out var printing) && !string.IsNullOrWhiteSpace(printing))
+            {
+                quoteRequest.Printing = printing.ToString();
+                hasData = true;
+            }
+
+            if (query.TryGetValue("finish", out var finish) && !string.IsNullOrWhiteSpace(finish))
+            {
+                quoteRequest.Finish = finish.ToString();
+                hasData = true;
+            }
+
+            if (query.TryGetValue("totalQuantity", out var quantity) && !string.IsNullOrWhiteSpace(quantity))
+            {
+                quoteRequest.TotalQuantity = quantity.ToString();
+                hasData = true;
+            }
+
+            return hasData ? quoteRequest : null;
+        }
+
+        private string MapShapeToValue(string shape)
+        {
+            return shape.ToLowerInvariant() switch
+            {
+                "rectangle" => "1",
+                "square" => "2",
+                "circle" => "3",
+                "oval" => "4",
+                _ => shape
+            };
         }
     }
 }

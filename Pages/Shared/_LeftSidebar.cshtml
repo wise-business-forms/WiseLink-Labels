@@ -1,0 +1,42 @@
+@{
+    string NormalizePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || path == "/")
+        {
+            return "/";
+        }
+
+        return path.TrimEnd('/');
+    }
+
+    var currentPath = NormalizePath(ViewContext.HttpContext.Request.Path.Value);
+
+    Func<string, bool> isActive = page =>
+    {
+        var normalizedPage = NormalizePath(page);
+        if (normalizedPage == "/Index" && currentPath == "/")
+        {
+            return true;
+        }
+
+        return string.Equals(normalizedPage, currentPath, StringComparison.OrdinalIgnoreCase);
+    };
+}
+
+<nav class="left-sidebar" aria-label="Left sidebar navigation">
+    <h6 class="left-sidebar-title">Quote Dashboard</h6>
+    <ul class="left-nav-list">
+        <li>
+            <a asp-page="/Index" class="left-nav-link@(isActive("/Index") ? " active" : string.Empty)">Dashboard</a>
+        </li>
+        <li>
+            <a asp-page="/Customers" class="left-nav-link@(isActive("/Customers") ? " active" : string.Empty)">Repeat Quote</a>
+        </li>
+        <li>
+            <a asp-page="/GetQuote" class="left-nav-link@(isActive("/GetQuote") ? " active" : string.Empty)">Start New Quote</a>
+        </li>
+        <li>
+            <a asp-page="/Chat" class="left-nav-link@(isActive("/Chat") ? " active" : string.Empty)">Chat</a>
+        </li>
+    </ul>
+</nav>

@@ -5,9 +5,8 @@
 }
 
 <div class="dashboard-container">
-    @await Html.PartialAsync("_DashboardSidebar")
-    <main class="dashboard-main">
-        <!--
+    @await Html.PartialAsync("_LeftSidebar")
+    <main class="dashboard-main">        
         <h1 class="dashboard-page-title">Quote Dashboard</h1>
         <div class="dashboard-stats-row">
             <div class="dashboard-stat-card">
@@ -46,19 +45,7 @@
                 </tbody>
             </table>
         </div>
-        -->
-        <div class="dashboard-content-section">
-            <h2 class="dashboard-section-title">Quick Actions</h2>
-            <!--
-            <div class="d-flex gap-3">
-                <a asp-page="/Customers" class="btn btn-primary">Repeat Quote</a>
-            </div>
-            -->
-            <div class="d-flex gap-3">
-                <a asp-page="/GetQuote" class="btn btn-primary">Start New Quote</a>
-                <a asp-page="/Confirm-template" class="btn btn-outline-secondary">View Invoice Template</a>
-            </div>
-        </div>
+        <!--
         <div class="dashboard-content-section">
             <div class="alert alert-info mb-4">
                 <div class="row g-4">
@@ -116,5 +103,6 @@
                 </div>
             </div>
         </div>
+        -->
     </main>
 </div>

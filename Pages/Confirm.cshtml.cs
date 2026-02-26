@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using WiseLabels.Models;
 using System.Text.Json;
 using System.Net;
+using CERM.DataAccess.Repositories.PriceList;
 
 namespace WiseLabels.Pages
 {
@@ -11,12 +12,18 @@ namespace WiseLabels.Pages
         private readonly ILogger<ConfirmModel> _logger;
         private readonly WiseLabels.Services.IQuoteService _quoteService;
         private readonly WiseLabels.Services.IEmailService _emailService;
+        private readonly IPriceListItemRepository _priceListRepo;
 
-        public ConfirmModel(ILogger<ConfirmModel> logger, WiseLabels.Services.IQuoteService quoteService, WiseLabels.Services.IEmailService emailService)
+        public ConfirmModel(
+            ILogger<ConfirmModel> logger, 
+            WiseLabels.Services.IQuoteService quoteService, 
+            WiseLabels.Services.IEmailService emailService,
+            IPriceListItemRepository priceListRepo)
         {
             _logger = logger;
             _quoteService = quoteService;
             _emailService = emailService;
+            _priceListRepo = priceListRepo;
         }
 
         [BindProperty]
@@ -25,8 +32,10 @@ namespace WiseLabels.Pages
         public string? ApiPayloadJson { get; set; }
         public string? FormValuesJson { get; set; }
         public List<QuotePriceBreakdown> PriceBreakdown { get; } = new();
+        public decimal? CustomDiePrice { get; set; }
+        public string? CustomDieUnit { get; set; }
 
-        public void OnGet()
+        public async Task OnGetAsync()
         {
             // Get quote data from TempData (passed from form submission)
             // Store it in the property for display, but also keep it in TempData for Edit redirect
@@ -47,6 +56,55 @@ namespace WiseLabels.Pages
             }
 
             LoadPriceBreakdown();
+            await LoadCustomDiePriceAsync();
+        }
+
+        private async Task LoadCustomDiePriceAsync()
+        {
+            // If custom die is required, fetch the price from CERM price list
+            if (QuoteRequest?.IsCustomDie == true)
+            {
+                _logger.LogInformation(
+                    "Custom die detected. IsCustomDie={IsCustomDie}, DieSizeInfo={DieSizeInfo}",
+                    QuoteRequest.IsCustomDie,
+                    QuoteRequest.DieSizeInfo ?? "NULL");
+
+                try
+                {
+                    // Line item 100001 is for custom die fabrication (standard price for all customers)
+                    var priceListItem = await _priceListRepo.GetByItemRefAsync("100001");
+
+                    if (priceListItem != null)
+                    {
+                        CustomDiePrice = (decimal)priceListItem.PriceExcludingTax;
+                        CustomDieUnit = !string.IsNullOrWhiteSpace(priceListItem.QuantityDescription1) 
+                            ? priceListItem.QuantityDescription1.Trim() 
+                            : "each";
+
+                        _logger.LogInformation(
+                            "Custom die price loaded from item 100001: {Price} {Unit} (from prijs_bm={PriceRaw}, omsaant1={Unit})", 
+                            CustomDiePrice,
+                            CustomDieUnit,
+                            priceListItem.PriceExcludingTax,
+                            priceListItem.QuantityDescription1);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Custom die price item 100001 not found in stdfpl__ table");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error loading custom die price for item 100001");
+                }
+            }
+            else
+            {
+                if (QuoteRequest?.IsCustomDie != true)
+                {
+                    _logger.LogDebug("Not a custom die - skipping price lookup");
+                }
+            }
         }
 
         public async Task<IActionResult> OnPostConfirmAsync()
@@ -66,6 +124,12 @@ namespace WiseLabels.Pages
                 {
                     return RedirectToPage("/Index");
                 }
+
+                // Load the quote request into the property so LoadCustomDiePriceAsync can access it
+                QuoteRequest = quote;
+
+                // Load custom die pricing before storing and redirecting
+                await LoadCustomDiePriceAsync();
 
                 // Store in database
                 var quoteId = await _quoteService.StoreQuoteAsync(quote);
@@ -110,16 +174,22 @@ namespace WiseLabels.Pages
                 if (!string.IsNullOrWhiteSpace(cermResponseJson))
                     TempData["CermApiResponse"] = cermResponseJson;
 
+                // Pass custom die information to Success page
+                if (CustomDiePrice.HasValue)
+                    TempData["CustomDiePrice"] = CustomDiePrice.Value.ToString();
+                if (!string.IsNullOrWhiteSpace(CustomDieUnit))
+                    TempData["CustomDieUnit"] = CustomDieUnit;
+
                 if (string.IsNullOrWhiteSpace(cermCalculationId) && string.IsNullOrWhiteSpace(cermEstimateId))
                 {
                     var subject = "CERM quote submission missing reference number";
                     var body = $@"<p>No quote number was returned for a submission.</p>
-<ul>
-    <li><strong>QuoteId:</strong> {quoteId}</li>
-    <li><strong>ApiSuccess:</strong> {apiSuccess}</li>
-    <li><strong>Description:</strong> {WebUtility.HtmlEncode(quote.Description ?? string.Empty)}</li>
-    <li><strong>Error:</strong> {WebUtility.HtmlEncode(cermErrorMessage ?? "(none)")}</li>
-</ul>";
+                        <ul>
+                            <li><strong>QuoteId:</strong> {quoteId}</li>
+                            <li><strong>ApiSuccess:</strong> {apiSuccess}</li>
+                            <li><strong>Description:</strong> {WebUtility.HtmlEncode(quote.Description ?? string.Empty)}</li>
+                            <li><strong>Error:</strong> {WebUtility.HtmlEncode(cermErrorMessage ?? "(none)")}</li>
+                        </ul>";
                     try
                     {
                         await _emailService.SendCustomEmailAsync("pmenefee@wbf.com", subject, body);
