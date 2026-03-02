@@ -72,7 +72,6 @@
                     @{ var shapes = new (string Key, string Label, string OutlineId)[]
                         {
                             ("rectangle", "Rectangle", "1"),
-                            ("square", "Square", "2"),
                             ("circle", "Circle", "3"),
                             ("oval", "Oval", "4")
                         };
@@ -81,7 +80,6 @@
                         var shapeIcons = new Dictionary<string, string>
                         {
                             ["rectangle"] = "<svg width=\"32\" height=\"20\" viewBox=\"0 0 32 20\" aria-hidden=\"true\" focusable=\"false\"><rect x=\"1\" y=\"1\" width=\"30\" height=\"18\" rx=\"2\" ry=\"2\" fill=\"currentColor\" opacity=\"0.15\" stroke=\"currentColor\" stroke-width=\"2\" /></svg>",
-                            ["square"] = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" aria-hidden=\"true\" focusable=\"false\"><rect x=\"2\" y=\"2\" width=\"20\" height=\"20\" rx=\"2\" ry=\"2\" fill=\"currentColor\" opacity=\"0.15\" stroke=\"currentColor\" stroke-width=\"2\" /></svg>",
                             ["circle"] = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" aria-hidden=\"true\" focusable=\"false\"><circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"currentColor\" opacity=\"0.15\" stroke=\"currentColor\" stroke-width=\"2\" /></svg>",
                             ["oval"] = "<svg width=\"32\" height=\"20\" viewBox=\"0 0 32 20\" aria-hidden=\"true\" focusable=\"false\"><ellipse cx=\"16\" cy=\"10\" rx=\"13\" ry=\"8\" fill=\"currentColor\" opacity=\"0.15\" stroke=\"currentColor\" stroke-width=\"2\" /></svg>"
                         };
@@ -719,7 +717,7 @@
                 }
 
                 function updateCornerVisibility(shapeKey) {
-                    const show = shapeKey === 'rectangle' || shapeKey === 'square';
+                    const show = shapeKey === 'rectangle';
                     cornerSection.classList.toggle('d-none', !show);
                     if (!show) {
                         cornerInput.value = '';
@@ -952,7 +950,7 @@
                         // Filter to only show items where AllowQuickQuote is true
                         const items = allItems.filter(item => item.AllowQuickQuote === true || item.allowQuickQuote === true);
 
-                        packingProcedureSelect.innerHTML = '<option value="">Select a packing procedure (optional)</option>';
+                        packingProcedureSelect.innerHTML = '<option value="">Select a packing procedure</option>';
 
                         if (items.length === 0) {
                             const option = document.createElement('option');
@@ -1597,20 +1595,11 @@
                         return;
                     }
 
-                    // Check if this matches a die size
-                    if (widthToHeights.has(widthValue)) {
-                        const possibleHeights = Array.from(widthToHeights.get(widthValue));
-                        let heightValue = heightInput.value.trim();
-                        if (!heightValue || !possibleHeights.includes(heightValue)) {
-                            suppressDimensionSync = true;
-                            heightInput.value = possibleHeights[0];
-                            suppressDimensionSync = false;
-                            heightValue = possibleHeights[0];
-                        }
-                        if (selectDieByDimensions(widthValue, heightValue)) {
-                            syncDimensionsFromDie();
-                            return;
-                        }
+                    // Check if this matches a die size with the current height
+                    const heightValue = heightInput.value.trim();
+                    if (heightValue && selectDieByDimensions(widthValue, heightValue)) {
+                        syncDimensionsFromDie();
+                        return;
                     }
 
                     // Custom value or no match - check and update warning
@@ -1639,20 +1628,11 @@
                         return;
                     }
 
-                    // Check if this matches a die size
-                    if (heightToWidths.has(heightValue)) {
-                        const possibleWidths = Array.from(heightToWidths.get(heightValue));
-                        let widthValue = widthInput.value.trim();
-                        if (!widthValue || !possibleWidths.includes(widthValue)) {
-                            suppressDimensionSync = true;
-                            widthInput.value = possibleWidths[0];
-                            suppressDimensionSync = false;
-                            widthValue = possibleWidths[0];
-                        }
-                        if (selectDieByDimensions(widthValue, heightValue)) {
-                            syncDimensionsFromDie();
-                            return;
-                        }
+                    // Check if this matches a die size with the current width
+                    const widthValue = widthInput.value.trim();
+                    if (widthValue && selectDieByDimensions(widthValue, heightValue)) {
+                        syncDimensionsFromDie();
+                        return;
                     }
 
                     // Custom value or no match - check and update warning
@@ -1667,46 +1647,26 @@
                     if (suppressDimensionSync) return;
 
                     const widthValue = e.detail.value;
-                    if (widthToHeights.has(widthValue)) {
-                        const possibleHeights = Array.from(widthToHeights.get(widthValue));
-                        let heightValue = heightInput.value.trim();
-                        if (!heightValue || !possibleHeights.includes(heightValue)) {
-                            suppressDimensionSync = true;
-                            heightInput.value = possibleHeights[0];
-                            suppressDimensionSync = false;
-                            heightValue = possibleHeights[0];
-                        }
-                        if (selectDieByDimensions(widthValue, heightValue)) {
-                            syncDimensionsFromDie();
-                            // Still check to update die size info
-                            checkCustomDieWarning();
-                        }
-                    } else {
-                        checkCustomDieWarning();
+                    const heightValue = heightInput.value.trim();
+
+                    if (heightValue && selectDieByDimensions(widthValue, heightValue)) {
+                        syncDimensionsFromDie();
                     }
+
+                    checkCustomDieWarning();
                 });
 
                 heightInput.addEventListener('combobox-select', (e) => {
                     if (suppressDimensionSync) return;
 
                     const heightValue = e.detail.value;
-                    if (heightToWidths.has(heightValue)) {
-                        const possibleWidths = Array.from(heightToWidths.get(heightValue));
-                        let widthValue = widthInput.value.trim();
-                        if (!widthValue || !possibleWidths.includes(widthValue)) {
-                            suppressDimensionSync = true;
-                            widthInput.value = possibleWidths[0];
-                            suppressDimensionSync = false;
-                            widthValue = possibleWidths[0];
-                        }
-                        if (selectDieByDimensions(widthValue, heightValue)) {
-                            syncDimensionsFromDie();
-                            // Still check to update die size info
-                            checkCustomDieWarning();
-                        }
-                    } else {
-                        checkCustomDieWarning();
+                    const widthValue = widthInput.value.trim();
+
+                    if (widthValue && selectDieByDimensions(widthValue, heightValue)) {
+                        syncDimensionsFromDie();
                     }
+
+                    checkCustomDieWarning();
                 });
 
                 window.addEventListener('printingSelectionChanged', () => {

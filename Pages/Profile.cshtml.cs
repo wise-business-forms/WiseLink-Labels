@@ -1,7 +1,11 @@
-using System.Security.Claims;
+using Azure.Identity;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
+using Microsoft.Graph;
+using System.DirectoryServices.AccountManagement;
+using System.Security.Claims;
 using WiseLabels.Authorization;
 
 namespace WiseLabels.Pages
@@ -12,15 +16,18 @@ namespace WiseLabels.Pages
         private readonly AccessControlOptions _accessOptions;
         private readonly IAuthorizationService _authorizationService;
         private readonly ILogger<ProfileModel> _logger;
+        private readonly IConfiguration _configuration;
 
         public ProfileModel(
             IOptions<AccessControlOptions> accessOptions,
             IAuthorizationService authorizationService,
-            ILogger<ProfileModel> logger)
+            ILogger<ProfileModel> logger,
+            IConfiguration configuration)
         {
             _accessOptions = accessOptions.Value;
             _authorizationService = authorizationService;
             _logger = logger;
+            _configuration = configuration;
         }
 
         public string DisplayName { get; set; } = string.Empty;
@@ -81,7 +88,14 @@ namespace WiseLabels.Pages
                 else if (claim.Type == ClaimTypes.GroupSid || 
                          claim.Type.Equals("groups", StringComparison.OrdinalIgnoreCase))
                 {
-                    Groups.Add(claim.Value);
+                    //  if can't seem to get showing the AD group names working so doing this instead
+                    var _claim = claim.Value;
+                    
+                    if (claim.Value == "93c0e017-7f53-4b5f-8f94-54775a6eeb48")
+                        _claim = "MFA_Conditional_Access_ALP";
+
+
+                    Groups.Add(_claim);
                 }
 
                 // Store all claims for debugging
@@ -91,6 +105,12 @@ namespace WiseLabels.Pages
                     AllClaims[claimType] = claim.Value;
                 }
             }
+
+            //Groups.Clear();
+            //foreach (string s in GetAdGroupNamesForCurrentUser())
+            //{
+            //    Groups.Add(s);
+            //}
 
             // Determine access level
             var userIdentifier = Email ?? UserPrincipalName;
@@ -136,6 +156,32 @@ namespace WiseLabels.Pages
 
             _logger.LogInformation("Profile viewed by user {Email} with access level {AccessLevel}", 
                 Email, HasFullAccess ? "Full" : (HasLimitedAccess ? "Limited" : "None"));
+        }
+
+        public async Task<string> GetAzureGroupNameAsync(string groupObjectId)
+        {
+            // 1. Setup Authentication (ClientSecretCredential for server-to-server)
+            var scopes = new[] { "https://graph.microsoft.com/.default" };
+            var clientSecretCredential = new ClientSecretCredential(
+                "977e68d4-b494-4f1c-a460-575f8ae1abef", "386586ae-c86b-4692-b87a-d40f5f87cdb9", "G4g8Q~rII4Wxl-NLygSoRxzq82AXKKEjjs6yEdi-");
+
+            var graphClient = new GraphServiceClient(clientSecretCredential, scopes);
+
+            try
+            {
+                // 2. Fetch the group by ID and only select the displayName
+                var group = await graphClient.Groups[groupObjectId].GetAsync(requestConfiguration =>
+                {
+                    requestConfiguration.QueryParameters.Select = new[] { "displayName" };
+                });
+
+                return group?.DisplayName;
+            }
+            catch (ServiceException ex)
+            {
+                // Handle cases where the group ID doesn't exist
+                return $"Error: {ex.Message}";
+            }
         }
     }
 }

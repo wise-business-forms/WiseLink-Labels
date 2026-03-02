@@ -16,6 +16,7 @@
     <PackageReference Include="Microsoft.Identity.Web" Version="3.8.2" />
     <PackageReference Include="Microsoft.Identity.Web.MicrosoftGraph" Version="4.3.0" />
     <PackageReference Include="Microsoft.Identity.Web.UI" Version="3.3.1" />
+    <PackageReference Include="System.DirectoryServices.AccountManagement" Version="10.0.3" />
     <ProjectReference Include="..\CERM.DataAccess\CERM.DataAccess.csproj" />
   </ItemGroup>
   <ItemGroup>
