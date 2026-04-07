@@ -15,11 +15,6 @@ namespace WiseLabels.Services
         Task<QuickQuotePricingResult> GetQuickQuotePricingAsync(QuoteRequest quote);
         Task<(bool Success, string? CalculationId, string? EstimateId, string? ErrorMessage, string? ResponseJson)> SubmitToCermApiAsync(QuoteRequest quote);
         CermApiPayload TransformToApiPayload(QuoteRequest quote);
-        /// <summary>
-        /// Updates contact info (name, email, phone) in the CERM database for the given estimate ID.
-        /// Requires the estimate ID returned from CERM (e.g. from SubmitToCermApiAsync).
-        /// </summary>
-        Task<bool> UpdateContactInfoAsync(string estimateId, string name, string email, string phone);
     }
 
     public class QuoteService : IQuoteService
@@ -73,34 +68,44 @@ namespace WiseLabels.Services
             var root = new JsonObject();
 
             // Required / always-present
-            root["CustomerId"] = _configuration["Cerm:CustomerID"] ?? "108620";
+            root["CustomerId"] = NullIfEmpty(quote.CustomerId) ?? _configuration["Cerm:CustomerID"] ?? "108620";
             root["ContactId"] = _configuration["Cerm:ContactID"] ?? "001";
 
             // PressRuns - only add properties with values
-            var colourCodeId = NullIfEmpty(quote.PrintingValue ?? quote.ColorCodeValue ?? quote.Printing ?? quote.ColorCode);
-            var finishValue = NullIfEmpty(quote.FinishValue ?? quote.Finish);
+            // Only use *Value fields (IDs) - don't fall back to display names
+            var colourCodeId = NullIfEmpty(quote.PrintingValue) ?? NullIfEmpty(quote.ColorCodeValue);
+            var finishId = NullIfEmpty(quote.FinishValue);  // Only use ID, not display name
             var pressRun = new JsonObject();
             if (!string.IsNullOrEmpty(colourCodeId))
                 pressRun["ColourCodeIdFront"] = colourCodeId;
-            if (!string.IsNullOrEmpty(finishValue))
+            if (!string.IsNullOrEmpty(finishId))
             {
                 var finishes = new JsonArray
                 {
-                    JsonValue.Create(finishValue)!
+                    JsonValue.Create(finishId)!
                 };
                 pressRun["FinishingTypes"] = finishes;
             }
             root["PressRuns"] = new JsonArray(pressRun);
 
-            root["WindingId"] = "10";
+            // WindingId - use the value from the form (unwind direction ID), default to "10" (Sheeted) if not provided
+            var windingId = NullIfEmpty(quote.UnwindDirectionValue ?? quote.UnwindDirection) ?? "10";
+            root["WindingId"] = windingId;
 
-            // Outline - add only when non-empty
+            // Outline - CERM API expects the shape NAME (e.g., "Rectangle"), not the ID (e.g., 1)
             var normalizedShape = NormalizeShapeKey(quote.ShapeValue, quote.Shape);
-            var outline = MapShapeToCermOutline(quote.ShapeValue, quote.Shape);
-            if (outline.HasValue)
-                root["Outline"] = outline.Value;
+            if (!string.IsNullOrEmpty(normalizedShape))
+            {
+                // Capitalize first letter to match CERM API format: "Rectangle", "Square", "Circle", "Oval"
+                var outlineName = char.ToUpperInvariant(normalizedShape[0]) + normalizedShape[1..];
+                root["Outline"] = outlineName;
+            }
 
-            AddIfNotEmpty(root, "SubstrateId", quote.MaterialValue ?? quote.Material);
+            var substrateIdToSend = quote.MaterialValue ?? quote.Material;
+            _logger.LogInformation("Sending SubstrateId to CERM: '{SubstrateId}' (MaterialValue: '{MaterialValue}', Material: '{Material}')", 
+                substrateIdToSend, quote.MaterialValue ?? "(null)", quote.Material ?? "(null)");
+
+            AddIfNotEmpty(root, "SubstrateId", substrateIdToSend);
             AddIfNotEmpty(root, "Description", quote.Description);
             root["NumberOfProducts"] = 1;
             AddIfNotEmpty(root, "DieSizeId", quote.CuttingDieValue ?? quote.CuttingDie);
@@ -138,9 +143,31 @@ namespace WiseLabels.Services
                     root["Radius"] = diameter / 2.0;
             }
 
-            root["PackingProcedureId"] = "152";
-            root["PackingPriority"] = "Diameter";
-            root["PackingNumber"] = 500;
+            // Packing procedure logic
+            var packingProcedureId = quote.PackingProcedureValue ?? "202"; // Default to Sheet
+            var packingProcedure = (quote.PackingProcedure ?? "").ToLower();
+            var isRoll = packingProcedure.Contains("roll") || packingProcedureId == "102";
+            var isSheet = packingProcedure.Contains("sheet") || packingProcedureId == "202";
+
+            if (isRoll)
+            {
+                root["PackingProcedureId"] = "102";
+                root["PackingPriority"] = 2; // Integer, not string
+                root["PackingNumber"] = quote.PackingQuantity ?? 500; // Use specified quantity or default
+            }
+            else if (isSheet)
+            {
+                root["PackingProcedureId"] = "202";
+                root["PackingPriority"] = 1; // Integer, not string
+                root["PackingNumber"] = 0;
+            }
+            else
+            {
+                // Fallback to defaults if packing type is unclear
+                root["PackingProcedureId"] = packingProcedureId;
+                root["PackingPriority"] = 1;
+                root["PackingNumber"] = 0;
+            }
 
             return root.ToJsonString();
         }
@@ -159,6 +186,10 @@ namespace WiseLabels.Services
             try
             {
                 var payloadJson = BuildCermPayloadJson(quote);
+
+                // Log the actual JSON payload being sent to CERM API with raw values
+                _logger.LogInformation("CERM API Payload (actual values being sent):\n{PayloadJson}", payloadJson);
+
                 var baseUrl = _configuration["Cerm:BaseUrl"] ?? "https://brandmark-api.cerm.be/";
                 var quickQuoteUrl = _configuration["Cerm:QuickQuoteUrl"] ?? "quote-api/v1/calculations/narrow-web/quick-quote/price";
                 var fullUrl = BuildUrl(baseUrl, quickQuoteUrl);
@@ -228,7 +259,7 @@ namespace WiseLabels.Services
                 SubstrateId = NullIfEmpty(quote.MaterialValue ?? quote.Material),
                 Description = quote.Description,
                 PackingProcedureId = "152",
-                PackingPriority = "Diameter",
+                PackingPriority = 1,
                 PackingNumber = 500,
                 NumberOfProducts = 1,
                 Width = TryParseDouble(quote.LabelWidth, out var width) ? width : null,
@@ -238,9 +269,10 @@ namespace WiseLabels.Services
                 {
                     new PressRun
                     {
-                        ColourCodeIdFront = quote.PrintingValue ?? quote.ColorCodeValue ?? quote.Printing ?? quote.ColorCode,
-                        FinishingTypes = (!string.IsNullOrWhiteSpace(quote.FinishValue) || !string.IsNullOrWhiteSpace(quote.Finish))
-                            ? new List<string> { quote.FinishValue ?? quote.Finish ?? string.Empty }
+                        // Only use *Value fields (IDs) - don't fall back to display names
+                        ColourCodeIdFront = NullIfEmpty(quote.PrintingValue) ?? NullIfEmpty(quote.ColorCodeValue),
+                        FinishingTypes = !string.IsNullOrWhiteSpace(quote.FinishValue)
+                            ? new List<string> { quote.FinishValue!.Trim() }
                             : new List<string>()
                     }
                 },
@@ -260,7 +292,7 @@ namespace WiseLabels.Services
         }
 
         /// <summary>
-        /// Maps form shape value/ID to CERM API Outline (shape name): Rectangle, Circle, Oval, Special.
+        /// Maps form shape value/ID to CERM API Outline (shape name): Rectangle, Square, Circle, Oval.
         /// </summary>
         private static string? NormalizeShapeKey(string? shapeValue, string? shape)
         {
@@ -313,6 +345,15 @@ namespace WiseLabels.Services
         {
             baseUrl ??= string.Empty;
             relativePath ??= string.Empty;
+
+            // If relativePath is already an absolute URL, return it as-is
+            if (relativePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+                relativePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return relativePath;
+            }
+
+            // Otherwise, combine base URL with relative path
             return string.Concat(baseUrl.TrimEnd('/'), "/", relativePath.TrimStart('/'));
         }
 
@@ -433,67 +474,6 @@ namespace WiseLabels.Services
             catch (JsonException)
             {
                 return (null, null);
-            }
-        }
-
-        public async Task<bool> UpdateContactInfoAsync(string estimateId, string name, string email, string phone)
-        {
-            if (string.IsNullOrWhiteSpace(estimateId))
-            {
-                _logger.LogWarning("UpdateContactInfoAsync called with empty estimateId; skipping contact update");
-                return false;
-            }
-
-            var connectionString = _configuration.GetConnectionString("CermDatabase");
-            if (string.IsNullOrEmpty(connectionString))
-            {
-                _logger.LogError("CermDatabase connection string not configured");
-                return false;
-            }
-
-            try
-            {
-                // Replace the SQL below with your UPDATE statement. Parameters: @estimateId, @name, @email, @phone
-                var sql = @"UPDATE v1bon___ SET 
-                        komment1 = @name, 
-                        komment2 = @email, 
-                        komment3 = @phone 
-                    WHERE bon__ref = @estimateId";
-
-                using var connection = new SqlConnection(connectionString);
-                await connection.OpenAsync();
-                using var command = new SqlCommand(sql, connection);
-                command.Parameters.AddWithValue("@estimateId", estimateId);
-                command.Parameters.AddWithValue("@name", name ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@email", email ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@phone", phone ?? (object)DBNull.Value);
-
-                int rowsAffected = await command.ExecuteNonQueryAsync();
-
-                if (rowsAffected == 0)
-                {
-                    _logger.LogWarning("No records updated for estimate {EstimateId}", estimateId);
-                    return false;
-                }
-
-                _logger.LogInformation("Contact info updated for estimate {EstimateId}", estimateId);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating contact info for estimate {EstimateId}", estimateId);
-                var parameters = new Dictionary<string, object?>
-                {
-                    ["EstimateId"] = estimateId,
-                    ["Name"] = name,
-                    ["Email"] = email,
-                    ["Phone"] = phone
-                };
-                await _emailService.SendExceptionNotificationAsync(
-                    ex,
-                    "QuoteService.UpdateContactInfoAsync failure",
-                    parameters);
-                return false;
             }
         }
     }

@@ -1,18 +1,117 @@
-ï»¿@page "/Customers"
+@page "/Customers"
 @model CustomersModel
 @{
     ViewData["Title"] = "Customers";
     Layout = "_Layout";
+
+    // Server-side pagination constants (must match JS)
+    const int rowsPerPage = 100;
+    const int maxPagesToShow = 10;
+    var totalCustomers = Model.Customers.Count;
+    var totalPages = Math.Max(1, (int)Math.Ceiling(totalCustomers / (double)rowsPerPage));
+    var startPage = 1;
+    var endPage = Math.Min(maxPagesToShow, totalPages);
 }
 
+<style>
+    .customer-details-panel {
+        position: sticky;
+        top: 1rem;
+        align-self: flex-start;
+        max-height: calc(100vh - 2rem);
+        overflow-y: auto;
+    }
+
+    .customer-quotes-list,
+    .customer-quote-details {
+        max-height: calc(100vh - 12rem);
+        overflow-y: auto;
+    }
+
+    /* Full width for customers page */
+    .customers-page .dashboard-main {
+        padding: 2rem 0;
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .customers-page .admin-page-title {
+        padding: 0 2.5rem;
+    }
+
+    .customers-page .alert,
+    .customers-page .mb-3:has(#searchInput),
+    .customers-page .pagination {
+        margin-left: 2.5rem;
+        margin-right: 2.5rem;
+    }
+
+    .customers-content {
+        width: 100%;
+        padding: 0 2.5rem;
+    }
+
+    .customers-table-container {
+        width: 100%;
+    }
+
+    #customersTable {
+        width: 100%;
+        table-layout: auto;
+    }
+
+    /* Contact row styles */
+    .customer-row {
+        cursor: pointer;
+    }
+
+    /* Hide rows beyond first page until JS takes over */
+    .customer-row.initially-hidden {
+        display: none;
+    }
+
+    /* Modal styles */
+    .contact-list-item {
+        transition: background-color 0.2s;
+    }
+
+    .contact-list-item:hover {
+        background-color: #f8f9fa;
+    }
+</style>
+
+<div class="customers-page">
 <div class="dashboard-container">
     @await Html.PartialAsync("_LeftSidebar")
     <main class="dashboard-main">
         <h1 class="admin-page-title">Customers</h1>
+
+        @if (Model.IsFiltered && !string.IsNullOrWhiteSpace(Model.FilteredByUserId))
+        {
+            <div class="alert alert-info mb-3" role="alert">
+                <div class="d-flex align-items-center">
+                    <svg width="20" height="20" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                        <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
+                    </svg>
+                    <span>
+                        <strong>Filtered View:</strong> Showing only customers assigned to <code>@Model.FilteredByUserId</code>
+                    </span>
+                </div>
+            </div>
+        }
+
         <div class="mb-3">
             <input type="text" id="searchInput" class="form-control" placeholder="Search customers by name..." />
         </div>
-        <ul id="paginationControls" class="pagination"></ul>
+        @* Server-side rendered pagination for instant display *@
+        <ul id="paginationControlsTop" class="pagination">
+            <li class="page-item disabled"><a class="page-link" href="#" data-page="0">&laquo; Previous</a></li>
+            @for (int i = startPage; i <= endPage; i++)
+            {
+                <li class="page-item@(i == 1 ? " active" : "")"><a class="page-link" href="#" data-page="@i">@i</a></li>
+            }
+            <li class="page-item@(totalPages <= 1 ? " disabled" : "")"><a class="page-link" href="#" data-page="2">Next &raquo;</a></li>
+        </ul>
         <div class="customers-content">
             <div id="customersTableContainer" class="customers-table-container">
                 <table class="table table-striped table-hover" id="customersTable">
@@ -20,15 +119,42 @@
                         <tr>
                             <th>ID</th>
                             <th>Name</th>
+                            <th style="width: 400px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="customersTableBody">
+                        @{ var rowIndex = 0; }
                         @foreach (var customer in Model.Customers)
                         {
-                            <tr data-customer-id="@customer.Id" data-customer-name="@customer.Name">
+                            var isHidden = rowIndex >= rowsPerPage;
+                            <tr class="customer-row@(isHidden ? " initially-hidden" : "")" data-customer-id="@customer.Id" data-customer-name="@customer.Name">
                                 <td>@customer.Id</td>
                                 <td>@customer.Name</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button type="button" 
+                                                class="btn btn-outline-success btn-new-quote" 
+                                                data-customer-id="@customer.Id"
+                                                data-customer-name="@customer.Name"
+                                                title="Create new quote">
+                                            New Quote
+                                        </button>
+                                        <button type="button" 
+                                                class="btn btn-outline-primary btn-view-orders" 
+                                                data-customer-id="@customer.Id"
+                                                data-customer-name="@customer.Name"
+                                                title="View past orders">
+                                            Past Orders
+                                        </button>
+                                        <a href="/Customers/Profile?customerId=@customer.Id" 
+                                           class="btn btn-outline-secondary"
+                                           title="View customer profile">
+                                            Profile
+                                        </a>
+                                    </div>
+                                </td>
                             </tr>
+                            rowIndex++;
                         }
                     </tbody>
                 </table>
@@ -40,8 +166,8 @@
                     <table class="table table-sm customer-quotes-table">
                         <thead>
                             <tr>
-                                <th scope="col">Quote #</th>
-                                <th scope="col">Date</th>
+                                <th scope="col">Calculation ID</th>
+                                <th scope="col">Estimate ID</th>
                                 <th scope="col">Description</th>
                             </tr>
                         </thead>
@@ -59,26 +185,76 @@
                 </div>
             </aside>
         </div>
-        <ul id="paginationControls" class="pagination"></ul>
+        @* Server-side rendered pagination for instant display *@
+        <ul id="paginationControlsBottom" class="pagination">
+            <li class="page-item disabled"><a class="page-link" href="#" data-page="0">&laquo; Previous</a></li>
+            @for (int i = startPage; i <= endPage; i++)
+            {
+                <li class="page-item@(i == 1 ? " active" : "")"><a class="page-link" href="#" data-page="@i">@i</a></li>
+            }
+            <li class="page-item@(totalPages <= 1 ? " disabled" : "")"><a class="page-link" href="#" data-page="2">Next &raquo;</a></li>
+        </ul>
     </main>
 </div>
 
 <form method="post" asp-page-handler="UseQuote" id="useQuoteForm" class="d-none">
     @Html.AntiForgeryToken()
+    <input type="hidden" name="SelectedCalculationId" id="selectedCalculationId" />
     <input type="hidden" name="SelectedEstimateId" id="selectedEstimateId" />
     <input type="hidden" name="SelectedCustomerId" id="selectedCustomerId" />
     <input type="hidden" name="SelectedCustomerName" id="selectedCustomerName" />
     <input type="hidden" name="SelectedDescription" id="selectedDescription" />
     <input type="hidden" name="SelectedMaterial" id="selectedMaterial" />
+    <input type="hidden" name="SelectedSubstrateId" id="selectedSubstrateId" />
+    <input type="hidden" name="SelectedReferenceAtCustomer" id="selectedReferenceAtCustomer" />
+    <input type="hidden" name="SelectedSize" id="selectedSize" />
+    <input type="hidden" name="SelectedLabelShape" id="selectedLabelShape" />
+    <input type="hidden" name="SelectedLabelWidth" id="selectedLabelWidth" />
+    <input type="hidden" name="SelectedLabelHeight" id="selectedLabelHeight" />
+    <input type="hidden" name="SelectedLabelRadius" id="selectedLabelRadius" />
+    <input type="hidden" name="SelectedColour" id="selectedColour" />
+    <input type="hidden" name="SelectedWinding" id="selectedWinding" />
+    <input type="hidden" name="SelectedPackingProcedureId" id="selectedPackingProcedureId" />
+    <input type="hidden" name="SelectedColourCodeId" id="selectedColourCodeId" />
+    <input type="hidden" name="SelectedFinishingTypeId" id="selectedFinishingTypeId" />
+    <input type="hidden" name="SelectedMinCount" id="selectedMinCount" />
+    <input type="hidden" name="SelectedMaxCount" id="selectedMaxCount" />
 </form>
+
+<!-- Contact Selection Modal -->
+<div class="modal fade" id="contactSelectionModal" tabindex="-1" aria-labelledby="contactSelectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="contactSelectionModalLabel">Select Contact for New Quote</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3"><strong>Customer:</strong> <span id="modalCustomerName"></span></p>
+                <div id="contactSelectionList" class="list-group">
+                    <div class="text-center py-4">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">Loading contacts...</span>
+                        </div>
+                        <p class="mt-2 mb-0 text-muted">Loading contacts...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const searchInput = document.getElementById('searchInput');
         const tableBody = document.getElementById('customersTableBody');
-        const paginationControls = document.getElementById('paginationControls');
+        const paginationControlsTop = document.getElementById('paginationControlsTop');
+        const paginationControlsBottom = document.getElementById('paginationControlsBottom');
         const rowsPerPage = 100;
-        const maxPagesToShow = 5;
+        const maxPagesToShow = 10;
         const customerDetailsPanel = document.getElementById('customerDetailsPanel');
         const customerDetailsContent = document.getElementById('customerDetailsContent');
         const customerQuotesList = document.getElementById('customerQuotesList');
@@ -97,10 +273,112 @@
         const quotesEmptyMessage = 'No quotes were found for this customer.';
         const quotesErrorMessage = 'Unable to load quotes right now.';
         let currentPage = 1;
-        let filteredRows = Array.from(tableBody.querySelectorAll('tr'));
+        let isPaginationBusy = false;
+
+        // Modal elements
+        const contactModal = new bootstrap.Modal(document.getElementById('contactSelectionModal'));
+        const modalCustomerName = document.getElementById('modalCustomerName');
+        const contactSelectionList = document.getElementById('contactSelectionList');
+
+        // Store all rows initially (before any filtering/pagination)
+        const allCustomerRows = Array.from(tableBody.querySelectorAll('tr.customer-row'));
+        const customerRows = allCustomerRows.map(customerRow => ({ customerRow }));
+        let filteredRows = [...customerRows];
         let currentQuotes = [];
         let selectedCustomerId = null;
         let selectedCustomerName = null;
+
+        // Handle New Quote button click
+        async function handleNewQuoteClick(customerId, customerName) {
+            selectedCustomerId = customerId;
+            selectedCustomerName = customerName;
+
+            modalCustomerName.textContent = customerName;
+            contactSelectionList.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading contacts...</span>
+                    </div>
+                    <p class="mt-2 mb-0 text-muted">Loading contacts...</p>
+                </div>
+            `;
+
+            contactModal.show();
+
+            try {
+                const response = await fetch(`/api/customer-contacts?customerId=${encodeURIComponent(customerId)}`);
+                if (!response.ok) throw new Error('Failed to load contacts');
+
+                const contacts = await response.json();
+
+                if (contacts.length === 0) {
+                    contactSelectionList.innerHTML = `
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-person-x fs-1"></i>
+                            <p class="mt-2 mb-0">No contacts found for this customer.</p>
+                            <button type="button" class="btn btn-sm btn-primary mt-3" onclick="proceedWithoutContact()">
+                                Continue Without Contact
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    contactSelectionList.innerHTML = contacts.map(contact => `
+                        <button type="button" class="list-group-item list-group-item-action contact-list-item" 
+                                onclick="selectContact('${escapeHtml(contact.fullName)}', '${escapeHtml(contact.email || '')}', '${escapeHtml(contact.phone || '')}')">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">${escapeHtml(contact.fullName)}</h6>
+                                    ${contact.jobTitle ? `<small class="text-muted d-block">${escapeHtml(contact.jobTitle)}</small>` : ''}
+                                    ${contact.email ? `<small class="text-muted"><i class="bi bi-envelope"></i> ${escapeHtml(contact.email)}</small>` : ''}
+                                </div>
+                                <i class="bi bi-arrow-right-circle fs-5 text-primary"></i>
+                            </div>
+                        </button>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading contacts:', error);
+                contactSelectionList.innerHTML = `
+                    <div class="alert alert-danger mb-0" role="alert">
+                        <i class="bi bi-exclamation-triangle"></i> Failed to load contacts. Please try again.
+                    </div>
+                `;
+            }
+        }
+
+        // Global function for contact selection
+        window.selectContact = function(contactName, contactEmail, contactPhone) {
+            contactModal.hide();
+
+            const params = new URLSearchParams({
+                customerId: selectedCustomerId,
+                customerName: selectedCustomerName,
+                contactName: contactName,
+                contactEmail: contactEmail || '',
+                contactPhone: contactPhone || ''
+            });
+
+            window.location.href = `/GetQuote?${params.toString()}`;
+        };
+
+        // Global function for proceeding without contact
+        window.proceedWithoutContact = function() {
+            contactModal.hide();
+
+            const params = new URLSearchParams({
+                customerId: selectedCustomerId,
+                customerName: selectedCustomerName
+            });
+
+            window.location.href = `/GetQuote?${params.toString()}`;
+        };
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+
         const selectedDescriptionInput = document.getElementById('selectedDescription');
         const selectedMaterialInput = document.getElementById('selectedMaterial');
         const quoteRequestFields = [
@@ -194,7 +472,7 @@
             normalized.email = rawQuote.email ?? rawQuote.Email ?? '';
             normalized.phone = rawQuote.phoneNumber ?? rawQuote.PhoneNumber ?? '';
             normalized.referenceType = 'Past Quote';
-            normalized.referenceValue = rawQuote.reference ?? rawQuote.Reference ?? normalized.estimateId;
+            normalized.referenceValue = normalized.estimateId;
             normalized.description = rawQuote.description ?? rawQuote.Description ?? '';
             normalized.material = rawQuote.material ?? rawQuote.Material ?? '';
             normalized.createdDate = rawQuote.orderDate ?? rawQuote.OrderDate ?? rawQuote.deliveryDate ?? rawQuote.DeliveryDate ?? '';
@@ -206,10 +484,10 @@
 
         function formatQuoteFieldValue(value) {
             if (Array.isArray(value)) {
-                return value.length ? value.join(', ') : 'â€”';
+                return value.length ? value.join(', ') : '—';
             }
             if (value === undefined || value === null || value === '') {
-                return 'â€”';
+                return '—';
             }
             return value;
         }
@@ -219,7 +497,33 @@
                 return;
             }
             currentQuotes = [];
-            customerQuotesTableBody.innerHTML = `<tr class="customer-quotes-empty"><td colspan="3">${message}</td></tr>`;
+
+            // Check if this is the "no quotes found" message and we have a customer selected
+            if (message === quotesEmptyMessage && selectedCustomerId && selectedCustomerName) {
+                customerQuotesTableBody.innerHTML = `
+                    <tr class="customer-quotes-empty">
+                        <td colspan="3" style="text-align: center; padding: 2rem;">
+                            <p class="mb-3">${message}</p>
+                            <button type="button" class="btn btn-primary btn-sm" id="createNewQuoteBtn">
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 0.5rem;">
+                                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                                </svg>
+                                Create a New Quote
+                            </button>
+                        </td>
+                    </tr>`;
+
+                // Add click handler for the create new quote button
+                const createBtn = document.getElementById('createNewQuoteBtn');
+                if (createBtn) {
+                    createBtn.addEventListener('click', function() {
+                        createNewQuoteForCustomer();
+                    });
+                }
+            } else {
+                customerQuotesTableBody.innerHTML = `<tr class="customer-quotes-empty"><td colspan="3">${message}</td></tr>`;
+            }
+
             showQuotesList();
         }
 
@@ -234,37 +538,206 @@
             }
         }
 
-        function showQuoteDetails(quote) {
+        function createNewQuoteForCustomer() {
+            if (!selectedCustomerId || !selectedCustomerName) {
+                console.error('Missing customer information');
+                return;
+            }
+
+            // Trigger the modal to select a contact
+            handleNewQuoteClick(selectedCustomerId, selectedCustomerName);
+        }
+
+        function getSubstrateDescription(substrate) {
+            // Handle null/undefined
+            if (!substrate) {
+                return '';
+            }
+
+            // Handle string (simple substrate description)
+            if (typeof substrate === 'string') {
+                return substrate;
+            }
+
+            // Handle object with Descriptions array
+            if (substrate.Descriptions || substrate.descriptions) {
+                const descriptions = substrate.Descriptions || substrate.descriptions;
+
+                if (Array.isArray(descriptions)) {
+                    // Try to find en-US description first
+                    const enUS = descriptions.find(d => 
+                        (d.ISOLanguageCode || d.isoLanguageCode || '').toLowerCase() === 'en-us'
+                    );
+
+                    if (enUS && (enUS.Description || enUS.description)) {
+                        return enUS.Description || enUS.description;
+                    }
+
+                    // Fallback to first available description
+                    if (descriptions.length > 0) {
+                        const fallback = descriptions[0];
+                        return fallback.Description || fallback.description || '';
+                    }
+                }
+            }
+
+            // Fallback to direct properties
+            return substrate.Description || substrate.description || '';
+        }
+
+        async function showQuoteDetails(quote) {
             if (!customerQuoteDetails || !customerQuoteDetailsContent) {
                 return;
             }
 
-            const detailsMarkup = quoteRequestFields.map(field => {
-                const rawValue = quote[field.key];
-                const formattedValue = field.format ? field.format(rawValue) : formatQuoteFieldValue(rawValue);
-                return `<dt>${field.label}</dt><dd>${formattedValue}</dd>`;
-            }).join('');
-
-            customerQuoteDetailsContent.innerHTML = `
-                <dl class="quote-details-grid quote-details-full">
-                    ${detailsMarkup}
-                </dl>
-            `;
-
-            if (customerQuoteDetailsActions) {
-                customerQuoteDetailsActions.innerHTML = '<button type="button" class="btn btn-primary customer-quote-select">Use This Quote</button>';
-                const selectButton = customerQuoteDetailsActions.querySelector('.customer-quote-select');
-                if (selectButton) {
-                    selectButton.dataset.estimateId = quote.estimateId ?? '';
-                    selectButton.dataset.customerId = quote.customerId ?? '';
-                    selectButton.dataset.customerName = quote.customerDisplayName ?? '';
-                    selectButton.dataset.description = quote.description ?? '';
-                    selectButton.dataset.material = quote.material ?? '';
-                }
+            const calculationId = quote.calculationId || '';
+            if (!calculationId) {
+                customerQuoteDetailsContent.innerHTML = '<p class="text-danger">No calculation ID available for this quote.</p>';
+                customerQuotesList?.classList.add('is-hidden');
+                customerQuoteDetails.classList.remove('is-hidden');
+                return;
             }
 
+            // Show loading state
+            customerQuoteDetailsContent.innerHTML = '<p class="text-muted">Loading quote details...</p>';
             customerQuotesList?.classList.add('is-hidden');
             customerQuoteDetails.classList.remove('is-hidden');
+
+            try {
+                // Fetch full quote details from CERM API
+                const response = await fetch(`/Api/CermCalculation?calculationId=${encodeURIComponent(calculationId)}`, {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load quote details: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const quoteData = result.Data || result.data || result;
+
+                // Extract substrate information
+                const substrateObj = quoteData.Substrate || quoteData.substrate;
+                const substrateDescription = getSubstrateDescription(substrateObj);
+                const substrateId = quoteData.SubstrateId || quoteData.substrateId || '';
+
+                // Build detailed view from CERM API response
+                const detailsHtml = `
+                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                        <div style="display: flex; gap: 2rem; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+                                <div>
+                                    <div style="font-size: 0.75rem; color: #6c757d; text-transform: uppercase; margin-bottom: 0.25rem;">Estimate ID</div>
+                                    <div style="font-size: 1.25rem; font-weight: 600; color: #0d6efd;">${quoteData.EstimateId || quoteData.estimateId || '—'}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.75rem; color: #6c757d; text-transform: uppercase; margin-bottom: 0.25rem;">Calculation ID</div>
+                                    <div style="font-size: 1.25rem; font-weight: 600; color: #0d6efd;">${quoteData.Id || quoteData.id || calculationId}</div>
+                                </div>
+                            </div>
+                            <div>
+                                <button type="button" class="btn btn-primary customer-quote-select-top">Use This Quote</button>
+                            </div>
+                        </div>
+                    </div>
+                    <dl class="quote-details-grid quote-details-full">
+                        <dt>Description</dt><dd>${quoteData.Description || quoteData.description || '—'}</dd>
+                        <dt>Customer Reference</dt><dd>${quoteData.ReferenceAtCustomer || quoteData.referenceAtCustomer || '—'}</dd>
+                        <dt>Size</dt><dd>${quoteData.Size || quoteData.size || '—'}</dd>
+                        <dt>Width</dt><dd>${quoteData.LabelWidth || quoteData.labelWidth || '—'}"</dd>
+                        <dt>Height</dt><dd>${quoteData.LabelHeight || quoteData.labelHeight || '—'}"</dd>
+                        <dt>Radius</dt><dd>${quoteData.LabelRadius || quoteData.labelRadius || '—'}"</dd>
+                        <dt>Shape</dt><dd>${formatLabelShape(quoteData.LabelShape || quoteData.labelShape)}</dd>
+                        <dt>Substrate</dt><dd>${substrateDescription || '—'}</dd>
+                        <dt>Printing</dt><dd>${quoteData.Colour || quoteData.colour || '—'}</dd>
+                        <dt>Winding</dt><dd>${formatWinding(quoteData.Winding || quoteData.winding)}</dd>
+                        <dt>Packing</dt><dd>${quoteData.PackingProcedureId || quoteData.packingProcedureId || '—'}</dd>
+                        <dt>Price Type</dt><dd>${quoteData.PriceType || quoteData.priceType || '—'}</dd>
+                        <dt>Price Unit</dt><dd>${quoteData.PriceUnit || quoteData.priceUnit || '—'}</dd>
+                        <dt>Min Quantity</dt><dd>${formatNumber(quoteData.MinimumCount || quoteData.minimumCount)}</dd>
+                        <dt>Max Quantity</dt><dd>${formatNumber(quoteData.MaximumCount || quoteData.maximumCount)}</dd>
+                    </dl>
+                `;
+
+                customerQuoteDetailsContent.innerHTML = detailsHtml;
+
+                // Add data attributes to the top button that was just added in the HTML
+                const topButton = customerQuoteDetailsContent.querySelector('.customer-quote-select-top');
+                if (topButton) {
+                    topButton.dataset.calculationId = quoteData.Id || quoteData.id || calculationId;
+                    topButton.dataset.estimateId = quoteData.EstimateId || quoteData.estimateId || calculationId;
+                    topButton.dataset.customerId = selectedCustomerId || '';
+                    topButton.dataset.customerName = selectedCustomerName || '';
+                    topButton.dataset.description = quoteData.Description || quoteData.description || '';
+                    topButton.dataset.material = substrateDescription || '';
+                    topButton.dataset.substrateId = substrateId;
+                    topButton.dataset.referenceAtCustomer = quoteData.ReferenceAtCustomer || quoteData.referenceAtCustomer || '';
+                    topButton.dataset.size = quoteData.Size || quoteData.size || '';
+                    topButton.dataset.labelShape = quoteData.LabelShape || quoteData.labelShape || '';
+                    topButton.dataset.labelWidth = quoteData.LabelWidth || quoteData.labelWidth || '';
+                    topButton.dataset.labelHeight = quoteData.LabelHeight || quoteData.labelHeight || '';
+                    topButton.dataset.labelRadius = quoteData.LabelRadius || quoteData.labelRadius || '';
+                    topButton.dataset.colour = quoteData.Colour || quoteData.colour || '';
+                    topButton.dataset.winding = quoteData.Winding || quoteData.winding || '';
+                    topButton.dataset.packingProcedureId = quoteData.PackingProcedureId || quoteData.packingProcedureId || '';
+                    topButton.dataset.colourCodeId = quoteData.ColourCodeId || quoteData.colourCodeId || '';
+                    topButton.dataset.finishingTypeId = quoteData.FinishingTypeId || quoteData.finishingTypeId || '';
+                    topButton.dataset.minCount = quoteData.MinimumCount || quoteData.minimumCount || '';
+                    topButton.dataset.maxCount = quoteData.MaximumCount || quoteData.maximumCount || '';
+                }
+
+                if (customerQuoteDetailsActions) {
+                    customerQuoteDetailsActions.innerHTML = '<button type="button" class="btn btn-primary customer-quote-select">Use This Quote</button>';
+                    const selectButton = customerQuoteDetailsActions.querySelector('.customer-quote-select');
+                    if (selectButton) {
+                        selectButton.dataset.calculationId = quoteData.Id || quoteData.id || calculationId;
+                        selectButton.dataset.estimateId = quoteData.EstimateId || quoteData.estimateId || calculationId;
+                        selectButton.dataset.customerId = selectedCustomerId || '';
+                        selectButton.dataset.customerName = selectedCustomerName || '';
+                        selectButton.dataset.description = quoteData.Description || quoteData.description || '';
+                        selectButton.dataset.material = substrateDescription || ''; // Use the extracted en-US description
+                        selectButton.dataset.substrateId = substrateId;
+                        selectButton.dataset.referenceAtCustomer = quoteData.ReferenceAtCustomer || quoteData.referenceAtCustomer || '';
+                        selectButton.dataset.size = quoteData.Size || quoteData.size || '';
+                        selectButton.dataset.labelShape = quoteData.LabelShape || quoteData.labelShape || '';
+                        selectButton.dataset.labelWidth = quoteData.LabelWidth || quoteData.labelWidth || '';
+                        selectButton.dataset.labelHeight = quoteData.LabelHeight || quoteData.labelHeight || '';
+                        selectButton.dataset.labelRadius = quoteData.LabelRadius || quoteData.labelRadius || '';
+                        selectButton.dataset.colour = quoteData.Colour || quoteData.colour || '';
+                        selectButton.dataset.winding = quoteData.Winding || quoteData.winding || '';
+                        selectButton.dataset.packingProcedureId = quoteData.PackingProcedureId || quoteData.packingProcedureId || '';
+                        selectButton.dataset.colourCodeId = quoteData.ColourCodeId || quoteData.colourCodeId || '';
+                        selectButton.dataset.finishingTypeId = quoteData.FinishingTypeId || quoteData.finishingTypeId || '';
+                        selectButton.dataset.minCount = quoteData.MinimumCount || quoteData.minimumCount || '';
+                        selectButton.dataset.maxCount = quoteData.MaximumCount || quoteData.maximumCount || '';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load quote details from CERM API:', error);
+                customerQuoteDetailsContent.innerHTML = `
+                    <div class="alert alert-warning">
+                        <strong>Unable to load quote details</strong>
+                        <p class="mb-0 small">The CERM API is not responding. Please try again later.</p>
+                    </div>
+                `;
+            }
+        }
+
+        function formatLabelShape(shape) {
+            const shapeMap = { '1': 'Rectangle', '2': 'Square', '3': 'Circle', '4': 'Oval' };
+            return shapeMap[shape] || shape || '—';
+        }
+
+        function formatWinding(winding) {
+            const windingMap = { '1': 'Rolled', '2': 'Sheeted', '10': 'Sheeted' };
+            return windingMap[winding] || winding || '—';
+        }
+
+        function formatNumber(num) {
+            if (!num) return '—';
+            return Number(num).toLocaleString();
         }
 
         async function loadCustomerQuotes(customerId) {
@@ -274,30 +747,67 @@
 
             renderQuotesPlaceholder(quotesLoadingMessage);
             try {
-                const response = await fetch(`/Api/Estimates?customerId=${encodeURIComponent(customerId)}`);
+                // Call CERM API via our backend proxy
+                const response = await fetch(`/Api/CermCustomerCalculations?customerId=${encodeURIComponent(customerId)}`);
                 if (!response.ok) {
-                    throw new Error('Network response was not ok');
+                    const errorText = await response.text();
+                    console.error('API error response:', errorText);
+                    throw new Error(`Network response was not ok: ${response.status}`);
                 }
 
-                const quotes = await response.json();
-                if (!Array.isArray(quotes) || quotes.length === 0) {
+                const result = await response.json();
+                console.log('CERM API response:', result);
+
+                // CERM API returns: { "Meta": { "TotalCount": 93 }, "Data": [...] }
+                const quotes = result.Data || result.data || [];
+
+                if (!Array.isArray(quotes)) {
+                    console.error('Expected array but got:', typeof quotes, quotes);
                     renderQuotesPlaceholder(quotesEmptyMessage);
                     return;
                 }
 
+                if (quotes.length === 0) {
+                    renderQuotesPlaceholder(quotesEmptyMessage);
+                    return;
+                }
+
+                console.log(`Loaded ${quotes.length} quotes from CERM API`);
+
                 customerQuotesTableBody.innerHTML = '';
-                currentQuotes = quotes.map(quote => normalizeQuoteData(quote));
-                currentQuotes.forEach(quote => {
-                    const estimateId = quote.estimateId ?? '';
-                    const description = quote.description ?? '';
-                    const dateValue = quote.createdDate ?? quote.deliveryDate ?? '';
-                    const formattedDate = formatDateValue(dateValue);
+                currentQuotes = [];
+
+                // Sort quotes by calculation ID in descending order (greatest to least)
+                const sortedQuotes = quotes.sort((a, b) => {
+                    const idA = parseInt((a.Id || a.id || '0'), 10);
+                    const idB = parseInt((b.Id || b.id || '0'), 10);
+                    return idB - idA; // Descending order
+                });
+
+                sortedQuotes.forEach(quote => {
+                    const calculationId = quote.Id || quote.id || '';
+                    const estimateId = quote.EstimateId || quote.estimateId || '';
+                    const description = quote.Description || quote.description || '';
+
+                    // Store the raw quote data for later use
+                    currentQuotes.push({
+                        calculationId: calculationId,
+                        estimateId: estimateId,
+                        description: description,
+                        rawData: quote
+                    });
 
                     const quoteRow = document.createElement('tr');
-                    quoteRow.dataset.quoteId = estimateId;
-                    quoteRow.innerHTML = `<td>${estimateId}</td><td>${formattedDate}</td><td>${description}</td>`;
+                    quoteRow.dataset.calculationId = calculationId;
+                    quoteRow.dataset.estimateId = estimateId;
+                    quoteRow.innerHTML = `
+                        <td>${calculationId || '—'}</td>
+                        <td>${estimateId || '—'}</td>
+                        <td>${description || '—'}</td>
+                    `;
                     customerQuotesTableBody.appendChild(quoteRow);
                 });
+
                 showQuotesList();
             } catch (error) {
                 console.error('Failed to load quotes', error);
@@ -307,12 +817,12 @@
 
         function formatDateValue(value) {
             if (!value) {
-                return 'â€”';
+                return '—';
             }
 
             const parsedDate = new Date(value);
             if (Number.isNaN(parsedDate.getTime())) {
-                return 'â€”';
+                return '—';
             }
 
             return parsedDate.toLocaleDateString();
@@ -327,6 +837,7 @@
             renderQuotesPlaceholder(quotesPlaceholderMessage);
             showQuotesList();
             selectedCustomerId = null;
+            selectedCustomerName = null;
         }
 
         function renderPage(page) {
@@ -335,55 +846,126 @@
             const end = start + rowsPerPage;
             const pageRows = filteredRows.slice(start, end);
 
-            tableBody.innerHTML = '';
-            pageRows.forEach(row => tableBody.appendChild(row));
+            // Use requestAnimationFrame for smoother DOM updates
+            requestAnimationFrame(() => {
+                // Hide all rows
+                customerRows.forEach(({ customerRow }) => {
+                    customerRow.style.display = 'none';
+                });
+
+                // Show rows for current page
+                pageRows.forEach(({ customerRow }) => {
+                    customerRow.style.display = '';
+                });
+            });
+
+            currentPage = page;
         }
 
         function renderPagination() {
             const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
-            paginationControls.innerHTML = '';
 
-            let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
-            let endPage = startPage + maxPagesToShow - 1;
+            // Function to build pagination HTML
+            const buildPaginationHTML = () => {
+                const fragment = document.createDocumentFragment();
 
-            if (endPage > totalPages) {
-                endPage = totalPages;
-                startPage = Math.max(1, endPage - maxPagesToShow + 1);
-            }
+                let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+                let endPage = startPage + maxPagesToShow - 1;
 
-            for (let i = startPage; i <= endPage; i++) {
-                const li = document.createElement('li');
-                li.className = 'page-item' + (i === currentPage ? ' active' : '');
-                const a = document.createElement('a');
-                a.className = 'page-link';
-                a.href = '#';
-                a.textContent = i;
-                a.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (currentPage === i) {
-                        return;
-                    }
-                    currentPage = i;
-                    renderPage(currentPage);
-                    renderPagination();
-                });
-                li.appendChild(a);
-                paginationControls.appendChild(li);
-            }
+                if (endPage > totalPages) {
+                    endPage = totalPages;
+                    startPage = Math.max(1, endPage - maxPagesToShow + 1);
+                }
+
+                // Previous button
+                const prevLi = document.createElement('li');
+                prevLi.className = 'page-item' + (currentPage === 1 ? ' disabled' : '');
+                const prevA = document.createElement('a');
+                prevA.className = 'page-link';
+                prevA.href = '#';
+                prevA.innerHTML = '&laquo; Previous';
+                prevA.dataset.page = currentPage - 1;
+                prevLi.appendChild(prevA);
+                fragment.appendChild(prevLi);
+
+                // Page numbers
+                for (let i = startPage; i <= endPage; i++) {
+                    const li = document.createElement('li');
+                    li.className = 'page-item' + (i === currentPage ? ' active' : '');
+                    const a = document.createElement('a');
+                    a.className = 'page-link';
+                    a.href = '#';
+                    a.textContent = i;
+                    a.dataset.page = i;
+                    li.appendChild(a);
+                    fragment.appendChild(li);
+                }
+
+                // Next button
+                const nextLi = document.createElement('li');
+                nextLi.className = 'page-item' + (currentPage === totalPages ? ' disabled' : '');
+                const nextA = document.createElement('a');
+                nextA.className = 'page-link';
+                nextA.href = '#';
+                nextA.innerHTML = 'Next &raquo;';
+                nextA.dataset.page = currentPage + 1;
+                nextLi.appendChild(nextA);
+                fragment.appendChild(nextLi);
+
+                return fragment;
+            };
+
+            // Update both pagination controls
+            paginationControlsTop.innerHTML = '';
+            paginationControlsTop.appendChild(buildPaginationHTML());
+
+            paginationControlsBottom.innerHTML = '';
+            paginationControlsBottom.appendChild(buildPaginationHTML());
         }
 
-        function filterCustomers() {
-            const query = searchInput.value.toLowerCase();
-            filteredRows = Array.from(tableBody.querySelectorAll('tr')).filter(row => {
-                const name = row.cells[1].textContent.toLowerCase();
-                return name.includes(query);
-            });
-            currentPage = 1;
-            renderPage(currentPage);
-            renderPagination();
+        // Single delegated event handler for pagination (faster than individual listeners)
+        function handlePaginationClick(event) {
+            const link = event.target.closest('.page-link');
+            if (!link) return;
+            event.preventDefault();
+
+            const pageItem = link.closest('.page-item');
+            if (pageItem.classList.contains('disabled') || pageItem.classList.contains('active')) {
+                return;
+            }
+
+            const targetPage = parseInt(link.dataset.page, 10);
+            if (isNaN(targetPage) || targetPage < 1) return;
+
+            const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
+            if (targetPage > totalPages) return;
+
+            // Prevent rapid clicks from queuing up
+            if (isPaginationBusy) return;
+            isPaginationBusy = true;
+
+            // Add loading cursor to indicate processing
+            document.body.style.cursor = 'wait';
+
+            // Use setTimeout to allow the UI to update with the loading state
+            setTimeout(() => {
+                currentPage = targetPage;
+                renderPage(currentPage);
+                renderPagination();
+
+                document.body.style.cursor = '';
+                isPaginationBusy = false;
+
+                // Scroll to top of table
+                const table = document.getElementById('customersTable');
+                if (table) {
+                    table.scrollIntoView({ behavior: 'instant', block: 'start' });
+                }
+            }, 0);
         }
 
-        searchInput.addEventListener('input', filterCustomers);
+        paginationControlsTop.addEventListener('click', handlePaginationClick);
+        paginationControlsBottom.addEventListener('click', handlePaginationClick);
 
         customerQuotesTableBody?.addEventListener('click', function(event) {
             const row = event.target.closest('tr');
@@ -391,8 +973,8 @@
                 return;
             }
 
-            const quoteId = row.dataset.quoteId;
-            const quote = currentQuotes.find(q => (q.estimateId ?? '') === quoteId);
+            const calculationId = row.dataset.calculationId;
+            const quote = currentQuotes.find(q => q.calculationId === calculationId);
             if (quote) {
                 showQuoteDetails(quote);
             }
@@ -403,49 +985,177 @@
             showQuotesList();
         });
 
-        customerQuoteDetailsActions?.addEventListener('click', function(event) {
-            if (!useQuoteForm || !selectedEstimateInput || !selectedCustomerIdInput || !selectedCustomerNameInput || !selectedDescriptionInput || !selectedMaterialInput) {
+        customerQuoteDetailsContent?.addEventListener('click', function(event) {
+            const button = event.target.closest('.customer-quote-select-top');
+            if (!button || !useQuoteForm) {
                 return;
             }
 
-            const button = event.target.closest('.customer-quote-select');
-            if (!button) {
-                return;
-            }
-
-            selectedEstimateInput.value = button.dataset.estimateId ?? '';
-            selectedCustomerIdInput.value = button.dataset.customerId ?? '';
-            selectedCustomerNameInput.value = button.dataset.customerName ?? '';
-            selectedDescriptionInput.value = button.dataset.description ?? '';
-            selectedMaterialInput.value = button.dataset.material ?? '';
+            // Populate all hidden form fields from button data attributes
+            document.getElementById('selectedCalculationId').value = button.dataset.calculationId ?? '';
+            document.getElementById('selectedEstimateId').value = button.dataset.estimateId ?? '';
+            document.getElementById('selectedCustomerId').value = button.dataset.customerId ?? '';
+            document.getElementById('selectedCustomerName').value = button.dataset.customerName ?? '';
+            document.getElementById('selectedDescription').value = button.dataset.description ?? '';
+            document.getElementById('selectedMaterial').value = button.dataset.material ?? '';
+            document.getElementById('selectedSubstrateId').value = button.dataset.substrateId ?? '';
+            document.getElementById('selectedReferenceAtCustomer').value = button.dataset.referenceAtCustomer ?? '';
+            document.getElementById('selectedSize').value = button.dataset.size ?? '';
+            document.getElementById('selectedLabelShape').value = button.dataset.labelShape ?? '';
+            document.getElementById('selectedLabelWidth').value = button.dataset.labelWidth ?? '';
+            document.getElementById('selectedLabelHeight').value = button.dataset.labelHeight ?? '';
+            document.getElementById('selectedLabelRadius').value = button.dataset.labelRadius ?? '';
+            document.getElementById('selectedColour').value = button.dataset.colour ?? '';
+            document.getElementById('selectedWinding').value = button.dataset.winding ?? '';
+            document.getElementById('selectedPackingProcedureId').value = button.dataset.packingProcedureId ?? '';
+            document.getElementById('selectedColourCodeId').value = button.dataset.colourCodeId ?? '';
+            document.getElementById('selectedFinishingTypeId').value = button.dataset.finishingTypeId ?? '';
+            document.getElementById('selectedMinCount').value = button.dataset.minCount ?? '';
+            document.getElementById('selectedMaxCount').value = button.dataset.maxCount ?? '';
 
             useQuoteForm.submit();
         });
 
-        tableBody.addEventListener('click', function(event) {
-            const row = event.target.closest('tr');
-            if (!row || !tableBody.contains(row)) {
+        customerQuoteDetailsActions?.addEventListener('click', function(event) {
+            const button = event.target.closest('.customer-quote-select');
+            if (!button || !useQuoteForm) {
                 return;
             }
 
-            tableBody.querySelectorAll('.' + selectedRowClass).forEach(r => r.classList.remove(selectedRowClass));
-            row.classList.add(selectedRowClass);
+            // Populate all hidden form fields from button data attributes
+            document.getElementById('selectedCalculationId').value = button.dataset.calculationId ?? '';
+            document.getElementById('selectedEstimateId').value = button.dataset.estimateId ?? '';
+            document.getElementById('selectedCustomerId').value = button.dataset.customerId ?? '';
+            document.getElementById('selectedCustomerName').value = button.dataset.customerName ?? '';
+            document.getElementById('selectedDescription').value = button.dataset.description ?? '';
+            document.getElementById('selectedMaterial').value = button.dataset.material ?? '';
+            document.getElementById('selectedSubstrateId').value = button.dataset.substrateId ?? '';
+            document.getElementById('selectedReferenceAtCustomer').value = button.dataset.referenceAtCustomer ?? '';
+            document.getElementById('selectedSize').value = button.dataset.size ?? '';
+            document.getElementById('selectedLabelShape').value = button.dataset.labelShape ?? '';
+            document.getElementById('selectedLabelWidth').value = button.dataset.labelWidth ?? '';
+            document.getElementById('selectedLabelHeight').value = button.dataset.labelHeight ?? '';
+            document.getElementById('selectedLabelRadius').value = button.dataset.labelRadius ?? '';
+            document.getElementById('selectedColour').value = button.dataset.colour ?? '';
+            document.getElementById('selectedWinding').value = button.dataset.winding ?? '';
+            document.getElementById('selectedPackingProcedureId').value = button.dataset.packingProcedureId ?? '';
+            document.getElementById('selectedColourCodeId').value = button.dataset.colourCodeId ?? '';
+            document.getElementById('selectedFinishingTypeId').value = button.dataset.finishingTypeId ?? '';
+            document.getElementById('selectedMinCount').value = button.dataset.minCount ?? '';
+            document.getElementById('selectedMaxCount').value = button.dataset.maxCount ?? '';
 
-            if (customerDetailsPanel && customerDetailsContent) {
-                const customerId = row.dataset.customerId || row.cells[0]?.textContent?.trim() || 'Unknown';
-                const customerName = row.dataset.customerName || row.cells[1]?.textContent?.trim() || 'Unknown';
+            useQuoteForm.submit();
+        });
+
+        // Handle button clicks on customer rows
+        tableBody.addEventListener('click', async function(event) {
+            // Handle "New Quote" button
+            const newQuoteBtn = event.target.closest('.btn-new-quote');
+            if (newQuoteBtn) {
+                event.stopPropagation();
+                const customerId = newQuoteBtn.dataset.customerId;
+                const customerName = newQuoteBtn.dataset.customerName;
+                await handleNewQuoteClick(customerId, customerName);
+                return;
+            }
+
+            // Handle "Past Orders" button
+            const viewOrdersBtn = event.target.closest('.btn-view-orders');
+            if (viewOrdersBtn) {
+                event.stopPropagation();
+                const customerId = viewOrdersBtn.dataset.customerId;
+                const customerName = viewOrdersBtn.dataset.customerName;
+
+                if (!customerId || !customerName) {
+                    console.error('Missing customer ID or name');
+                    return;
+                }
+
+                // Remove selection from all rows
+                tableBody.querySelectorAll('.' + selectedRowClass).forEach(r => r.classList.remove(selectedRowClass));
+
+                // Add selection to the button's parent row
+                const row = viewOrdersBtn.closest('tr');
+                if (row) {
+                    row.classList.add(selectedRowClass);
+                }
+
                 selectedCustomerId = customerId;
                 selectedCustomerName = customerName;
-                selectedCustomerName = customerName;
-                customerDetailsContent.textContent = `${customerName} (${customerId})`;
-                customerDetailsPanel.classList.remove('is-hidden');
-                loadCustomerQuotes(customerId);
+
+                if (customerDetailsPanel && customerDetailsContent) {
+                    customerDetailsPanel.classList.remove('is-hidden');
+                    loadCustomerQuotes(customerId);
+                }
+                return;
+            }
+
+            // Handle row click (for viewing quotes)
+            const customerRow = event.target.closest('tr.customer-row');
+            if (customerRow && !event.target.closest('a')) {
+                const customerId = customerRow.dataset.customerId;
+                const customerName = customerRow.dataset.customerName;
+
+                // Toggle selection
+                if (customerRow.classList.contains(selectedRowClass)) {
+                    clearSelection();
+                } else {
+                    clearSelection();
+                    customerRow.classList.add(selectedRowClass);
+                    selectedCustomerId = customerId;
+                    selectedCustomerName = customerName;
+
+                    if (customerDetailsPanel) {
+                        customerDetailsPanel.classList.remove('is-hidden');
+                    }
+
+                    await loadCustomerQuotes(customerId);
+                }
             }
         });
 
-        // Initial render
-        renderPage(currentPage);
-        renderPagination();
+        // No longer need separate event handlers - consolidated into one
+
+        // Initial setup - pagination is already server-rendered, just set up quotes placeholder
+        // Remove the 'initially-hidden' class as JS now controls visibility via inline style
+        customerRows.forEach(({ customerRow }) => {
+            customerRow.classList.remove('initially-hidden');
+        });
+
+        // Apply initial page state (first page is already visible from server render)
+        // Only need to set display:none on rows that should be hidden
+        const initialStart = 0;
+        const initialEnd = rowsPerPage;
+        customerRows.forEach(({ customerRow }, index) => {
+            customerRow.style.display = index >= initialEnd ? 'none' : '';
+        });
+
         renderQuotesPlaceholder(quotesPlaceholderMessage);
+
+        // Search/filter functionality
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase().trim();
+
+                if (searchTerm === '') {
+                    // Show all rows when search is empty
+                    filteredRows = [...customerRows];
+                } else {
+                    // Filter rows based on search term
+                    filteredRows = customerRows.filter(({ customerRow }) => {
+                        const customerName = (customerRow.cells[1]?.textContent || '').toLowerCase();
+                        const customerId = (customerRow.cells[0]?.textContent || '').toLowerCase();
+                        return customerName.includes(searchTerm) || customerId.includes(searchTerm);
+                    });
+                }
+
+                // Reset to first page and re-render
+                currentPage = 1;
+                renderPage(currentPage);
+                renderPagination();
+                clearSelection();
+            });
+        }
     });
 </script>
+</div> <!-- Close customers-page -->

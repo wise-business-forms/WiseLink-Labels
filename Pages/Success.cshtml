@@ -30,6 +30,15 @@
     }
     string FormatSubmittedDate(DateTime date) => date.ToString("MMM dd, yyyy 'at' h:mm tt 'EST'");
 
+    string FormatFileSize(long bytes)
+    {
+        if (bytes == 0) return "0 Bytes";
+        var k = 1024.0;
+        var sizes = new[] { "Bytes", "KB", "MB", "GB" };
+        var i = (int)Math.Floor(Math.Log(bytes) / Math.Log(k));
+        return $"{Math.Round(bytes / Math.Pow(k, i), 2)} {sizes[i]}";
+    }
+
     var quoteReference = Model.DisplayQuoteId ?? Model.QuoteId ?? "Pending Reference";
     var issuedOn = Model.SubmittedDateEastern;
     var expiresOn = issuedOn.AddDays(30);
@@ -405,6 +414,35 @@
             </div>
         </section>
 
+        @if (!string.IsNullOrWhiteSpace(Model.QuoteRequest?.UploadedFileName))
+        {
+            <section class="info-panel" style="margin-bottom:2rem;">
+                <h3>Uploaded File</h3>
+                <div style="display:flex; align-items:center; gap:1rem; margin-top:0.75rem;">
+                    <div style="flex:1;">
+                        <p style="margin:0.15rem 0; font-weight:600;">
+                            📎 @Model.QuoteRequest.UploadedFileOriginalName
+                        </p>
+                        <p style="margin:0.15rem 0; color:#64748b; font-size:0.875rem;">
+                            @FormatFileSize(Model.QuoteRequest.UploadedFileSize ?? 0)
+                            @if (!string.IsNullOrWhiteSpace(Model.QuoteRequest.UploadedFileContentType))
+                            {
+                                <span> • @Model.QuoteRequest.UploadedFileContentType</span>
+                            }
+                        </p>
+                    </div>
+                    <div>
+                        <a href="/uploads/quotes/@Model.QuoteRequest.UploadedFileName" 
+                           target="_blank" 
+                           class="btn btn-outline-primary btn-sm"
+                           download="@Model.QuoteRequest.UploadedFileOriginalName">
+                            Download File
+                        </a>
+                    </div>
+                </div>
+            </section>
+        }
+
         <table class="line-items">
             <thead>
                 <tr>
@@ -449,7 +487,15 @@
                 </thead>
                 <tbody>
                     @* Additional line items for custom die and other charges *@
-                    @if (Model.QuoteRequest?.IsCustomDie == true)
+                    @{
+                        var hasAnyCharges = Model.QuoteRequest?.IsCustomDie == true
+                            || Model.QuoteRequest?.ColorChanges > 0
+                            || Model.QuoteRequest?.DigitalVersionChanges > 0
+                            || Model.QuoteRequest?.NeedsPressProof == true
+                            || Model.QuoteRequest?.NeedsSpotColorPlateChange == true;
+                    }
+
+                    @if (Model.QuoteRequest?.IsCustomDie == true && Model.CustomDiePrice.HasValue)
                     {
                         <tr style="background: #fef3c7;">
                             <td style="font-weight: 600;">
@@ -464,7 +510,76 @@
                             <td style="font-weight: 600;">@(Model.CustomDieUnit ?? "each")</td>
                         </tr>
                     }
-                    else
+
+                    @if (Model.QuoteRequest?.ColorChanges > 0 && Model.ColorChangesPrice.HasValue)
+                    {
+                        var totalColorChangePrice = Model.ColorChangesPrice.Value * (Model.ColorChangesQty ?? Model.QuoteRequest.ColorChanges.Value);
+                        <tr style="background: #dbeafe;">
+                            <td style="font-weight: 600;">
+                                <span style="color: #1e40af;">🎨</span> Color Changes
+                                <br />
+                                <small style="color: #1e3a8a; font-weight: normal;">
+                                    @(Model.ColorChangesQty ?? Model.QuoteRequest.ColorChanges) changes × @FormatCurrency(Model.ColorChangesPrice.Value) per change
+                                </small>
+                            </td>
+                            <td></td>
+                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(totalColorChangePrice)</td>
+                            <td style="font-weight: 600;">total</td>
+                        </tr>
+                    }
+
+                    @if (Model.QuoteRequest?.DigitalVersionChanges > 0 && Model.DigitalVersionChangesPrice.HasValue)
+                    {
+                        var totalDigitalVersionChangePrice = Model.DigitalVersionChangesPrice.Value * (Model.DigitalVersionChangesQty ?? Model.QuoteRequest.DigitalVersionChanges.Value);
+                        <tr style="background: #e0e7ff;">
+                            <td style="font-weight: 600;">
+                                <span style="color: #3730a3;">🖨️</span> Digital Full Color Version Changes
+                                <br />
+                                <small style="color: #312e81; font-weight: normal;">
+                                    @(Model.DigitalVersionChangesQty ?? Model.QuoteRequest.DigitalVersionChanges) changes × @FormatCurrency(Model.DigitalVersionChangesPrice.Value) per change
+                                </small>
+                            </td>
+                            <td></td>
+                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(totalDigitalVersionChangePrice)</td>
+                            <td style="font-weight: 600;">total</td>
+                        </tr>
+                    }
+
+                    @if (Model.QuoteRequest?.NeedsPressProof == true && Model.PressProofPrice.HasValue)
+                    {
+                        var totalPressProofPrice = Model.PressProofPrice.Value * (Model.PressProofQty ?? 1);
+                        <tr style="background: #fce7f3;">
+                            <td style="font-weight: 600;">
+                                <span style="color: #9f1239;">📄</span> Press Proof - Print Only, Not Die Cut
+                                <br />
+                                <small style="color: #881337; font-weight: normal;">
+                                    @(Model.PressProofQty ?? 1) × @FormatCurrency(Model.PressProofPrice.Value) @(Model.PressProofUnit ?? "each")
+                                </small>
+                            </td>
+                            <td></td>
+                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(totalPressProofPrice)</td>
+                            <td style="font-weight: 600;">total</td>
+                        </tr>
+                    }
+
+                    @if (Model.QuoteRequest?.NeedsSpotColorPlateChange == true && Model.SpotColorPlateChangePrice.HasValue)
+                    {
+                        var totalPlateChangePrice = Model.SpotColorPlateChangePrice.Value * (Model.SpotColorPlateChangeQty ?? 1);
+                        <tr style="background: #fef9c3;">
+                            <td style="font-weight: 600;">
+                                <span style="color: #854d0e;">🎨</span> Spot Color Plate/Copy Change
+                                <br />
+                                <small style="color: #713f12; font-weight: normal;">
+                                    @(Model.SpotColorPlateChangeQty ?? 1) × @FormatCurrency(Model.SpotColorPlateChangePrice.Value) @(Model.SpotColorPlateChangeUnit ?? "each")
+                                </small>
+                            </td>
+                            <td></td>
+                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(totalPlateChangePrice)</td>
+                            <td style="font-weight: 600;">total</td>
+                        </tr>
+                    }
+
+                    @if (!hasAnyCharges)
                     {
                         <tr>
                             <td colspan="4" style="text-align:center; color:#94a3b8; font-style:italic;">
@@ -511,6 +626,31 @@
                 </div>
             </section>
             -->
+        }
+
+        @if (!string.IsNullOrEmpty(Model.ApiRequestJson))
+        {
+            <div class="card mt-4 border-secondary" style="font-family:'Segoe UI',Roboto,Arial,sans-serif;">
+                <div class="card-header bg-secondary bg-opacity-10 p-2">
+                    <h6 class="mb-0">
+                        <button class="btn btn-link text-decoration-none w-100 text-start d-flex justify-content-between align-items-center py-0"
+                                type="button" data-bs-toggle="collapse"
+                                data-bs-target="#debugApiRequestCollapse"
+                                aria-expanded="false" aria-controls="debugApiRequestCollapse">
+                            <span>&#x1F527; Debug: CERM API Request JSON</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-down" viewBox="0 0 16 16">
+                                <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                            </svg>
+                        </button>
+                    </h6>
+                </div>
+                <div class="collapse" id="debugApiRequestCollapse">
+                    <div class="card-body p-3">
+                        <p class="text-muted small mb-2">JSON payload sent to CERM API:</p>
+                        <pre class="bg-light p-3 rounded border" style="max-height: 500px; overflow-y: auto; font-size: 0.875rem; white-space: pre-wrap; word-wrap: break-word; margin-bottom: 0;"><code>@Model.ApiRequestJson</code></pre>
+                    </div>
+                </div>
+            </div>
         }
     </div>
 </div>

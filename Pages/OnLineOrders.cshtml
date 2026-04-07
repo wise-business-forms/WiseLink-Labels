@@ -1,0 +1,462 @@
+@page "/OnLineOrders"
+@model OnLineOrdersModel
+@{
+    ViewData["Title"] = "Online Orders";
+    Layout = "_Layout";
+}
+
+<style>
+    .online-orders-container {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .orders-table-container {
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        padding: 1.5rem;
+    }
+
+    .order-details-panel {
+        position: fixed;
+        top: 0;
+        right: -600px;
+        width: 600px;
+        height: 100vh;
+        background: #fff;
+        box-shadow: -2px 0 10px rgba(0,0,0,0.2);
+        transition: right 0.3s ease;
+        z-index: 1050;
+        overflow-y: auto;
+    }
+
+    .order-details-panel.is-visible {
+        right: 0;
+    }
+
+    .order-details-header {
+        position: sticky;
+        top: 0;
+        background: #0d6efd;
+        color: white;
+        padding: 1rem 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 10;
+    }
+
+    .order-details-content {
+        padding: 1.5rem;
+    }
+
+    .close-panel-btn {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+    }
+
+    .orders-table {
+        cursor: pointer;
+    }
+
+    .orders-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 1040;
+        display: none;
+    }
+
+    .overlay.is-visible {
+        display: block;
+    }
+</style>
+
+<div class="dashboard-container">
+    @await Html.PartialAsync("_LeftSidebar")
+    <main class="dashboard-main">
+        <div class="online-orders-container">
+            <h1 class="admin-page-title">Online Orders</h1>
+            <p class="text-muted mb-4">Viewing orders for customer ID: 108620 (Online Account)</p>
+
+            <div class="orders-table-container">
+                <div class="mb-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <input type="text" id="searchInput" class="form-control" placeholder="Search by description or ID..." style="width: 300px;" />
+                    </div>
+                    <div id="orderCount" class="text-muted">
+                        Loading orders...
+                    </div>
+                </div>
+
+                <table class="table table-striped table-hover orders-table" id="ordersTable">
+                    <thead>
+                        <tr>
+                            <th>Calculation ID</th>
+                            <th>Estimate ID</th>
+                            <th>Description</th>
+                            <th>Shape</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersTableBody">
+                        <tr>
+                            <td colspan="4" class="text-center">
+                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <span class="ms-2">Loading orders...</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <nav aria-label="Orders pagination">
+                    <ul class="pagination" id="paginationControls"></ul>
+                </nav>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Overlay -->
+<div class="overlay" id="overlay"></div>
+
+<!-- Order Details Panel -->
+<div class="order-details-panel" id="orderDetailsPanel">
+    <div class="order-details-header">
+        <h3 class="mb-0">Order Details</h3>
+        <button type="button" class="close-panel-btn" id="closePanelBtn" aria-label="Close">
+            &times;
+        </button>
+    </div>
+    <div class="order-details-content" id="orderDetailsContent">
+        <p class="text-muted">Select an order to view details.</p>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const CUSTOMER_ID = '108620';
+        const ordersTableBody = document.getElementById('ordersTableBody');
+        const orderDetailsPanel = document.getElementById('orderDetailsPanel');
+        const orderDetailsContent = document.getElementById('orderDetailsContent');
+        const closePanelBtn = document.getElementById('closePanelBtn');
+        const overlay = document.getElementById('overlay');
+        const searchInput = document.getElementById('searchInput');
+        const orderCountEl = document.getElementById('orderCount');
+        const paginationControls = document.getElementById('paginationControls');
+        
+        let allOrders = [];
+        let filteredOrders = [];
+        let currentPage = 1;
+        const ordersPerPage = 50;
+
+        async function loadOrders() {
+            try {
+                const response = await fetch(`/Api/CermCustomerCalculations?customerId=${encodeURIComponent(CUSTOMER_ID)}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load orders: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const orders = result.Data || result.data || [];
+
+                if (!Array.isArray(orders)) {
+                    throw new Error('Invalid response format');
+                }
+
+                // Sort orders by calculation ID in descending order
+                allOrders = orders.sort((a, b) => {
+                    const idA = parseInt((a.Id || a.id || '0'), 10);
+                    const idB = parseInt((b.Id || b.id || '0'), 10);
+                    return idB - idA;
+                });
+
+                filteredOrders = [...allOrders];
+                updateOrderCount();
+                renderOrders();
+                renderPagination();
+
+            } catch (error) {
+                console.error('Failed to load orders:', error);
+                ordersTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center text-danger">
+                            Failed to load orders. Please try again later.
+                        </td>
+                    </tr>`;
+                orderCountEl.textContent = 'Error loading orders';
+            }
+        }
+
+        function updateOrderCount() {
+            const total = filteredOrders.length;
+            orderCountEl.textContent = `${total} order${total !== 1 ? 's' : ''} found`;
+        }
+
+        function renderOrders() {
+            const start = (currentPage - 1) * ordersPerPage;
+            const end = start + ordersPerPage;
+            const pageOrders = filteredOrders.slice(start, end);
+
+            if (pageOrders.length === 0) {
+                ordersTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">
+                            No orders found.
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            ordersTableBody.innerHTML = pageOrders.map(order => {
+                const calculationId = order.Id || order.id || '—';
+                const estimateId = order.EstimateId || order.estimateId || '—';
+                const description = order.Description || order.description || '—';
+                const shape = formatLabelShape(order.LabelShape || order.labelShape);
+
+                return `
+                    <tr data-calculation-id="${calculationId}">
+                        <td>${calculationId}</td>
+                        <td>${estimateId}</td>
+                        <td>${description}</td>
+                        <td>${shape}</td>
+                    </tr>`;
+            }).join('');
+        }
+
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
+            
+            if (totalPages <= 1) {
+                paginationControls.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            
+            // Previous button
+            html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${currentPage - 1}">Previous</a>
+            </li>`;
+
+            // Page numbers
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                    html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" data-page="${i}">${i}</a>
+                    </li>`;
+                } else if (i === currentPage - 3 || i === currentPage + 3) {
+                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+            }
+
+            // Next button
+            html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${currentPage + 1}">Next</a>
+            </li>`;
+
+            paginationControls.innerHTML = html;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString();
+            } catch {
+                return '—';
+            }
+        }
+
+        function showOrderDetails(calculationId) {
+            orderDetailsContent.innerHTML = '<p class="text-muted">Loading order details...</p>';
+            orderDetailsPanel.classList.add('is-visible');
+            overlay.classList.add('is-visible');
+
+            fetch(`/Api/CermCalculation?calculationId=${encodeURIComponent(calculationId)}`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Failed to load order details');
+                    return response.json();
+                })
+                .then(result => {
+                    const orderData = result.Data || result.data || result;
+                    displayOrderDetails(orderData, calculationId);
+                })
+                .catch(error => {
+                    console.error('Failed to load order details:', error);
+                    orderDetailsContent.innerHTML = `
+                        <div class="alert alert-warning">
+                            <strong>Unable to load order details</strong>
+                            <p class="mb-0">Please try again later.</p>
+                        </div>`;
+                });
+        }
+
+        function displayOrderDetails(orderData, calculationId) {
+            const html = `
+                <div class="mb-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">Estimate ID</h6>
+                                    <p class="card-text fs-5 fw-bold text-primary">${orderData.EstimateId || orderData.estimateId || '—'}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">Calculation ID</h6>
+                                    <p class="card-text fs-5 fw-bold text-primary">${orderData.Id || orderData.id || calculationId}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <dl class="row">
+                    <dt class="col-sm-4">Description</dt>
+                    <dd class="col-sm-8">${orderData.Description || orderData.description || '—'}</dd>
+
+                    <dt class="col-sm-4">Customer Reference</dt>
+                    <dd class="col-sm-8">${orderData.ReferenceAtCustomer || orderData.referenceAtCustomer || '—'}</dd>
+
+                    <dt class="col-sm-4">Size</dt>
+                    <dd class="col-sm-8">${orderData.Size || orderData.size || '—'}</dd>
+
+                    <dt class="col-sm-4">Width</dt>
+                    <dd class="col-sm-8">${orderData.LabelWidth || orderData.labelWidth || '—'}"</dd>
+
+                    <dt class="col-sm-4">Height</dt>
+                    <dd class="col-sm-8">${orderData.LabelHeight || orderData.labelHeight || '—'}"</dd>
+
+                    <dt class="col-sm-4">Shape</dt>
+                    <dd class="col-sm-8">${formatLabelShape(orderData.LabelShape || orderData.labelShape)}</dd>
+
+                    <dt class="col-sm-4">Substrate</dt>
+                    <dd class="col-sm-8">${getSubstrateDescription(orderData.Substrate || orderData.substrate)}</dd>
+
+                    <dt class="col-sm-4">Printing</dt>
+                    <dd class="col-sm-8">${orderData.Colour || orderData.colour || '—'}</dd>
+
+                    <dt class="col-sm-4">Winding</dt>
+                    <dd class="col-sm-8">${formatWinding(orderData.Winding || orderData.winding)}</dd>
+
+                    <dt class="col-sm-4">Min Quantity</dt>
+                    <dd class="col-sm-8">${formatNumber(orderData.MinimumCount || orderData.minimumCount)}</dd>
+
+                    <dt class="col-sm-4">Max Quantity</dt>
+                    <dd class="col-sm-8">${formatNumber(orderData.MaximumCount || orderData.maximumCount)}</dd>
+                </dl>`;
+
+            orderDetailsContent.innerHTML = html;
+        }
+
+        function formatLabelShape(shape) {
+            const shapeMap = { '1': 'Rectangle', '2': 'Circle', '3': 'Special Shape', '4': 'Oval' };
+            return shapeMap[shape] || shape || '—';
+        }
+
+        function formatWinding(winding) {
+            const windingMap = { '1': 'Rolled', '2': 'Sheeted', '10': 'Sheeted' };
+            return windingMap[winding] || winding || '—';
+        }
+
+        function formatNumber(num) {
+            if (!num) return '—';
+            return Number(num).toLocaleString();
+        }
+
+        function getSubstrateDescription(substrate) {
+            if (!substrate) return '—';
+            if (typeof substrate === 'string') return substrate;
+            
+            if (substrate.Descriptions || substrate.descriptions) {
+                const descriptions = substrate.Descriptions || substrate.descriptions;
+                if (Array.isArray(descriptions)) {
+                    const enUS = descriptions.find(d => 
+                        (d.ISOLanguageCode || d.isoLanguageCode || '').toLowerCase() === 'en-us'
+                    );
+                    if (enUS) return enUS.Description || enUS.description || '—';
+                    if (descriptions.length > 0) {
+                        return descriptions[0].Description || descriptions[0].description || '—';
+                    }
+                }
+            }
+            
+            return substrate.Description || substrate.description || '—';
+        }
+
+        function closePanel() {
+            orderDetailsPanel.classList.remove('is-visible');
+            overlay.classList.remove('is-visible');
+        }
+
+        // Event listeners
+        ordersTableBody.addEventListener('click', function(e) {
+            const row = e.target.closest('tr');
+            if (row && row.dataset.calculationId) {
+                showOrderDetails(row.dataset.calculationId);
+            }
+        });
+
+        closePanelBtn.addEventListener('click', closePanel);
+        overlay.addEventListener('click', closePanel);
+
+        paginationControls.addEventListener('click', function(e) {
+            e.preventDefault();
+            const link = e.target.closest('a');
+            if (link && link.dataset.page) {
+                const page = parseInt(link.dataset.page);
+                if (page >= 1 && page <= Math.ceil(filteredOrders.length / ordersPerPage)) {
+                    currentPage = page;
+                    renderOrders();
+                    renderPagination();
+                    window.scrollTo(0, 0);
+                }
+            }
+        });
+
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            
+            if (searchTerm === '') {
+                filteredOrders = [...allOrders];
+            } else {
+                filteredOrders = allOrders.filter(order => {
+                    const calculationId = (order.Id || order.id || '').toString().toLowerCase();
+                    const estimateId = (order.EstimateId || order.estimateId || '').toString().toLowerCase();
+                    const description = (order.Description || order.description || '').toLowerCase();
+                    
+                    return calculationId.includes(searchTerm) || 
+                           estimateId.includes(searchTerm) || 
+                           description.includes(searchTerm);
+                });
+            }
+            
+            currentPage = 1;
+            updateOrderCount();
+            renderOrders();
+            renderPagination();
+        });
+
+        // Initial load
+        loadOrders();
+    });
+</script>

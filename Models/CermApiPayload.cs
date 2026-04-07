@@ -51,7 +51,7 @@ namespace WiseLabels.Models
         public string PackingProcedureId { get; set; } = "152";
 
         [JsonPropertyName("PackingPriority")]
-        public string PackingPriority { get; set; } = "Diameter";
+        public int PackingPriority { get; set; } = 1;
 
         [JsonPropertyName("PackingNumber")]
         public int PackingNumber { get; set; } = 500;

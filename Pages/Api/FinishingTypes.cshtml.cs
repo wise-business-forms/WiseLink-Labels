@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using WiseLabels.Services;
 
 namespace WiseLabels.Pages.Api
 {
@@ -21,15 +22,17 @@ namespace WiseLabels.Pages.Api
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
         private readonly ILogger<FinishingTypesModel> _logger;
+        private readonly ICermAuthService _cermAuthService;
 
         /// <summary>
         /// Constructor - dependencies are injected by the Razor Pages framework.
         /// </summary>
-        public FinishingTypesModel(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<FinishingTypesModel> logger)
+        public FinishingTypesModel(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<FinishingTypesModel> logger, ICermAuthService cermAuthService)
         {
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
             _logger = logger;
+            _cermAuthService = cermAuthService;
         }
 
         /// <summary>
@@ -43,25 +46,7 @@ namespace WiseLabels.Pages.Api
         {
             try
             {
-                // Get credentials from configuration (fallback defined for OAuth URL only)
-                var oauthUrl = _configuration["Cerm:OAuthUrl"] ?? "https://brandmark-api.cerm.be/oauth/token";
                 var finishingTypesUrl = _configuration["Cerm:FinishingTypesUrl"] ?? "";
-                var username = _configuration["Cerm:Username"];
-                var password = _configuration["Cerm:Password"];
-                var clientId = _configuration["Cerm:ClientId"];
-                var clientSecret = _configuration["Cerm:ClientSecret"];
-
-                // Validate required configuration and return a 500 with a helpful message when missing.
-                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password) ||
-                    string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
-                {
-                    _logger.LogError("CERM API credentials are missing from configuration");
-                    return new JsonResult(new { error = "Server configuration error: CERM API credentials not configured" })
-                    {
-                        StatusCode = 500
-                    };
-                }
-
                 if (string.IsNullOrEmpty(finishingTypesUrl))
                 {
                     _logger.LogError("Cerm:FinishingTypesUrl is missing from configuration (add to appsettings.json or appsettings.Production.json)");
@@ -71,13 +56,10 @@ namespace WiseLabels.Pages.Api
                     };
                 }
 
-                // Authenticate and get access token. GetAccessTokenAsync implements multiple
-                // authentication strategies to handle different OAuth server expectations.
-                var (accessToken, authError) = await GetAccessTokenAsync(oauthUrl, username, password, clientId, clientSecret);
+                var accessToken = await _cermAuthService.GetAccessTokenAsync();
                 if (string.IsNullOrEmpty(accessToken))
                 {
-                    // Return 401 so client-side code can surface an authentication-related error.
-                    return new JsonResult(new { error = authError ?? "Failed to authenticate with CERM API" })
+                    return new JsonResult(new { error = "Failed to authenticate with CERM API" })
                     {
                         StatusCode = 401
                     };

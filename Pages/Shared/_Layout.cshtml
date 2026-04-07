@@ -6,9 +6,11 @@
     <title>@ViewData["Title"] - WiseLabels</title>
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/WiseLabels.styles.css" asp-append-version="true" />
 </head>
+@inject WiseLabels.Services.IUserImpersonationService ImpersonationService
 @{
     var userEmail = User?.FindFirst("email")?.Value
         ?? User?.FindFirst("upn")?.Value
@@ -19,17 +21,58 @@
         ?? User?.Identity?.Name
         ?? string.Empty;
     var isAuthenticated = User?.Identity?.IsAuthenticated ?? false;
+
+    // Get impersonation info
+    var impersonatedUserId = ImpersonationService.GetImpersonatedUserId();
+    var impersonatedUserName = await ImpersonationService.GetImpersonatedUserNameAsync();
+    var isImpersonating = !string.IsNullOrWhiteSpace(impersonatedUserId);
+
+    // Check if current user is an admin
+    var isAdmin = await ImpersonationService.IsCurrentUserAdminAsync();
+
+    // Use impersonated name if impersonating, otherwise use current user's name
+    var displayName = isImpersonating ? (impersonatedUserName ?? impersonatedUserId) : userDisplayName;
 }
 <body>
-    <header class="border-bottom mb-3 bg-light">
-        <div class="container-fluid px-4 d-flex justify-content-between align-items-center py-2">
-            <span class="fw-semibold">WiseLabels</span>
+    <header class="border-bottom mb-0" style="background: linear-gradient(135deg, #145C7D 0%, #0f4760 100%); box-shadow: 0 2px 4px rgba(0,0,0,0.15); position: sticky; top: 0; z-index: 1030;">
+        <div class="container-fluid px-4 d-flex justify-content-between align-items-center py-3">
+            <div class="d-flex align-items-center">
+                <img src="~/img/wise_logo_trans.png" alt="Wise Business Forms Logo" style="height: 40px; width: 40px; object-fit: contain;" class="me-2" />
+                <span class="fw-bold" style="color: white; font-size: 1.25rem; letter-spacing: 0.5px;">Wise Labels</span>
+            </div>
             @if (isAuthenticated)
             {
                 <div class="text-end">
-                    <div class="fw-semibold">@userDisplayName</div>
-                    <div class="small">
-                        <a asp-page="/Profile" class="text-decoration-none">View Profile</a>
+                    <div class="fw-semibold" style="color: white;">
+                        @displayName
+                        @if (isAdmin)
+                        {
+                            <span class="badge bg-danger ms-1">Admin</span>
+                        }
+                        @if (isImpersonating)
+                        {
+                            <span class="badge bg-warning text-dark ms-1">Impersonating</span>
+                        }
+                    </div>
+                    <div class="small" style="color: rgba(255, 255, 255, 0.8);">
+                        @if (isImpersonating)
+                        {
+                            <a href="/CermUser/Profile?userId=@impersonatedUserId" class="text-decoration-none" style="color: #22B8D1;">View Profile</a>
+                        }
+                        else
+                        {
+                            <a asp-page="/Profile" class="text-decoration-none" style="color: #22B8D1;">View Profile</a>
+                        }
+                        @if (isImpersonating)
+                        {
+                            <span class="mx-1">·</span>
+                            <form method="post" action="/Admin?handler=ClearImpersonation" style="display: inline;">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-link p-0 text-decoration-none" style="color: #ffc107; border: none; background: none; font-size: inherit; vertical-align: baseline;">
+                                    End Impersonation
+                                </button>
+                            </form>
+                        }
                     </div>
                 </div>
             }
@@ -74,6 +117,7 @@
     -->
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
 
     @await RenderSectionAsync("Scripts", required: false)

@@ -1,8 +1,17 @@
-﻿@page "/GetQuote"
+@page "/GetQuote"
 @model GetQuoteModel
 @using System.Collections.Generic
 @{
     ViewData["Title"] = "Get a Quote";
+
+    string FormatFileSize(long bytes)
+    {
+        if (bytes == 0) return "0 Bytes";
+        var k = 1024.0;
+        var sizes = new[] { "Bytes", "KB", "MB", "GB" };
+        var i = (int)Math.Floor(Math.Log(bytes) / Math.Log(k));
+        return $"{Math.Round(bytes / Math.Pow(k, i), 2)} {sizes[i]}";
+    }
 }
 
 @if (Model.SavedQuoteRequest != null)
@@ -28,8 +37,28 @@
             </div>
         }
 
-        <form class="quote-form" method="post" id="quote-form" asp-page-handler="Submit">
+        @if (!string.IsNullOrWhiteSpace(Model.SavedQuoteRequest?.CalculationId) || !string.IsNullOrWhiteSpace(Model.SavedQuoteRequest?.EstimateId))
+        {
+            <div class="alert alert-info d-flex align-items-center justify-content-between mb-4" role="alert">
+                <div>
+                    <strong>?? Reference Quote:</strong>
+                    @if (!string.IsNullOrWhiteSpace(Model.SavedQuoteRequest.EstimateId))
+                    {
+                        <span class="badge bg-primary me-2">Estimate ID: @Model.SavedQuoteRequest.EstimateId</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.SavedQuoteRequest.CalculationId))
+                    {
+                        <span class="badge bg-secondary">Calculation ID: @Model.SavedQuoteRequest.CalculationId</span>
+                    }
+                </div>
+                <small class="text-muted">This form is pre-filled from a past quote</small>
+            </div>
+        }
+
+        <form class="quote-form" method="post" id="quote-form" asp-page-handler="Submit" enctype="multipart/form-data">
             @Html.AntiForgeryToken()
+            <input type="hidden" name="customerId" value="@(Model.SavedQuoteRequest?.CustomerId ?? string.Empty)" />
+            <input type="hidden" name="customerDisplayName" value="@(Model.SavedQuoteRequest?.CustomerDisplayName ?? string.Empty)" />
 
             @if (!ViewData.ModelState.IsValid)
             {
@@ -49,6 +78,39 @@
                         }
                     </ul>
                 </div>
+
+                @if (!string.IsNullOrEmpty(Model.ApiRequestJson) || !string.IsNullOrEmpty(Model.ApiResponseJson))
+                {
+                    <div class="card mt-3 mb-4 border-secondary" style="font-family:'Segoe UI',Roboto,Arial,sans-serif;">
+                        <div class="card-header bg-secondary bg-opacity-10 p-2">
+                            <h6 class="mb-0">
+                                <button class="btn btn-link text-decoration-none w-100 text-start d-flex justify-content-between align-items-center py-0"
+                                        type="button" data-bs-toggle="collapse"
+                                        data-bs-target="#debugApiErrorCollapse"
+                                        aria-expanded="false" aria-controls="debugApiErrorCollapse">
+                                    <span>&#x1F527; Debug: API Request/Response</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-down" viewBox="0 0 16 16">
+                                        <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                                    </svg>
+                                </button>
+                            </h6>
+                        </div>
+                        <div class="collapse" id="debugApiErrorCollapse">
+                            <div class="card-body p-3">
+                                @if (!string.IsNullOrEmpty(Model.ApiRequestJson))
+                                {
+                                    <p class="text-muted small mb-2 fw-bold">Request JSON sent to CERM API:</p>
+                                    <pre class="bg-light p-3 rounded border mb-3" style="max-height: 400px; overflow-y: auto; font-size: 0.8rem; white-space: pre-wrap; word-wrap: break-word;"><code>@Model.ApiRequestJson</code></pre>
+                                }
+                                @if (!string.IsNullOrEmpty(Model.ApiResponseJson))
+                                {
+                                    <p class="text-muted small mb-2 fw-bold">Response from CERM API:</p>
+                                    <pre class="bg-light p-3 rounded border" style="max-height: 400px; overflow-y: auto; font-size: 0.8rem; white-space: pre-wrap; word-wrap: break-word;"><code>@Model.ApiResponseJson</code></pre>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
             }
 
             <div class="mb-4">
@@ -72,16 +134,14 @@
                     @{ var shapes = new (string Key, string Label, string OutlineId)[]
                         {
                             ("rectangle", "Rectangle", "1"),
-                            ("circle", "Circle", "3"),
-                            ("oval", "Oval", "4")
+                            ("circle", "Circle", "2")
                         };
                         var savedShape = (Model.SavedQuoteRequest?.Shape ?? string.Empty).Trim();
                         var savedShapeValue = (Model.SavedQuoteRequest?.ShapeValue ?? string.Empty).Trim();
                         var shapeIcons = new Dictionary<string, string>
                         {
                             ["rectangle"] = "<svg width=\"32\" height=\"20\" viewBox=\"0 0 32 20\" aria-hidden=\"true\" focusable=\"false\"><rect x=\"1\" y=\"1\" width=\"30\" height=\"18\" rx=\"2\" ry=\"2\" fill=\"currentColor\" opacity=\"0.15\" stroke=\"currentColor\" stroke-width=\"2\" /></svg>",
-                            ["circle"] = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" aria-hidden=\"true\" focusable=\"false\"><circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"currentColor\" opacity=\"0.15\" stroke=\"currentColor\" stroke-width=\"2\" /></svg>",
-                            ["oval"] = "<svg width=\"32\" height=\"20\" viewBox=\"0 0 32 20\" aria-hidden=\"true\" focusable=\"false\"><ellipse cx=\"16\" cy=\"10\" rx=\"13\" ry=\"8\" fill=\"currentColor\" opacity=\"0.15\" stroke=\"currentColor\" stroke-width=\"2\" /></svg>"
+                            ["circle"] = "<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" aria-hidden=\"true\" focusable=\"false\"><circle cx=\"12\" cy=\"12\" r=\"9\" fill=\"currentColor\" opacity=\"0.15\" stroke=\"currentColor\" stroke-width=\"2\" /></svg>"
                         };
                     }
                     @foreach (var shape in shapes)
@@ -104,6 +164,12 @@
 
                     <div class="mb-4 d-none" id="corner-options">
                         <label class="form-label fw-semibold" for="corners-input">Corners</label>
+                        @if (Model.SavedQuoteRequest != null && string.IsNullOrWhiteSpace(Model.SavedQuoteRequest.Corners))
+                        {
+                            <div class="alert alert-warning alert-sm mb-2" role="alert" id="corner-warning-alert">
+                                <strong>?? Selection Required:</strong> Please select the corner type for your labels.
+                            </div>
+                        }
                         <input type="hidden" id="corners-input" name="corners" value="@(Model.SavedQuoteRequest?.Corners ?? string.Empty)" />
                         <div class="d-flex flex-wrap gap-2">
                             @{
@@ -132,7 +198,7 @@
                         <select class="form-select" id="existing-die-select" name="existingDie">
                             <option value="">Select a die size</option>
                         </select>
-                        <div id="die-loading" class="form-text text-muted d-none">Loading die sizes…</div>
+                        <div id="die-loading" class="form-text text-muted d-none">Loading die sizes�</div>
                         <div id="die-error" class="form-text text-danger d-none"></div>
                     </div>
             <div class="mb-4" id="dimensions-rectangles">
@@ -181,7 +247,7 @@
                     </div>
                 </div>
                 <div id="custom-die-warning" class="alert alert-warning mt-3 d-none" role="alert">
-                    <strong>⚠️ Custom Die Required</strong>
+                    <strong>?? Custom Die Required</strong>
                     <p class="mb-0">The dimensions you entered (<span id="custom-dimensions"></span>) don't match any existing die sizes. A custom die will need to be created for this job, which may affect pricing and lead time.</p>
                 </div>
 
@@ -192,17 +258,35 @@
 
             <div class="mb-4 d-none" id="dimensions-radius">
                 <label for="label-radius" class="form-label fw-semibold">Radius (inches)</label>
-                <select class="form-select"
+                <div class="custom-combobox" id="radius-combobox">
+                    <input 
+                        type="text" 
+                        class="form-control custom-combobox-input" 
                         id="label-radius"
                         name="diameter"
+                        placeholder="Enter or select radius"
+                        autocomplete="off"
+                        value="@(Model.SavedQuoteRequest?.Diameter ?? string.Empty)"
                         data-initial-value="@(Model.SavedQuoteRequest?.Diameter ?? string.Empty)">
-                    <option value="">Select a radius</option>
-                </select>
-                <div class="form-text">Displayed for circle or oval labels and populated from available die sizes.</div>
+                    <span class="custom-combobox-arrow">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                            <path d="M2 4l4 4 4-4H2z"/>
+                        </svg>
+                    </span>
+                    <ul class="custom-combobox-dropdown"></ul>
+                </div>
+                <div class="form-text">Enter a custom size or select from available die sizes</div>
+                <div id="custom-die-warning-radius" class="alert alert-warning mt-3 d-none" role="alert">
+                    <strong>?? Custom Die Required</strong>
+                    <p class="mb-0">The radius you entered (<span id="custom-radius"></span>) doesn't match any existing die sizes. A custom die will need to be created for this job, which may affect pricing and lead time.</p>
+                </div>
             </div>
 
             <div class="mb-4">
-                <label for="material-select" class="form-label fw-semibold">Material</label>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <label for="material-select" class="form-label fw-semibold mb-0">Material</label>
+                    <button type="button" id="material-retry" class="btn btn-sm btn-outline-secondary d-none">&#x21BA; Retry</button>
+                </div>
                 <select
                     class="form-select"
                     id="material-select"
@@ -210,18 +294,21 @@
                     size="8"
                     data-initial-value="@(Model.SavedQuoteRequest?.MaterialValue ?? string.Empty)"
                     data-initial-label="@(Model.SavedQuoteRequest?.Material ?? string.Empty)">
-                    <option value="">Loading materials…</option>
+                    <option value="">Loading materials�</option>
                 </select>
                 <input type="hidden" id="material-display" name="materialDisplay" value="@(Model.SavedQuoteRequest?.Material ?? string.Empty)" />
-                <div id="material-loading" class="form-text text-muted">Loading materials…</div>
+                <div id="material-loading" class="form-text text-muted">Loading materials�</div>
                 <div id="material-error" class="form-text text-danger d-none"></div>
             </div>
 
             <div class="mb-4">
-                <label class="form-label fw-semibold" for="printing-input">Printing</label>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <label class="form-label fw-semibold mb-0" for="printing-input">Printing</label>
+                    <button type="button" id="printing-retry" class="btn btn-sm btn-outline-secondary d-none">&#x21BA; Retry</button>
+                </div>
                 <input type="hidden" id="printing-input" name="printing" value="@(Model.SavedQuoteRequest?.Printing ?? string.Empty)" />
                 <input type="hidden" id="printing-value" name="printingValue" value="@(Model.SavedQuoteRequest?.PrintingValue ?? string.Empty)" />
-                <div id="printing-loading" class="form-text text-muted">Loading printing options…</div>
+                <div id="printing-loading" class="form-text text-muted">Loading printing options�</div>
                 <div id="printing-filter" class="printing-filter d-flex flex-wrap gap-2"
                      data-initial-id="@(Model.SavedQuoteRequest?.PrintingValue ?? string.Empty)"
                      data-initial-label="@(Model.SavedQuoteRequest?.Printing ?? string.Empty)">
@@ -229,49 +316,181 @@
                 <div id="printing-error" class="form-text text-danger d-none"></div>
             </div>
 
-            <div class="mb-4">
-                <label for="finish-select" class="form-label fw-semibold">Finish</label>
+            <div class="mb-4 d-none" id="line-items-section">
+                <h5 class="form-label fw-semibold mb-3">Line Items</h5>
+                <div class="border rounded p-3">
+                    @if (Model.SavedQuoteRequest != null)
+                    {
+                        <div class="alert alert-warning alert-sm mb-3 d-none" role="alert" id="line-items-warning-alert">
+                            <strong>?? Action Required:</strong> Please review and fill out the line item fields below based on your quote requirements.
+                        </div>
+                    }
+
+                    <div class="mb-3 d-none" id="color-changes-section">
+                        <label for="color-changes" class="form-label fw-semibold">Number of Color Changes</label>
+                        <input 
+                            type="number" 
+                            class="form-control" 
+                            id="color-changes"
+                            name="colorChanges"
+                            min="0"
+                            step="1"
+                            placeholder="Enter number of color changes"
+                            value="@(Model.SavedQuoteRequest?.ColorChanges?.ToString() ?? string.Empty)">
+                        <div class="form-text">Enter the number of color changes needed for this job. Each change will be charged separately.</div>
+                    </div>
+
+                    <div class="mb-3 d-none" id="digital-version-changes-section">
+                        <label for="digital-version-changes" class="form-label fw-semibold">Number of Digital Full Color Version Changes</label>
+                        <input 
+                            type="number" 
+                            class="form-control" 
+                            id="digital-version-changes"
+                            name="digitalVersionChanges"
+                            min="0"
+                            step="1"
+                            placeholder="Enter number of version changes"
+                            value="@(Model.SavedQuoteRequest?.DigitalVersionChanges?.ToString() ?? string.Empty)">
+                        <div class="form-text">Enter the number of version changes needed for this digital job. Each version change will be charged separately.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input 
+                                class="form-check-input" 
+                                type="checkbox" 
+                                id="needs-press-proof"
+                                name="needsPressProof"
+                                value="true"
+                                @(Model.SavedQuoteRequest?.NeedsPressProof == true ? "checked" : "")>
+                            <label class="form-check-label" for="needs-press-proof">
+                                Press Proof - Print Only, Not Die Cut
+                            </label>
+                        </div>
+                        <div class="mt-2 d-none" id="press-proof-quantity-section">
+                            <label for="press-proof-quantity" class="form-label">Press Proof Quantity</label>
+                            <input 
+                                type="number" 
+                                class="form-control" 
+                                id="press-proof-quantity"
+                                name="pressProofQuantity"
+                                min="1"
+                                step="1"
+                                placeholder="1"
+                                value="@(Model.SavedQuoteRequest?.PressProofQuantity ?? 1)">
+                            <div class="form-text">Enter the quantity for the press proof.</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-0">
+                        <div class="form-check">
+                            <input 
+                                class="form-check-input" 
+                                type="checkbox" 
+                                id="needs-spot-color-plate-change"
+                                name="needsSpotColorPlateChange"
+                                value="true"
+                                @(Model.SavedQuoteRequest?.NeedsSpotColorPlateChange == true ? "checked" : "")>
+                            <label class="form-check-label" for="needs-spot-color-plate-change">
+                                Spot Color Plate/Copy Change
+                            </label>
+                        </div>
+                        <div class="mt-2 d-none" id="spot-color-plate-change-quantity-section">
+                            <label for="spot-color-plate-change-quantity" class="form-label">Plate/Copy Change Quantity</label>
+                            <input 
+                                type="number" 
+                                class="form-control" 
+                                id="spot-color-plate-change-quantity"
+                                name="spotColorPlateChangeQuantity"
+                                min="1"
+                                step="1"
+                                placeholder="1"
+                                value="@(Model.SavedQuoteRequest?.SpotColorPlateChangeQuantity ?? 1)">
+                            <div class="form-text">Enter the quantity for plate/copy changes.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-4" id="finish-section">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <label for="finish-select" class="form-label fw-semibold mb-0">Finish</label>
+                    <button type="button" id="finish-retry" class="btn btn-sm btn-outline-secondary d-none">&#x21BA; Retry</button>
+                </div>
+                @if (Model.SavedQuoteRequest != null && string.IsNullOrWhiteSpace(Model.SavedQuoteRequest.Finish) && string.IsNullOrWhiteSpace(Model.SavedQuoteRequest.FinishValue))
+                {
+                    <div class="alert alert-warning alert-sm mb-2" role="alert" id="finish-warning-alert">
+                        <strong>? Selection Required:</strong> Please select a finish type for your labels.
+                    </div>
+                }
+                <input type="hidden" id="finish-value" name="finishValue" value="@(Model.SavedQuoteRequest?.FinishValue ?? string.Empty)" />
                 <select
                     class="form-select"
                     id="finish-select"
                     name="finish"
-                    data-initial-value="@(Model.SavedQuoteRequest?.Finish ?? string.Empty)">
-                    <option value="">Loading finishes…</option>
+                    data-initial-value="@(Model.SavedQuoteRequest?.FinishValue ?? Model.SavedQuoteRequest?.Finish ?? string.Empty)">
+                    <option value="">Loading finishes�</option>
                 </select>
-                <div id="finish-loading" class="form-text text-muted">Loading finishes…</div>
+                <div id="finish-loading" class="form-text text-muted">Loading finishes�</div>
                 <div id="finish-error" class="form-text text-danger d-none"></div>
             </div>
 
             <div class="mb-4">
-                <label for="packing-procedure-select" class="form-label fw-semibold">Packing Procedure</label>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <label for="packing-procedure-select" class="form-label fw-semibold mb-0">Packing Procedure</label>
+                    <button type="button" id="packing-retry" class="btn btn-sm btn-outline-secondary d-none">&#x21BA; Retry</button>
+                </div>
                 <select
                     class="form-select"
                     id="packing-procedure-select"
                     name="packingProcedure"
                     data-initial-value="@(Model.SavedQuoteRequest?.PackingProcedure ?? string.Empty)">
-                    <option value="">Loading packing procedures…</option>
+                    <option value="">Loading packing procedures�</option>
                 </select>
-                <div id="packing-procedure-loading" class="form-text text-muted">Loading packing procedures…</div>
+                <input type="hidden" id="packing-procedure-value" name="packingProcedureValue" value="@(Model.SavedQuoteRequest?.PackingProcedureValue ?? string.Empty)" />
+                <div id="packing-procedure-loading" class="form-text text-muted">Loading packing procedures�</div>
                 <div id="packing-procedure-error" class="form-text text-danger d-none"></div>
+            </div>
+
+            <div class="mb-4 d-none" id="packing-quantity-section">
+                <label for="packing-quantity" class="form-label fw-semibold">Labels per Roll</label>
+                <input
+                    type="number"
+                    class="form-control"
+                    id="packing-quantity"
+                    name="packingQuantity"
+                    min="1"
+                    step="1"
+                    placeholder="Enter number of labels per roll"
+                    value="@(Model.SavedQuoteRequest?.PackingQuantity?.ToString() ?? string.Empty)">
+                <div class="form-text">Specify how many labels should be on each roll</div>
             </div>
 
             <div class="mb-4">
                 <label class="form-label fw-semibold" for="unwind-input">Unwind Direction / Copy Position</label>
                 <input type="hidden" id="unwind-input" name="unwindDirection" value="@(Model.SavedQuoteRequest?.UnwindDirection ?? string.Empty)" />
+                <input type="hidden" id="unwind-value-input" name="unwindDirectionValue" value="@(Model.SavedQuoteRequest?.UnwindDirectionValue ?? string.Empty)" />
                 <div class="row row-cols-2 row-cols-md-4 g-2" id="unwind-options">
                     @{ var unwindOptions = new (string Value, string Label, string Description)[]
                         {
+                            ("0", "0 - TBD", "No Preference / Plant Choice"),
                             ("1", "1 - Top off first", "Labels feed with top edge leading"),
                             ("2", "2 - Bottom off first", "Bottom edge leads"),
                             ("3", "3 - Right off first", "Right edge leads"),
-                            ("4", "4 - Left off first", "Left edge leads")
+                            ("4", "4 - Left off first", "Left edge leads"),
+                            ("-", "- N/A", "Not Applicable / Blank")
                         };
                         var savedUnwind = (Model.SavedQuoteRequest?.UnwindDirection ?? string.Empty).Trim();
+                        var savedUnwindValue = (Model.SavedQuoteRequest?.UnwindDirectionValue ?? string.Empty).Trim();
                     }
                     @foreach (var option in unwindOptions)
                     {
+                        // Match by: exact label match, exact value match (check both UnwindDirection and UnwindDirectionValue), or saved value starts with option value
                         var isActive = option.Label.Equals(savedUnwind, StringComparison.OrdinalIgnoreCase)
-                            || option.Value.Equals(savedUnwind, StringComparison.OrdinalIgnoreCase);
+                            || option.Value.Equals(savedUnwind, StringComparison.OrdinalIgnoreCase)
+                            || option.Value.Equals(savedUnwindValue, StringComparison.OrdinalIgnoreCase)
+                            || (!string.IsNullOrEmpty(savedUnwind) && savedUnwind.StartsWith(option.Value + " ", StringComparison.OrdinalIgnoreCase))
+                            || (!string.IsNullOrEmpty(savedUnwind) && savedUnwind.StartsWith(option.Value + "-", StringComparison.OrdinalIgnoreCase));
                         <div class="col">
                             <button type="button"
                                     class="btn btn-outline-secondary w-100 text-start unwind-option @(isActive ? "active" : string.Empty)"
@@ -280,20 +499,26 @@
                                 <span class="d-flex align-items-center">
                                     <span class="unwind-icon me-2">
                                         @switch (option.Value)
-                                        {
-                                            case "1":
-                                                @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="6" y="12" width="20" height="8" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M16 6v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 10l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                                break;
-                                            case "2":
-                                                @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="6" y="12" width="20" height="8" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M16 26v-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 22l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                                break;
-                                            case "3":
-                                                @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="12" y="6" width="8" height="20" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M26 16h-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M22 12l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                                break;
-                                            default:
-                                                @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="12" y="6" width="8" height="20" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M6 16h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 12l-4 4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                                break;
-                                        }
+                                         {
+                                             case "0":
+                                                 @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="12" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><text x="16" y="21" text-anchor="middle" font-size="15" font-weight="bold" fill="currentColor">?</text></svg>
+                                                 break;
+                                             case "1":
+                                                 @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="6" y="12" width="20" height="8" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M16 6v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 10l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                 break;
+                                             case "2":
+                                                 @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="6" y="12" width="20" height="8" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M16 26v-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 22l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                 break;
+                                             case "3":
+                                                 @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="12" y="6" width="8" height="20" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M26 16h-8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M22 12l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                 break;
+                                             case "-":
+                                                 @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="12" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M10 16h12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+                                                 break;
+                                             default:
+                                                 @:<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="12" y="6" width="8" height="20" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2"/><path d="M6 16h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M10 12l-4 4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                 break;
+                                         }
                                     </span>
                                     <span>
                                         <span class="fw-semibold d-block">@option.Label</span>
@@ -306,8 +531,14 @@
                 </div>
             </div>
 
-            <div class="mb-4">
+            <div class="mb-4" id="quantities-section">
                 <label class="form-label fw-semibold">Quantities to Quote</label>
+                @if (Model.SavedQuoteRequest != null && (Model.SavedQuoteRequest.Quantities == null || !Model.SavedQuoteRequest.Quantities.Any()))
+                {
+                    <div class="alert alert-warning alert-sm mb-2" role="alert" id="quantities-warning-alert">
+                        <strong>?? Selection Required:</strong> Please add at least one quantity to get pricing.
+                    </div>
+                }
                 <div class="form-text mb-2">Add up to five breakouts so estimating can price each run size.</div>
                 <div id="quantity-list" class="d-flex flex-column gap-2">
                     @{
@@ -388,13 +619,383 @@
                 </div>
             </div>
 
+            <div class="mb-4">
+                <label for="artwork-file" class="form-label fw-semibold">Artwork or Specification File (Optional)</label>
+                <input type="file" 
+                       class="form-control" 
+                       id="artwork-file" 
+                       name="artworkFile"
+                       accept=".pdf,.png,.jpg,.jpeg,.ai,.eps,.svg,.zip">
+                <div class="form-text">
+                    Upload artwork, specifications, or reference files. Accepted formats: PDF, PNG, JPG, AI, EPS, SVG, ZIP (Max 50 MB)
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Model.SavedQuoteRequest?.UploadedFileName))
+                {
+                    <div class="alert alert-info mt-2" role="alert">
+                        <strong>Previously uploaded:</strong> @Model.SavedQuoteRequest.UploadedFileOriginalName
+                        <small class="d-block">(@(FormatFileSize(Model.SavedQuoteRequest.UploadedFileSize ?? 0)))</small>
+                    </div>
+                }
+            </div>
+
             <div class="text-end mt-4">
                 <button type="submit" class="btn btn-primary">Get Quote Prices</button>
             </div>
 
         </form>
 
+        <div class="card mt-4 border-secondary">
+            <div class="card-header bg-secondary bg-opacity-10 p-2">
+                <h6 class="mb-0">
+                    <button class="btn btn-link text-decoration-none w-100 text-start d-flex justify-content-between align-items-center py-0"
+                            type="button" data-bs-toggle="collapse"
+                            data-bs-target="#debugFormValuesCollapse"
+                            aria-expanded="false" aria-controls="debugFormValuesCollapse">
+                        <span>&#x1F527; Debug: Live Form Values</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-down" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                        </svg>
+                    </button>
+                </h6>
+            </div>
+            <div class="collapse" id="debugFormValuesCollapse">
+                <div class="card-body p-0">
+                    <table class="table table-sm table-bordered table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr><th style="width:35%">Field</th><th>Value</th></tr>
+                        </thead>
+                        <tbody id="debug-form-tbody">
+                            <tr><td colspan="2" class="text-muted text-center py-2"><em>Expand to load�</em></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <script>
+        (function () {
+            const collapseEl = document.getElementById('debugFormValuesCollapse');
+            const tbody = document.getElementById('debug-form-tbody');
+            const form = document.getElementById('quote-form');
+            if (!collapseEl || !tbody || !form) return;
+
+            const GROUPS = {
+                'Customer':      ['customerId','customerDisplayName'],
+                'Contact':       ['name','company','email','phone','comments'],
+                'Reference':     ['referenceType','referenceValue','description'],
+                'Shape':         ['shape','shapeValue','corners','cornersValue'],
+                'Dimensions':    ['labelWidth','labelHeight','diameter'],
+                'Die':           ['existingDie','cuttingDieValue','dieSizeInfo','isCustomDie'],
+                'Material':      ['material','materialDisplay','materialValue'],
+                'Printing':      ['printing','printingValue','colorCode','colorCodeValue'],
+                'Finish':        ['finish','finishValue'],
+                'Packing':       ['packingProcedure','packingProcedureValue'],
+                'Application':   ['applicationMethod','applicationMethodValue'],
+                'Unwind':        ['unwindDirection','unwindDirectionValue'],
+                'Quantities':    ['totalQuantity','quantity'],
+                'Artwork':       ['artworkOption','artworkOptionValue'],
+                'Press Proof':   ['needsPressProof','pressProofQuantity'],
+                'Spot Color':    ['needsSpotColorPlateChange','spotColorPlateChangeQuantity'],
+                'Color Changes': ['colorChanges','digitalVersionChanges'],
+            };
+            const GROUP_CLASSES = {
+                Customer:'table-primary', Shape:'table-info', Dimensions:'table-info',
+                Material:'table-success', Printing:'table-warning', Finish:'table-warning',
+                Quantities:'table-danger', Die:'table-secondary'
+            };
+
+            function esc(s) {
+                return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            }
+
+            function render() {
+                const data = {};
+                for (const [k, v] of new FormData(form).entries()) {
+                    if (k === '__RequestVerificationToken') continue;
+                    if (k in data) {
+                        data[k] = Array.isArray(data[k]) ? [...data[k], v] : [data[k], v];
+                    } else {
+                        data[k] = v;
+                    }
+                }
+
+                const rows = [], seen = new Set();
+                for (const [group, keys] of Object.entries(GROUPS)) {
+                    let hdr = false;
+                    for (const key of keys) {
+                        if (!(key in data)) continue;
+                        seen.add(key);
+                        if (!hdr) {
+                            rows.push(`<tr class="table-secondary"><td colspan="2" class="fw-bold small py-1 px-2 text-uppercase letter-spacing-1">${group}</td></tr>`);
+                            hdr = true;
+                        }
+                        const val = Array.isArray(data[key]) ? data[key].join(', ') : data[key];
+                        const disp = val === '' ? '<em class="text-muted">(empty)</em>' : `<code>${esc(val)}</code>`;
+                        rows.push(`<tr class="${GROUP_CLASSES[group] ?? ''}"><td class="fw-semibold small">${esc(key)}</td><td>${disp}</td></tr>`);
+                    }
+                }
+
+                const extras = Object.keys(data).filter(k => !seen.has(k));
+                if (extras.length) {
+                    rows.push(`<tr class="table-secondary"><td colspan="2" class="fw-bold small py-1 px-2 text-uppercase">Other</td></tr>`);
+                    for (const k of extras) {
+                        const val = Array.isArray(data[k]) ? data[k].join(', ') : data[k];
+                        rows.push(`<tr><td class="fw-semibold small">${esc(k)}</td><td><code>${esc(val)}</code></td></tr>`);
+                    }
+                }
+
+                tbody.innerHTML = rows.length
+                    ? rows.join('')
+                    : '<tr><td colspan="2" class="text-muted text-center">No form data found</td></tr>';
+            }
+
+            collapseEl.addEventListener('show.bs.collapse', render);
+            form.addEventListener('input',  () => { if (collapseEl.classList.contains('show')) render(); });
+            form.addEventListener('change', () => { if (collapseEl.classList.contains('show')) render(); });
+            ['shapeSelectionChanged','printingSelectionChanged','unwindSelectionChanged','cornerSelectionChanged']
+                .forEach(e => window.addEventListener(e, () => {
+                    if (collapseEl.classList.contains('show')) setTimeout(render, 50);
+                }));
+        })();
+        </script>
+
+        @if (Model.SavedQuoteRequest != null)
+        {
+            <div class="card mt-4 border-warning">
+                <div class="card-header bg-warning bg-opacity-10">
+                    <h5 class="mb-0">
+                        <button class="btn btn-link text-decoration-none w-100 text-start d-flex justify-content-between align-items-center" 
+                                type="button" 
+                                data-bs-toggle="collapse" 
+                                data-bs-target="#debugParametersCollapse" 
+                                aria-expanded="false" 
+                                aria-controls="debugParametersCollapse">
+                            <span>?? Debug: Parameters from Customer Page</span>
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                            </svg>
+                        </button>
+                    </h5>
+                </div>
+                <div class="collapse" id="debugParametersCollapse">
+                    <div class="card-body">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 30%">Parameter</th>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="fw-semibold">EstimateId</td>
+                                    <td><code>@(Model.SavedQuoteRequest.EstimateId ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">CustomerId</td>
+                                    <td><code>@(Model.SavedQuoteRequest.CustomerId ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">CustomerDisplayName</td>
+                                    <td><code>@(Model.SavedQuoteRequest.CustomerDisplayName ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td class="fw-semibold">Description</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Description ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td class="fw-semibold">Shape</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Shape ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td class="fw-semibold">ShapeValue</td>
+                                    <td><code>@(Model.SavedQuoteRequest.ShapeValue ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td class="fw-semibold">LabelWidth</td>
+                                    <td><code>@(Model.SavedQuoteRequest.LabelWidth ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td class="fw-semibold">LabelHeight</td>
+                                    <td><code>@(Model.SavedQuoteRequest.LabelHeight ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td class="fw-semibold">Diameter</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Diameter ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td class="fw-semibold">Corners</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Corners ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td class="fw-semibold">CornersValue</td>
+                                    <td><code>@(Model.SavedQuoteRequest.CornersValue ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-success">
+                                    <td class="fw-semibold">Material</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Material ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-success">
+                                    <td class="fw-semibold">MaterialValue</td>
+                                    <td><code>@(Model.SavedQuoteRequest.MaterialValue ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-info">
+                                    <td class="fw-semibold">Printing</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Printing ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-info">
+                                    <td class="fw-semibold">PrintingValue</td>
+                                    <td><code>@(Model.SavedQuoteRequest.PrintingValue ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-info">
+                                    <td class="fw-semibold">ColorCode</td>
+                                    <td><code>@(Model.SavedQuoteRequest.ColorCode ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-info">
+                                    <td class="fw-semibold">ColorCodeValue</td>
+                                    <td><code>@(Model.SavedQuoteRequest.ColorCodeValue ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-warning">
+                                    <td class="fw-semibold">Finish</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Finish ?? "(null)")</code></td>
+                                </tr>
+                                <tr class="table-warning">
+                                    <td class="fw-semibold">FinishValue</td>
+                                    <td><code>@(Model.SavedQuoteRequest.FinishValue ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">PackingProcedure</td>
+                                    <td><code>@(Model.SavedQuoteRequest.PackingProcedure ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">UnwindDirection</td>
+                                    <td><code>@(Model.SavedQuoteRequest.UnwindDirection ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">ApplicationMethod</td>
+                                    <td><code>@(Model.SavedQuoteRequest.ApplicationMethod ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">ApplicationMethodValue</td>
+                                    <td><code>@(Model.SavedQuoteRequest.ApplicationMethodValue ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">CuttingDie</td>
+                                    <td><code>@(Model.SavedQuoteRequest.CuttingDie ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">CuttingDieValue</td>
+                                    <td><code>@(Model.SavedQuoteRequest.CuttingDieValue ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">TotalQuantity</td>
+                                    <td><code>@(Model.SavedQuoteRequest.TotalQuantity ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">Quantities</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Quantities != null ? string.Join(", ", Model.SavedQuoteRequest.Quantities) : "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">ReferenceType</td>
+                                    <td><code>@(Model.SavedQuoteRequest.ReferenceType ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">ReferenceValue</td>
+                                    <td><code>@(Model.SavedQuoteRequest.ReferenceValue ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">Name</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Name ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">Company</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Company ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">Email</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Email ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">Phone</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Phone ?? "(null)")</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="fw-semibold">Comments</td>
+                                    <td><code>@(Model.SavedQuoteRequest.Comments ?? "(null)")</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="alert alert-info mb-0">
+                            <small><strong>Note:</strong> This debug panel shows the raw data passed from the Customers page. Values marked with <span class="badge bg-primary">blue</span> are dimensions, 
+                            <span class="badge bg-success">green</span> are material-related, 
+                            <span class="badge bg-info">light blue</span> are printing/color-related, 
+                            and <span class="badge bg-warning">yellow</span> are finishing-related.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <script>
+            // Toggle Press Proof quantity section
+            (function() {
+                const checkbox = document.getElementById('needs-press-proof');
+                const quantitySection = document.getElementById('press-proof-quantity-section');
+
+                if (checkbox && quantitySection) {
+                    checkbox.addEventListener('change', function() {
+                        if (this.checked) {
+                            quantitySection.classList.remove('d-none');
+                        } else {
+                            quantitySection.classList.add('d-none');
+                        }
+                    });
+
+                    // Initialize on page load
+                    if (checkbox.checked) {
+                        quantitySection.classList.remove('d-none');
+                    }
+                }
+            })();
+
+            // Toggle Spot Color Plate Change quantity section
+            (function() {
+                const checkbox = document.getElementById('needs-spot-color-plate-change');
+                const quantitySection = document.getElementById('spot-color-plate-change-quantity-section');
+
+                if (checkbox && quantitySection) {
+                    checkbox.addEventListener('change', function() {
+                        if (this.checked) {
+                            quantitySection.classList.remove('d-none');
+                        } else {
+                            quantitySection.classList.add('d-none');
+                        }
+                    });
+
+                    // Initialize on page load
+                    if (checkbox.checked) {
+                        quantitySection.classList.remove('d-none');
+                    }
+                }
+            })();
+        </script>
+
+        <script>
+            function formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+            }
+        </script>
+
+        <script>
+            // Populated by each IIFE; run sequentially so the first fetch warms
+            // the OAuth token cache and subsequent loaders skip the OAuth round-trip.
+            const _apiLoaders = [];
+
             (function () {
                 const materialSelect = document.getElementById('material-select');
                 if (!materialSelect) {
@@ -403,6 +1004,7 @@
 
                 const materialLoading = document.getElementById('material-loading');
                 const materialError = document.getElementById('material-error');
+                const materialRetry = document.getElementById('material-retry');
                 const materialDisplayInput = document.getElementById('material-display');
                 const initialValue = (materialSelect.dataset.initialValue || '').trim();
                 const initialLabel = (materialSelect.dataset.initialLabel || '').trim();
@@ -427,16 +1029,24 @@
                         || 'Unknown Material';
                 }
 
+                function getGBDescription(material) {
+                    const descriptions = material.Descriptions || material.descriptions || [];
+                    const gb = descriptions.find(d => (d.ISOLanguageCode || d.isoLanguageCode || '').toLowerCase() === 'en-gb');
+                    return gb ? (gb.Description || gb.description || '') : '';
+                }
+
                 function populateMaterials(materials) {
-                    materialSelect.innerHTML = '<option value="">Select a material</option>';
+                    materialSelect.innerHTML = '';
                     materials.forEach(material => {
                         const materialId = material.SubstrateId || material.substrateId || material.Id || material.id || '';
                         const description = getDescription(material);
+                        const gbDescription = getGBDescription(material);
                         const option = document.createElement('option');
                         option.value = materialId || description;
                         option.textContent = description;
                         option.dataset.display = description;
                         option.dataset.materialId = materialId;
+                        option.dataset.gbDescription = gbDescription; // Store en-GB for matching
                         if (initialValue && option.value === initialValue) {
                             option.selected = true;
                         } else if (!initialValue && initialLabel && description.toLowerCase() === initialLabel.toLowerCase()) {
@@ -453,10 +1063,14 @@
                 }
 
                 async function loadMaterials() {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 15000);
                     try {
                         materialLoading.classList.remove('d-none');
                         materialError.classList.add('d-none');
-                        const response = await fetch('/Api/Materials', { headers: { 'Accept': 'application/json' } });
+                        materialRetry?.classList.add('d-none');
+                        const response = await fetch('/Api/Materials', { headers: { 'Accept': 'application/json' }, signal: controller.signal });
+                        clearTimeout(timeoutId);
                         if (!response.ok) {
                             const errorData = await response.json().catch(() => ({ error: 'Unable to load materials right now.' }));
                             throw new Error(errorData.error || `Unable to load materials (${response.status})`);
@@ -469,9 +1083,12 @@
                         }
                         populateMaterials(materials);
                     } catch (error) {
+                        clearTimeout(timeoutId);
                         console.error('Failed to load materials', error);
-                        materialError.textContent = error.message || 'Unable to load materials right now.';
+                        const message = error.name === 'AbortError' ? 'Loading timed out. Please retry.' : (error.message || 'Unable to load materials right now.');
+                        materialError.textContent = message;
                         materialError.classList.remove('d-none');
+                        materialRetry?.classList.remove('d-none');
                         materialSelect.innerHTML = '<option value="">Unable to load materials</option>';
                     } finally {
                         materialLoading.classList.add('d-none');
@@ -479,14 +1096,16 @@
                 }
 
                 materialSelect.addEventListener('change', updateMaterialDisplay);
+                materialRetry?.addEventListener('click', loadMaterials);
 
-                loadMaterials();
+                _apiLoaders.push(loadMaterials);
             })();
 
             (function () {
                 const printingFilter = document.getElementById('printing-filter');
                 const printingLoading = document.getElementById('printing-loading');
                 const printingError = document.getElementById('printing-error');
+                const printingRetry = document.getElementById('printing-retry');
                 const printingInput = document.getElementById('printing-input');
                 const printingValueInput = document.getElementById('printing-value');
                 if (!printingFilter || !printingInput || !printingValueInput) {
@@ -581,12 +1200,16 @@
                 };
 
                 async function loadPrintingOptions() {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 15000);
                     try {
                         printingLoading?.classList.remove('d-none');
                         printingError?.classList.add('d-none');
+                        printingRetry?.classList.add('d-none');
                         printingFilter.innerHTML = '';
 
-                        const response = await fetch('/Api/ColorCodes', { headers: { 'Accept': 'application/json' } });
+                        const response = await fetch('/Api/ColorCodes', { headers: { 'Accept': 'application/json' }, signal: controller.signal });
+                        clearTimeout(timeoutId);
                         if (!response.ok) {
                             const errorPayload = await response.json().catch(() => ({}));
                             throw new Error(errorPayload.error || `Unable to load printing options (${response.status})`);
@@ -627,18 +1250,22 @@
                             setActive(match, true);
                         }
                     } catch (error) {
+                        clearTimeout(timeoutId);
                         console.error('Failed to load printing options', error);
                         if (printingError) {
-                            printingError.textContent = error.message || 'Unable to load printing options right now.';
+                            const message = error.name === 'AbortError' ? 'Loading timed out. Please retry.' : (error.message || 'Unable to load printing options right now.');
+                            printingError.textContent = message;
                             printingError.classList.remove('d-none');
                         }
+                        printingRetry?.classList.remove('d-none');
                         printingFilter.innerHTML = '<div class="text-muted">Unable to load printing options.</div>';
                     } finally {
                         printingLoading?.classList.add('d-none');
                     }
                 }
 
-                loadPrintingOptions();
+                printingRetry?.addEventListener('click', loadPrintingOptions);
+                _apiLoaders.push(loadPrintingOptions);
             })();
 
             (function () {
@@ -683,15 +1310,31 @@
             (function () {
                 const rectangleSection = document.getElementById('dimensions-rectangles');
                 const radiusSection = document.getElementById('dimensions-radius');
+                const widthInput = document.getElementById('label-width');
+                const heightInput = document.getElementById('label-height');
+                const radiusInput = document.getElementById('label-radius');
+
                 if (!rectangleSection || !radiusSection) {
                     return;
                 }
 
                 function updateVisibility(shapeKey) {
                     const isRectangular = shapeKey === 'rectangle' || shapeKey === 'square';
-                    const isRound = shapeKey === 'circle' || shapeKey === 'oval';
+                    const isRound = shapeKey === 'circle';
+
                     rectangleSection.classList.toggle('d-none', !isRectangular);
                     radiusSection.classList.toggle('d-none', !isRound);
+
+                    // Set width/height to "0" when switching to circle (CERM API requires a value, not empty string)
+                    if (isRound && widthInput && heightInput) {
+                        widthInput.value = '0';
+                        heightInput.value = '0';
+                    }
+
+                    // Set radius to "0" when switching to rectangle to prevent invalid submission
+                    if (isRectangular && radiusInput) {
+                        radiusInput.value = '0';
+                    }
                 }
 
                 window.addEventListener('shapeSelectionChanged', event => {
@@ -714,6 +1357,15 @@
                     cornerOptions.forEach(btn => btn.classList.remove('active'));
                     button.classList.add('active');
                     cornerInput.value = button.dataset.label || button.dataset.value || '';
+
+                    // Remove needs-attention styling and hide warning alert when a selection is made
+                    cornerSection.classList.remove('needs-attention');
+                    const warningAlert = document.getElementById('corner-warning-alert');
+                    if (warningAlert) {
+                        warningAlert.classList.add('d-none');
+                    }
+
+                    window.dispatchEvent(new CustomEvent('cornerSelectionChanged', { detail: { value: cornerInput.value } }));
                 }
 
                 function updateCornerVisibility(shapeKey) {
@@ -722,8 +1374,19 @@
                     if (!show) {
                         cornerInput.value = '';
                         cornerOptions.forEach(btn => btn.classList.remove('active'));
+                        cornerSection.classList.remove('needs-attention');
                     } else if (!cornerOptions.some(btn => btn.classList.contains('active'))) {
-                        setCornerActive(cornerOptions[0]);
+                        // Check if we're coming from a pre-filled quote
+                        const savedQuoteElement = document.getElementById('saved-quote-data');
+                        if (savedQuoteElement) {
+                            // Show warning but DON'T auto-select a corner - let user choose
+                            cornerSection.classList.add('needs-attention');
+                            // Clear the input value since nothing is selected
+                            cornerInput.value = '';
+                        } else {
+                            // Not from a pre-filled quote, select first option as default
+                            setCornerActive(cornerOptions[0]);
+                        }
                     }
                 }
 
@@ -733,7 +1396,8 @@
                     });
                 });
 
-                const initialCorner = document.querySelector('.corner-option.active') || cornerOptions[0];
+                // Only set initial corner if one was already active from saved data
+                const initialCorner = document.querySelector('.corner-option.active');
                 if (initialCorner) {
                     setCornerActive(initialCorner);
                 }
@@ -749,19 +1413,26 @@
             (function () {
                 const unwindOptions = document.querySelectorAll('.unwind-option');
                 const unwindInput = document.getElementById('unwind-input');
-                if (!unwindOptions.length || !unwindInput) {
+                const unwindValueInput = document.getElementById('unwind-value-input');
+                if (!unwindOptions.length || !unwindInput || !unwindValueInput) {
                     return;
                 }
 
                 function setActive(button, raiseEvent = false) {
                     unwindOptions.forEach(btn => btn.classList.remove('active'));
                     button.classList.add('active');
-                    unwindInput.value = button.dataset.label || button.dataset.value || '';
+                    // Store the numeric ID in unwindDirectionValue for CERM API
+                    const numericId = button.dataset.value || '';
+                    const label = button.dataset.label || '';
+                    unwindValueInput.value = numericId;
+                    unwindInput.value = label; // Keep label for display/confirmation
+
                     if (raiseEvent) {
                         window.dispatchEvent(new CustomEvent('unwindSelectionChanged', {
                             detail: {
-                                value: unwindInput.value,
-                                key: (button.dataset.value || '').toLowerCase()
+                                value: numericId,
+                                label: label,
+                                key: (numericId || '').toLowerCase()
                             }
                         }));
                     }
@@ -773,20 +1444,168 @@
                     });
                 });
 
-                const initialActive = document.querySelector('.unwind-option.active');
+                // Check for active button from server-side rendering first
+                let initialActive = document.querySelector('.unwind-option.active');
+
+                // If no active button but we have a saved value in the hidden input, try to match it
+                if (!initialActive && (unwindInput.value || unwindValueInput.value)) {
+                    const savedValue = (unwindValueInput.value || unwindInput.value).trim();
+                    // Try to find a button that matches the saved value
+                    initialActive = Array.from(unwindOptions).find(btn => {
+                        const btnValue = btn.dataset.value || '';
+                        const btnLabel = btn.dataset.label || '';
+                        // Match by ID, label, or if saved value starts with the button's ID
+                        return btnValue === savedValue ||
+                               btnLabel.toLowerCase() === savedValue.toLowerCase() ||
+                               savedValue.startsWith(btnValue + ' ') ||
+                               savedValue.startsWith(btnValue + '-');
+                    });
+                }
+
                 if (initialActive) {
                     setActive(initialActive);
                 } else if (unwindOptions.length) {
+                    // Default to first option only if no saved value
                     setActive(unwindOptions[0]);
                 }
             })();
 
             (function () {
+                const colorChangesSection = document.getElementById('color-changes-section');
+                const colorChangesInput = document.getElementById('color-changes');
+                const digitalVersionChangesSection = document.getElementById('digital-version-changes-section');
+                const digitalVersionChangesInput = document.getElementById('digital-version-changes');
+                const lineItemsSection = document.getElementById('line-items-section');
+                const lineItemsWarningAlert = document.getElementById('line-items-warning-alert');
+                const pressProofCheckbox = document.getElementById('needs-press-proof');
+                const pressProofQuantityInput = document.getElementById('press-proof-quantity');
+                const spotColorCheckbox = document.getElementById('needs-spot-color-plate-change');
+                const spotColorQuantityInput = document.getElementById('spot-color-plate-change-quantity');
+
+                if (!colorChangesSection || !colorChangesInput || !digitalVersionChangesSection || !digitalVersionChangesInput || !lineItemsSection) {
+                    console.warn('Missing printing-dependent field elements');
+                    return;
+                }
+
+                let userHasInteracted = false;
+
+                function removeLineItemsAttention() {
+                    if (!lineItemsSection) return;
+
+                    userHasInteracted = true;
+                    lineItemsSection.classList.remove('needs-attention');
+                    if (lineItemsWarningAlert) {
+                        lineItemsWarningAlert.classList.add('d-none');
+                    }
+                }
+
+                function checkLineItemsAttention() {
+                    // Check if we're from a saved quote
+                    const savedQuoteElement = document.getElementById('saved-quote-data');
+                    if (!savedQuoteElement || !lineItemsSection) {
+                        return;
+                    }
+
+                    // Check if line items section is visible
+                    if (lineItemsSection.classList.contains('d-none')) {
+                        return;
+                    }
+
+                    // If user has already interacted with any field, don't re-apply highlighting
+                    if (userHasInteracted) {
+                        return;
+                    }
+
+                    // Check if any visible numeric inputs have no value or are still at the default 0 (not user-entered)
+                    // Only highlight if the fields appear to be untouched
+                    const colorChangesUntouched = !colorChangesSection.classList.contains('d-none') && !colorChangesInput.value;
+                    const digitalVersionUntouched = !digitalVersionChangesSection.classList.contains('d-none') && !digitalVersionChangesInput.value;
+                    const hasUntouchedFields = colorChangesUntouched || digitalVersionUntouched;
+
+                    if (hasUntouchedFields) {
+                        lineItemsSection.classList.add('needs-attention');
+                        if (lineItemsWarningAlert) {
+                            lineItemsWarningAlert.classList.remove('d-none');
+                        }
+                    } else {
+                        lineItemsSection.classList.remove('needs-attention');
+                        if (lineItemsWarningAlert) {
+                            lineItemsWarningAlert.classList.add('d-none');
+                        }
+                    }
+                }
+
+                function updatePrintingDependentFields(printingLabel) {
+                    const labelLower = (printingLabel || '').toLowerCase();
+                    const isSpotPrinting = labelLower.includes('spot');
+                    const isProcessColor = labelLower.includes('process') && labelLower.includes('color');
+
+                    console.log('Printing selection:', printingLabel, '| Spot:', isSpotPrinting, '| Process Color:', isProcessColor);
+
+                    // Show/hide color changes for spot printing
+                    colorChangesSection.classList.toggle('d-none', !isSpotPrinting);
+                    if (!isSpotPrinting) {
+                        colorChangesInput.value = ''; // Clear instead of setting to 0
+                    }
+
+                    // Show/hide digital version changes for process color
+                    digitalVersionChangesSection.classList.toggle('d-none', !isProcessColor);
+                    if (!isProcessColor) {
+                        digitalVersionChangesInput.value = ''; // Clear instead of setting to 0
+                    }
+
+                    // Show line items section if any subsection is visible
+                    const hasVisibleLineItems = isSpotPrinting || isProcessColor;
+                    lineItemsSection.classList.toggle('d-none', !hasVisibleLineItems);
+
+                    // Check if we need attention styling (only if user hasn't interacted yet)
+                    checkLineItemsAttention();
+                }
+
+                // Remove highlighting on ANY interaction with line items fields
+                colorChangesInput.addEventListener('input', removeLineItemsAttention);
+                colorChangesInput.addEventListener('change', removeLineItemsAttention);
+                digitalVersionChangesInput.addEventListener('input', removeLineItemsAttention);
+                digitalVersionChangesInput.addEventListener('change', removeLineItemsAttention);
+
+                if (pressProofCheckbox) {
+                    pressProofCheckbox.addEventListener('change', removeLineItemsAttention);
+                }
+                if (pressProofQuantityInput) {
+                    pressProofQuantityInput.addEventListener('input', removeLineItemsAttention);
+                    pressProofQuantityInput.addEventListener('change', removeLineItemsAttention);
+                }
+                if (spotColorCheckbox) {
+                    spotColorCheckbox.addEventListener('change', removeLineItemsAttention);
+                }
+                if (spotColorQuantityInput) {
+                    spotColorQuantityInput.addEventListener('input', removeLineItemsAttention);
+                    spotColorQuantityInput.addEventListener('change', removeLineItemsAttention);
+                }
+
+                // Listen for printing selection changes
+                window.addEventListener('printingSelectionChanged', event => {
+                    updatePrintingDependentFields(event.detail?.label || '');
+                });
+
+                // Check initial state
+                const printingInput = document.getElementById('printing-input');
+                if (printingInput && printingInput.value) {
+                    updatePrintingDependentFields(printingInput.value);
+                }
+            })();
+
+            (function () {
                 const finishSelect = document.getElementById('finish-select');
+                const finishValueInput = document.getElementById('finish-value');
                 const finishLoading = document.getElementById('finish-loading');
                 const finishError = document.getElementById('finish-error');
+                const finishRetry = document.getElementById('finish-retry');
                 const filtersElement = document.getElementById('printing-finish-filters');
-                if (!finishSelect || !filtersElement) {
+                const finishSection = document.getElementById('finish-section');
+                const finishWarningAlert = document.getElementById('finish-warning-alert');
+
+                if (!finishSelect || !filtersElement || !finishValueInput) {
                     return;
                 }
 
@@ -819,8 +1638,15 @@
                         || 'Unknown Finish';
                 }
 
+                function getId(item) {
+                    return item.Id || item.id || '';
+                }
+
                 function rebuildOptions(items) {
-                    finishSelect.innerHTML = '<option value="">Select a finish</option>';
+                    // Only show "Select a finish" if no value has been selected yet
+                    const hasSelectedValue = selectedValue && selectedValue !== '';
+                    finishSelect.innerHTML = hasSelectedValue ? '' : '<option value="">Select a finish</option>';
+
                     if (!items.length) {
                         const option = document.createElement('option');
                         option.value = '';
@@ -828,21 +1654,39 @@
                         option.disabled = true;
                         option.selected = true;
                         finishSelect.appendChild(option);
+                        finishValueInput.value = '';
                         return;
                     }
 
                     items.forEach(item => {
+                        const id = getId(item);
                         const description = getDescription(item);
                         const option = document.createElement('option');
-                        option.value = description;
-                        option.textContent = description;
+                        option.value = description;  // Use description as value for display on Confirm/Success
+                        option.textContent = description;  // Show description to user
+                        option.dataset.finishId = id;  // Store ID in data attribute for API
                         finishSelect.appendChild(option);
                     });
 
+                    // Try to match by description first, then fall back to ID
                     const normalizedSelected = (selectedValue || '').toLowerCase();
-                    const matchingOption = Array.from(finishSelect.options).find(opt => opt.value.toLowerCase() === normalizedSelected);
+                    let matchingOption = Array.from(finishSelect.options).find(opt => 
+                        opt.value.toLowerCase() === normalizedSelected);
+                    if (!matchingOption) {
+                        // Fall back to matching by ID (for backwards compatibility with saved data)
+                        matchingOption = Array.from(finishSelect.options).find(opt => 
+                            (opt.dataset.finishId || '').toLowerCase() === normalizedSelected);
+                    }
                     if (matchingOption) {
                         matchingOption.selected = true;
+                        finishValueInput.value = matchingOption.dataset.finishId || '';
+                    }
+
+                    // Check if we should add needs-attention styling
+                    // Add it if options are loaded, we're from a saved quote, and no finish is selected
+                    const savedQuoteElement = document.getElementById('saved-quote-data');
+                    if (savedQuoteElement && finishSection && !finishSelect.value && items.length > 0) {
+                        finishSection.classList.add('needs-attention');
                     }
                 }
 
@@ -864,6 +1708,21 @@
 
                 finishSelect.addEventListener('change', () => {
                     selectedValue = finishSelect.value;
+                    // Get the ID from the selected option's data attribute
+                    const selectedOption = finishSelect.options[finishSelect.selectedIndex];
+                    finishValueInput.value = selectedOption?.dataset.finishId || '';
+
+                    // Remove needs-attention styling and hide warning alert when a selection is made
+                    if (selectedValue && selectedValue !== '') {
+                        if (finishSection) {
+                            finishSection.classList.remove('needs-attention');
+                        }
+                        if (finishWarningAlert) {
+                            finishWarningAlert.classList.add('d-none');
+                        }
+                        // Rebuild options to remove "Select a finish" after selection
+                        applyFilter();
+                    }
                 });
 
                 window.addEventListener('printingSelectionChanged', event => {
@@ -872,10 +1731,14 @@
                 });
 
                 async function loadFinishes() {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 15000);
                     try {
                         finishLoading.classList.remove('d-none');
                         finishError.classList.add('d-none');
-                        const response = await fetch('/Api/FinishingTypes', { headers: { 'Accept': 'application/json' } });
+                        finishRetry?.classList.add('d-none');
+                        const response = await fetch('/Api/FinishingTypes', { headers: { 'Accept': 'application/json' }, signal: controller.signal });
+                        clearTimeout(timeoutId);
                         if (!response.ok) {
                             const errorData = await response.json().catch(() => ({ error: 'Unable to load finishes right now.' }));
                             throw new Error(errorData.error || `Unable to load finishes (${response.status})`);
@@ -889,9 +1752,12 @@
                         allFinishes = items;
                         applyFilter();
                     } catch (error) {
+                        clearTimeout(timeoutId);
+                        const message = error.name === 'AbortError' ? 'Loading timed out. Please retry.' : (error.message || 'Unable to load finishes right now.');
                         console.error('Failed to load finishes', error);
-                        finishError.textContent = error.message || 'Unable to load finishes right now.';
+                        finishError.textContent = message;
                         finishError.classList.remove('d-none');
+                        finishRetry?.classList.remove('d-none');
                         finishSelect.innerHTML = '<option value="">Unable to load finishes</option>';
                     } finally {
                         finishLoading.classList.add('d-none');
@@ -903,7 +1769,8 @@
                     currentPrintingKey = (activePrinting.dataset.printingKey || activePrinting.dataset.value || '').toLowerCase();
                 }
 
-                loadFinishes();
+                finishRetry?.addEventListener('click', loadFinishes);
+                _apiLoaders.push(loadFinishes);
             })();
 
             // Packing Procedures Loader
@@ -911,12 +1778,14 @@
                 const packingProcedureSelect = document.getElementById('packing-procedure-select');
                 const packingProcedureLoading = document.getElementById('packing-procedure-loading');
                 const packingProcedureError = document.getElementById('packing-procedure-error');
+                const packingRetry = document.getElementById('packing-retry');
 
                 if (!packingProcedureSelect || !packingProcedureLoading || !packingProcedureError) {
                     return;
                 }
 
                 const savedValue = packingProcedureSelect.dataset.initialValue || '';
+                let selectedValue = savedValue;
 
                 function getDescription(item) {
                     const descriptions = item.Descriptions || item.descriptions || [];
@@ -929,12 +1798,49 @@
                         || 'Unknown Procedure';
                 }
 
+                function rebuildOptions(items) {
+                    // Only show "Select a packing procedure" if no value has been selected yet
+                    const hasSelectedValue = selectedValue && selectedValue !== '';
+                    packingProcedureSelect.innerHTML = hasSelectedValue ? '' : '<option value="">Select a packing procedure</option>';
+
+                    if (items.length === 0) {
+                        const option = document.createElement('option');
+                        option.value = '';
+                        option.textContent = 'No packing procedures available for quick quote';
+                        option.disabled = true;
+                        packingProcedureSelect.appendChild(option);
+                        return;
+                    }
+
+                    items.forEach(item => {
+                        const description = getDescription(item);
+                        const option = document.createElement('option');
+                        option.value = description;
+                        option.textContent = description;
+                        packingProcedureSelect.appendChild(option);
+                    });
+
+                    if (selectedValue) {
+                        const normalizedSaved = selectedValue.toLowerCase();
+                        const matchingOption = Array.from(packingProcedureSelect.options).find(
+                            opt => opt.value.toLowerCase() === normalizedSaved
+                        );
+                        if (matchingOption) {
+                            matchingOption.selected = true;
+                        }
+                    }
+                }
+
                 async function loadPackingProcedures() {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 15000);
                     try {
                         packingProcedureLoading.classList.remove('d-none');
                         packingProcedureError.classList.add('d-none');
+                        packingRetry?.classList.add('d-none');
 
-                        const response = await fetch('/Api/PackingProcedures', { headers: { 'Accept': 'application/json' } });
+                        const response = await fetch('/Api/PackingProcedures', { headers: { 'Accept': 'application/json' }, signal: controller.signal });
+                        clearTimeout(timeoutId);
                         if (!response.ok) {
                             const errorData = await response.json().catch(() => ({ error: 'Unable to load packing procedures right now.' }));
                             throw new Error(errorData.error || `Unable to load packing procedures (${response.status})`);
@@ -950,45 +1856,98 @@
                         // Filter to only show items where AllowQuickQuote is true
                         const items = allItems.filter(item => item.AllowQuickQuote === true || item.allowQuickQuote === true);
 
-                        packingProcedureSelect.innerHTML = '<option value="">Select a packing procedure</option>';
-
-                        if (items.length === 0) {
-                            const option = document.createElement('option');
-                            option.value = '';
-                            option.textContent = 'No packing procedures available for quick quote';
-                            option.disabled = true;
-                            packingProcedureSelect.appendChild(option);
-                            return;
-                        }
-
-                        items.forEach(item => {
-                            const description = getDescription(item);
-                            const option = document.createElement('option');
-                            option.value = description;
-                            option.textContent = description;
-                            packingProcedureSelect.appendChild(option);
-                        });
-
-                        if (savedValue) {
-                            const normalizedSaved = savedValue.toLowerCase();
-                            const matchingOption = Array.from(packingProcedureSelect.options).find(
-                                opt => opt.value.toLowerCase() === normalizedSaved
-                            );
-                            if (matchingOption) {
-                                matchingOption.selected = true;
-                            }
-                        }
+                        rebuildOptions(items);
                     } catch (error) {
+                        clearTimeout(timeoutId);
+                        const message = error.name === 'AbortError' ? 'Loading timed out. Please retry.' : (error.message || 'Unable to load packing procedures right now.');
                         console.error('Failed to load packing procedures', error);
-                        packingProcedureError.textContent = error.message || 'Unable to load packing procedures right now.';
+                        packingProcedureError.textContent = message;
                         packingProcedureError.classList.remove('d-none');
+                        packingRetry?.classList.remove('d-none');
                         packingProcedureSelect.innerHTML = '<option value="">Unable to load packing procedures</option>';
                     } finally {
                         packingProcedureLoading.classList.add('d-none');
                     }
                 }
 
-                loadPackingProcedures();
+                packingRetry?.addEventListener('click', loadPackingProcedures);
+
+                // Add change event listener to track selection and rebuild options
+                packingProcedureSelect.addEventListener('change', () => {
+                    selectedValue = packingProcedureSelect.value;
+                    
+                    // Show/hide packing quantity field based on selection
+                    const packingQuantitySection = document.getElementById('packing-quantity-section');
+                    const packingProcedureValueInput = document.getElementById('packing-procedure-value');
+                    
+                    if (packingQuantitySection && packingProcedureValueInput) {
+                        const selectedText = selectedValue.toLowerCase();
+                        const isRoll = selectedText.includes('roll');
+                        
+                        // Show quantity input for rolls, hide for sheets
+                        if (isRoll) {
+                            packingQuantitySection.classList.remove('d-none');
+                            packingProcedureValueInput.value = '102'; // Roll ID
+                        } else if (selectedText.includes('sheet')) {
+                            packingQuantitySection.classList.add('d-none');
+                            packingProcedureValueInput.value = '202'; // Sheet ID
+                            // Clear quantity when switching to sheet
+                            const packingQuantityInput = document.getElementById('packing-quantity');
+                            if (packingQuantityInput) {
+                                packingQuantityInput.value = '';
+                            }
+                        } else {
+                            packingQuantitySection.classList.add('d-none');
+                            packingProcedureValueInput.value = ''; // Unknown type
+                        }
+                    }
+                    
+                    // Rebuild options to remove "Select a packing procedure" after selection
+                    if (selectedValue && selectedValue !== '') {
+                        // Get current items from the select element
+                        const currentItems = Array.from(packingProcedureSelect.options)
+                            .filter(opt => opt.value !== '')
+                            .map(opt => ({
+                                Descriptions: [{ Description: opt.textContent }]
+                            }));
+                        rebuildOptions(currentItems);
+                    }
+                });
+
+                _apiLoaders.push(loadPackingProcedures);
+
+                // Initialize packing quantity visibility on page load
+                setTimeout(() => {
+                    const initialValue = packingProcedureSelect.value || savedValue;
+                    if (initialValue) {
+                        const packingQuantitySection = document.getElementById('packing-quantity-section');
+                        const packingProcedureValueInput = document.getElementById('packing-procedure-value');
+                        
+                        if (packingQuantitySection && packingProcedureValueInput) {
+                            const selectedText = initialValue.toLowerCase();
+                            const isRoll = selectedText.includes('roll');
+                            
+                            if (isRoll) {
+                                packingQuantitySection.classList.remove('d-none');
+                                if (!packingProcedureValueInput.value) {
+                                    packingProcedureValueInput.value = '102';
+                                }
+                            } else if (selectedText.includes('sheet')) {
+                                if (!packingProcedureValueInput.value) {
+                                    packingProcedureValueInput.value = '202';
+                                }
+                            }
+                        }
+                    }
+                }, 100);
+            })();
+
+            // Fire API loaders sequentially: Material -> Printing -> Finish -> Packing.
+            // First call acquires and caches the OAuth token; subsequent calls hit the cache.
+            (async function runApiLoadersSequentially() {
+                for (const loader of _apiLoaders) {
+                    await loader();
+                }
             })();
 
             // Custom Combobox Class
@@ -1047,15 +2006,57 @@
                 }
 
                 handleInput(e) {
-                    const value = e.target.value.trim().toLowerCase();
+                    const value = e.target.value.trim();
 
                     if (!this.isOpen) {
                         this.open();
                     }
 
-                    this.filteredOptions = this.options.filter(option => 
-                        option.toLowerCase().includes(value)
-                    );
+                    // Smart filtering: show close matches and values that start with the input
+                    const numValue = parseFloat(value);
+                    const isValidNumber = !isNaN(numValue) && value !== '';
+
+                    if (isValidNumber) {
+                        // Show values close to the entered number and values that start with the input
+                        const tolerance = 0.5; // Show values within �0.5 inches
+
+                        this.filteredOptions = this.options
+                            .map(option => {
+                                const optionNum = parseFloat(option);
+                                const startsWithInput = option.startsWith(value);
+                                const isCloseMatch = !isNaN(optionNum) && Math.abs(optionNum - numValue) <= tolerance;
+
+                                // Calculate distance for sorting
+                                let distance = Infinity;
+                                if (!isNaN(optionNum)) {
+                                    distance = Math.abs(optionNum - numValue);
+                                }
+
+                                return {
+                                    value: option,
+                                    distance,
+                                    startsWithInput,
+                                    isCloseMatch
+                                };
+                            })
+                            .filter(item => item.isCloseMatch || item.startsWithInput)
+                            .sort((a, b) => {
+                                // Prioritize close matches, then sort by distance
+                                if (a.isCloseMatch && !b.isCloseMatch) return -1;
+                                if (!a.isCloseMatch && b.isCloseMatch) return 1;
+                                return a.distance - b.distance;
+                            })
+                            .slice(0, 10) // Limit to 10 results
+                            .map(item => item.value);
+                    } else if (value !== '') {
+                        // Text-based filtering for non-numeric input
+                        this.filteredOptions = this.options
+                            .filter(option => option.toLowerCase().includes(value.toLowerCase()))
+                            .slice(0, 10);
+                    } else {
+                        // Show all options if input is empty
+                        this.filteredOptions = [...this.options];
+                    }
 
                     this.renderOptions();
                     this.highlightedIndex = -1;
@@ -1189,16 +2190,19 @@
                 const heightInput = document.getElementById('label-height');
                 const widthComboboxEl = document.getElementById('width-combobox');
                 const heightComboboxEl = document.getElementById('height-combobox');
+                const radiusComboboxEl = document.getElementById('radius-combobox');
                 const radiusSelect = document.getElementById('label-radius');
+                const radiusInput = radiusSelect; // Alias for consistency with clearRadiusOptions
 
                 if (!dieSection || !dieSelect || !dieLoading || !dieError || !printingInput || 
-                    !widthInput || !heightInput || !radiusSelect || !widthComboboxEl || !heightComboboxEl) {
+                    !widthInput || !heightInput || !radiusSelect || !widthComboboxEl || !heightComboboxEl || !radiusComboboxEl) {
                     return;
                 }
 
                 // Initialize comboboxes
                 const widthCombobox = new Combobox(widthComboboxEl, []);
                 const heightCombobox = new Combobox(heightComboboxEl, []);
+                const radiusCombobox = new Combobox(radiusComboboxEl, []);
 
                 let dieOptionsCache = [];
                 let cachedPrintingKey = null;
@@ -1212,6 +2216,8 @@
                 const dimensionMap = new Map();
                 const customDieWarning = document.getElementById('custom-die-warning');
                 const customDimensionsSpan = document.getElementById('custom-dimensions');
+                const customDieWarningRadius = document.getElementById('custom-die-warning-radius');
+                const customRadiusSpan = document.getElementById('custom-radius');
 
                 function formatDimension(value) {
                     const num = Number(value);
@@ -1235,10 +2241,19 @@
                         return;
                     }
 
+                    // Square corners are standard cut � any dimension is valid, no custom die needed
+                    const cornersInput = document.getElementById('corners-input');
+                    if ((cornersInput?.value || '').toLowerCase() === 'square') {
+                        customDieWarning?.classList.add('d-none');
+                        if (isCustomDieInput) isCustomDieInput.value = 'false';
+                        if (dieSizeInfoInput) dieSizeInfoInput.value = `${widthValue}" � ${heightValue}"`;
+                        return;
+                    }
+
                     // Check if this combination exists in our die sizes
                     const key = `${widthValue}|${heightValue}`;
                     const hasMatchingDie = dimensionMap.has(key);
-                    const dieSizeInfo = `${widthValue}" × ${heightValue}"`;
+                    const dieSizeInfo = `${widthValue}" � ${heightValue}"`;
 
                     // ALWAYS update hidden fields with current dimensions
                     if (dieSizeInfoInput) {
@@ -1257,25 +2272,53 @@
                     }
                 }
 
-                function clearWidthOptions() {
+                function checkCustomDieWarningRadius() {
+                    const radiusValue = radiusInput.value.trim();
+
+                    if (!radiusValue) {
+                        customDieWarningRadius?.classList.add('d-none');
+                        return;
+                    }
+
+                    // Check if this radius exists in our die sizes
+                    const hasMatchingDie = dieOptionsCache.some(option => {
+                        const dieRadius = formatDimension(option.Radius__ ?? option.radius__ ?? '');
+                        return dieRadius === radiusValue;
+                    });
+
+                    if (!hasMatchingDie && customDieWarningRadius && customRadiusSpan) {
+                        customRadiusSpan.textContent = `${radiusValue}"`;
+                        customDieWarningRadius.classList.remove('d-none');
+                    } else {
+                        customDieWarningRadius?.classList.add('d-none');
+                    }
+                }
+
+                function clearWidthOptions(preserveValue = false) {
+                    const currentValue = preserveValue ? widthInput.value : '';
                     widthCombobox.setOptions([]);
                     suppressDimensionSync = true;
-                    widthInput.value = '';
+                    widthInput.value = currentValue;
                     suppressDimensionSync = false;
                 }
 
-                function clearHeightOptions() {
+                function clearHeightOptions(preserveValue = false) {
+                    const currentValue = preserveValue ? heightInput.value : '';
                     heightCombobox.setOptions([]);
                     suppressDimensionSync = true;
-                    heightInput.value = '';
+                    heightInput.value = currentValue;
                     suppressDimensionSync = false;
                 }
 
-                function clearRadiusOptions(message = 'Select a radius') {
-                    radiusSelect.innerHTML = `<option value="">${message}</option>`;
+                function clearRadiusOptions(preserveValue = false) {
+                    const currentValue = preserveValue ? radiusInput.value : '';
+                    radiusCombobox.setOptions([]);
                     suppressRadiusSync = true;
-                    radiusSelect.value = '';
+                    radiusInput.value = currentValue;
                     suppressRadiusSync = false;
+                    if (!preserveValue) {
+                        customDieWarningRadius?.classList.add('d-none');
+                    }
                 }
 
                 function clearDimensions() {
@@ -1303,26 +2346,20 @@
                     return true;
                 }
 
-                function syncRadiusSelection(dieValue, radiusValue) {
-                    if (!radiusSelect) {
+                function syncRadiusSelection(radiusValue) {
+                    if (!radiusInput) {
                         return;
                     }
                     suppressRadiusSync = true;
-                    let matched = null;
-                    if (dieValue) {
-                        matched = Array.from(radiusSelect.options).find(opt => opt.dataset?.dieValue === dieValue);
-                    }
-                    if (!matched && radiusValue) {
-                        matched = Array.from(radiusSelect.options).find(opt => opt.value === radiusValue);
-                    }
-                    radiusSelect.value = matched ? matched.value : '';
+                    radiusInput.value = radiusValue || '';
                     suppressRadiusSync = false;
                 }
 
                 function syncDimensionsFromDie() {
                     const option = dieSelect.selectedOptions[0];
                     if (!option || !option.value) {
-                        clearDimensions();
+                        // No die selected - don't clear user values, just exit
+                        // Users should be able to enter custom dimensions without selecting a die
                         return;
                     }
 
@@ -1340,10 +2377,11 @@
 
                     suppressDimensionSync = false;
                     const radiusValue = formatDimension(option.dataset.radius);
-                    syncRadiusSelection(option.value, radiusValue);
+                    syncRadiusSelection(radiusValue);
 
                     // Update die size info (should not be custom since we selected from die list)
                     checkCustomDieWarning();
+                    checkCustomDieWarningRadius();
 
                     if (typeof validateLabelSize === 'function') validateLabelSize();
                     if (typeof validateDiameter === 'function') validateDiameter();
@@ -1351,8 +2389,13 @@
                 }
 
                 function rebuildWidthHeightOptions() {
-                    clearWidthOptions();
-                    clearHeightOptions();
+                    // Preserve current values before clearing
+                    const currentWidth = widthInput.value.trim();
+                    const currentHeight = heightInput.value.trim();
+
+                    // Clear options but preserve the values
+                    clearWidthOptions(true);
+                    clearHeightOptions(true);
                     dimensionMap.clear();
                     widthToHeights.clear();
                     heightToWidths.clear();
@@ -1384,7 +2427,7 @@
                     });
 
                     if (!widthToHeights.size) {
-                        // No options available but user can still enter custom values
+                        // No options available - values already preserved by clearWidthOptions/clearHeightOptions
                         return;
                     }
 
@@ -1395,17 +2438,22 @@
                     const sortedHeights = Array.from(heightToWidths.keys()).sort((a, b) => parseFloat(a) - parseFloat(b));
                     heightCombobox.setOptions(sortedHeights);
 
-                    // Set initial values if they exist
-                    if (widthInitialValue) {
-                        widthInput.value = widthInitialValue;
+                    // Values are already preserved, but ensure they're still there after setOptions
+                    // Only restore if they were cleared by setOptions
+                    if (!widthInput.value && currentWidth) {
+                        widthInput.value = currentWidth;
                     }
-                    if (heightInitialValue) {
-                        heightInput.value = heightInitialValue;
+                    if (!heightInput.value && currentHeight) {
+                        heightInput.value = currentHeight;
                     }
                 }
 
                 function rebuildRadiusOptions() {
-                    clearRadiusOptions('Select a radius');
+                    // Preserve current value before clearing
+                    const currentRadius = radiusInput.value.trim();
+
+                    // Clear options but preserve the value
+                    clearRadiusOptions(true);
                     const radiusMap = new Map();
                     dieOptionsCache.forEach(option => {
                         const radiusRaw = option.Radius__ ?? option.radius__ ?? option.radius ?? '';
@@ -1423,45 +2471,27 @@
                     });
 
                     if (radiusMap.size === 0) {
-                        const option = document.createElement('option');
-                        option.value = '';
-                        option.textContent = 'No radius values available';
-                        option.disabled = true;
-                        option.selected = true;
-                        radiusSelect.appendChild(option);
-                        suppressRadiusSync = true;
-                        radiusSelect.value = '';
-                        suppressRadiusSync = false;
+                        // No options available - value already preserved by clearRadiusOptions
                         return;
                     }
 
-                    const sortedRadii = Array.from(radiusMap.entries())
-                        .sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
+                    // Populate combobox with available radius values
+                    const sortedRadii = Array.from(radiusMap.keys())
+                        .sort((a, b) => parseFloat(a) - parseFloat(b));
 
-                    sortedRadii.forEach(([radiusValue, meta]) => {
-                        const radiusOption = document.createElement('option');
-                        radiusOption.value = radiusValue;
-                        radiusOption.textContent = `${radiusValue}"`;
-                        radiusOption.dataset.dieValue = meta.dieValue;
-                        radiusSelect.appendChild(radiusOption);
-                    });
+                    radiusCombobox.setOptions(sortedRadii);
 
-                    if (radiusInitialValue) {
-                        const match = radiusSelect.querySelector(`option[value="${radiusInitialValue}"]`);
-                        if (match) {
-                            radiusSelect.value = radiusInitialValue;
-                            if (match.dataset.dieValue) {
-                                dieSelect.value = match.dataset.dieValue;
-                            }
-                        }
-                        radiusInitialValue = '';
+                    // Value is already preserved, but ensure it's still there after setOptions
+                    if (!radiusInput.value && currentRadius) {
+                        radiusInput.value = currentRadius;
                     }
                 }
 
                 function clearDieOptions(message = 'Select a die size') {
                     dieSelect.innerHTML = `<option value="">${message}</option>`;
-                    clearRadiusOptions('Select a radius');
-                    clearDimensions();
+                    clearRadiusOptions(false); // Clear radius since it's tied to die selection
+                    // Don't call clearDimensions() - preserve user-entered width/height values
+                    // Users should be able to keep their custom dimensions even when die options aren't available
                 }
 
                 function rebuildDieOptions() {
@@ -1473,10 +2503,11 @@
                         option.disabled = true;
                         option.selected = true;
                         dieSelect.appendChild(option);
-                        clearWidthOptions('No widths available');
-                        clearHeightOptions('No heights available');
-                        clearRadiusOptions('No radius values available');
-                        clearDimensions();
+
+                        // Don't clear dimensions when no die sizes available - user may have custom values
+                        // Just rebuild the options without any suggestions
+                        rebuildWidthHeightOptions();
+                        rebuildRadiusOptions();
                         return;
                     }
 
@@ -1493,7 +2524,7 @@
                             dieOption.textContent += ` (${across}" x ${around}")`;
                         }
                         if (radius) {
-                            dieOption.textContent += ` • Radius ${radius}"`;
+                            dieOption.textContent += ` � Radius ${radius}"`;
                         }
                         if (across) dieOption.dataset.width = across;
                         if (around) dieOption.dataset.height = around;
@@ -1504,13 +2535,18 @@
                     rebuildWidthHeightOptions();
                     rebuildRadiusOptions();
 
+                    // Only sync dimensions if user has selected an initial die
+                    // or if we can match their entered dimensions to a die
                     if (widthInitialValue && heightInitialValue) {
                         selectDieByDimensions(widthInitialValue, heightInitialValue);
+                        syncDimensionsFromDie();
+                        widthInitialValue = '';
+                        heightInitialValue = '';
+                    } else if (dieSelect.value) {
+                        // Die is already selected, sync its dimensions
+                        syncDimensionsFromDie();
                     }
-
-                    syncDimensionsFromDie();
-                    widthInitialValue = '';
-                    heightInitialValue = '';
+                    // If no die is selected, DON'T call syncDimensionsFromDie() as it would clear user values
                 }
 
                 async function loadDieOptions({ suppressErrors = false } = {}) {
@@ -1562,18 +2598,22 @@
                     syncDimensionsFromDie();
                 });
 
-                radiusSelect.addEventListener('change', () => {
+                // Radius input handling
+                radiusInput.addEventListener('input', () => {
                     if (suppressRadiusSync) {
                         return;
                     }
-                    const selected = radiusSelect.selectedOptions[0];
-                    const dieValue = selected?.dataset?.dieValue;
-                    if (dieValue) {
-                        dieSelect.value = dieValue;
-                        syncDimensionsFromDie();
-                    } else {
-                        clearDimensions();
-                    }
+                    checkCustomDieWarningRadius();
+                    if (typeof validateDiameter === 'function') validateDiameter();
+                    if (typeof updateSummaryPanel === 'function') updateSummaryPanel();
+                });
+
+                // Use combobox-select event for radius selection from dropdown
+                radiusInput.addEventListener('combobox-select', (e) => {
+                    if (suppressRadiusSync) return;
+                    checkCustomDieWarningRadius();
+                    if (typeof validateDiameter === 'function') validateDiameter();
+                    if (typeof updateSummaryPanel === 'function') updateSummaryPanel();
                 });
 
                 widthInput.addEventListener('input', () => {
@@ -1669,6 +2709,10 @@
                     checkCustomDieWarning();
                 });
 
+                window.addEventListener('cornerSelectionChanged', () => {
+                    checkCustomDieWarning();
+                });
+
                 window.addEventListener('printingSelectionChanged', () => {
                     cachedPrintingKey = null;
                     dieOptionsCache = [];
@@ -1685,8 +2729,37 @@
             (function () {
                 const addButton = document.getElementById('add-quantity');
                 const rows = Array.from(document.querySelectorAll('#quantity-list .quantity-row'));
+                const quantitiesSection = document.getElementById('quantities-section');
+                const quantitiesWarningAlert = document.getElementById('quantities-warning-alert');
+
                 if (!addButton || !rows.length) {
                     return;
+                }
+
+                function checkQuantitiesAttention() {
+                    // Check if we're from a saved quote
+                    const savedQuoteElement = document.getElementById('saved-quote-data');
+                    if (!savedQuoteElement || !quantitiesSection) {
+                        return;
+                    }
+
+                    // Check if any quantity input has a value
+                    const hasAnyQuantity = rows.some(row => {
+                        const input = row.querySelector('input[name="quantity"]');
+                        return input && input.value && input.value.trim() !== '';
+                    });
+
+                    if (!hasAnyQuantity) {
+                        quantitiesSection.classList.add('needs-attention');
+                        if (quantitiesWarningAlert) {
+                            quantitiesWarningAlert.classList.remove('d-none');
+                        }
+                    } else {
+                        quantitiesSection.classList.remove('needs-attention');
+                        if (quantitiesWarningAlert) {
+                            quantitiesWarningAlert.classList.add('d-none');
+                        }
+                    }
                 }
 
                 function updateAddState() {
@@ -1704,23 +2777,50 @@
                 addButton.addEventListener('click', () => {
                     showNextRow();
                     updateAddState();
+                    // Adding a row is a user action, remove highlighting
+                    if (quantitiesSection) {
+                        quantitiesSection.classList.remove('needs-attention');
+                        if (quantitiesWarningAlert) {
+                            quantitiesWarningAlert.classList.add('d-none');
+                        }
+                    }
                 });
 
                 rows.forEach(row => {
                     const removeBtn = row.querySelector('.remove-quantity');
                     const input = row.querySelector('input[name="quantity"]');
-                    if (!removeBtn || !input) {
+                    if (!input) {
                         return;
                     }
 
-                    removeBtn.addEventListener('click', () => {
-                        input.value = '';
-                        row.classList.add('d-none');
-                        updateAddState();
+                    // Remove highlighting immediately when any value is entered
+                    input.addEventListener('input', () => {
+                        if (input.value) {
+                            quantitiesSection?.classList.remove('needs-attention');
+                            quantitiesWarningAlert?.classList.add('d-none');
+                        } else {
+                            checkQuantitiesAttention();
+                        }
                     });
+
+                    input.addEventListener('change', () => {
+                        checkQuantitiesAttention();
+                    });
+
+                    if (removeBtn) {
+                        removeBtn.addEventListener('click', () => {
+                            input.value = '';
+                            row.classList.add('d-none');
+                            updateAddState();
+                            checkQuantitiesAttention(); // Re-check after removal
+                        });
+                    }
                 });
 
                 updateAddState();
+
+                // Check initial state on page load
+                checkQuantitiesAttention();
             })();
         </script>
             </div>
@@ -1731,11 +2831,11 @@
     <div id="chat-assistant" class="chat-assistant-panel">
         <div class="chat-assistant-header">
             <div>
-                <h3 class="h6 mb-0">🤖 AI Quote Assistant</h3>
+                <h3 class="h6 mb-0">?? AI Quote Assistant</h3>
                 <small class="text-muted">Describe your label needs</small>
             </div>
             <button type="button" class="btn btn-sm btn-link text-decoration-none p-0" id="chat-close" title="Close">
-                ✕
+                ?
             </button>
         </div>
         <div class="chat-assistant-messages" id="chat-messages">
@@ -1758,7 +2858,7 @@
 
     <!-- Floating Chat Button -->
     <button type="button" class="chat-assistant-toggle" id="chat-toggle" title="Open AI Assistant">
-        🤖 AI Assistant
+        ?? AI Assistant
     </button>
 </div>
 
@@ -1767,6 +2867,49 @@
 .custom-combobox {
     position: relative;
     width: 100%;
+}
+
+/* Corners section alert styling */
+.alert-sm {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    border-left: 4px solid #ffc107;
+    animation: pulse-border 2s ease-in-out infinite;
+}
+
+@@keyframes pulse-border {
+    0%, 100% {
+        border-left-color: #ffc107;
+    }
+    50% {
+        border-left-color: #ff9800;
+    }
+}
+
+#corner-options.needs-attention {
+    border: 2px dashed #ffc107;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    background-color: #fff8e1;
+}
+
+#finish-section.needs-attention {
+    border: 2px dashed #ffc107;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    background-color: #fff8e1;
+}
+
+#line-items-section.needs-attention .border {
+    border: 2px dashed #ffc107 !important;
+    background-color: #fff8e1;
+}
+
+#quantities-section.needs-attention {
+    border: 2px dashed #ffc107;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    background-color: #fff8e1;
 }
 
 .custom-combobox-input {
@@ -2013,7 +3156,7 @@
             appendMessage(message, 'user');
             chatInput.value = '';
 
-            const assistantBubble = appendMessage('…', 'assistant');
+            const assistantBubble = appendMessage('�', 'assistant');
             let rawResponse = '';
 
             try {
@@ -2079,7 +3222,7 @@
                 let displayMessage = rawResponse;
 
                 if (!rawResponse || rawResponse.trim().length === 0) {
-                    displayMessage = '⚠️ The AI returned an empty response. This might mean:\n\n' +
+                    displayMessage = '?? The AI returned an empty response. This might mean:\n\n' +
                         '- Ollama is not running\n' +
                         '- The model is not loaded\n' +
                         '- There was a server error\n\n' +
@@ -2096,7 +3239,7 @@
 
                     const notification = document.createElement('div');
                     notification.className = 'chat-message assistant';
-                    notification.innerHTML = '<strong>✅ Form Updated!</strong><br>I\'ve filled in the quote form with the details you provided. Please review and adjust as needed.';
+                    notification.innerHTML = '<strong>? Form Updated!</strong><br>I\'ve filled in the quote form with the details you provided. Please review and adjust as needed.';
                     chatMessages.appendChild(notification);
                     chatMessages.scrollTop = chatMessages.scrollHeight;
                 }
@@ -2116,7 +3259,7 @@
                 const descField = document.getElementById('description');
                 if (descField) {
                     descField.value = data.description;
-                    console.log('✅ Set description:', data.description);
+                    console.log('? Set description:', data.description);
                 }
             }
 
@@ -2125,9 +3268,9 @@
                 const shapeBtn = document.querySelector(`[data-shape-key="${data.shape}"]`);
                 if (shapeBtn) {
                     shapeBtn.click();
-                    console.log('✅ Clicked shape:', data.shape);
+                    console.log('? Clicked shape:', data.shape);
                 } else {
-                    console.warn('❌ Shape button not found for:', data.shape);
+                    console.warn('? Shape button not found for:', data.shape);
                 }
             }
 
@@ -2138,9 +3281,9 @@
                     widthField.value = data.labelWidth;
                     // Trigger input event to sync with die selection
                     widthField.dispatchEvent(new Event('input', { bubbles: true }));
-                    console.log('✅ Set width:', data.labelWidth);
+                    console.log('? Set width:', data.labelWidth);
                 } else {
-                    console.warn('❌ Width field not found');
+                    console.warn('? Width field not found');
                 }
             }
 
@@ -2151,9 +3294,9 @@
                     heightField.value = data.labelHeight;
                     // Trigger input event to sync with die selection
                     heightField.dispatchEvent(new Event('input', { bubbles: true }));
-                    console.log('✅ Set height:', data.labelHeight);
+                    console.log('? Set height:', data.labelHeight);
                 } else {
-                    console.warn('❌ Height field not found');
+                    console.warn('? Height field not found');
                 }
             }
 
@@ -2170,13 +3313,13 @@
                         newOption.value = data.diameter;
                         newOption.textContent = `${data.diameter}"`;
                         diameterField.appendChild(newOption);
-                        console.log('➕ Added diameter option:', data.diameter);
+                        console.log('? Added diameter option:', data.diameter);
                     }
 
                     diameterField.value = data.diameter;
-                    console.log('✅ Set diameter:', data.diameter);
+                    console.log('? Set diameter:', data.diameter);
                 } else {
-                    console.warn('❌ Diameter field not found');
+                    console.warn('? Diameter field not found');
                 }
             }
 
@@ -2194,13 +3337,13 @@
                     if (matchingOption) {
                         materialField.value = matchingOption.value;
                         materialField.dispatchEvent(new Event('change', { bubbles: true }));
-                        console.log('✅ Set material:', matchingOption.textContent);
+                        console.log('? Set material:', matchingOption.textContent);
                     } else {
-                        console.warn('❌ Material not found in dropdown:', data.material);
+                        console.warn('? Material not found in dropdown:', data.material);
                         console.log('Available materials:', Array.from(materialField.options).map(o => o.textContent));
                     }
                 } else {
-                    console.warn('❌ Material field not found');
+                    console.warn('? Material field not found');
                 }
             }
 
@@ -2209,9 +3352,9 @@
                 const qtyField = document.querySelector('input[name="quantity"]');
                 if (qtyField) {
                     qtyField.value = data.totalQuantity;
-                    console.log('✅ Set quantity:', data.totalQuantity);
+                    console.log('? Set quantity:', data.totalQuantity);
                 } else {
-                    console.warn('❌ Quantity field not found');
+                    console.warn('? Quantity field not found');
                 }
             }
 
@@ -2240,6 +3383,266 @@
                 console.error('Failed to reset:', err);
             }
         });
+    })();
+
+    // Initialize form with saved quote data when available
+    (function() {
+        const savedQuoteElement = document.getElementById('saved-quote-data');
+        if (!savedQuoteElement) {
+            return;
+        }
+
+        let savedQuote = null;
+        try {
+            savedQuote = JSON.parse(savedQuoteElement.textContent);
+        } catch (error) {
+            console.error('Failed to parse saved quote data:', error);
+            return;
+        }
+
+        if (!savedQuote) {
+            return;
+        }
+
+        console.log('Initializing form with saved quote:', savedQuote);
+
+        // Helper function to wait for dropdown options to be populated
+        function waitForDropdownOptions(selectElement, maxWaitMs = 5000) {
+            return new Promise((resolve) => {
+                const startTime = Date.now();
+                const checkInterval = setInterval(() => {
+                    if (selectElement.options.length > 1 || Date.now() - startTime > maxWaitMs) {
+                        clearInterval(checkInterval);
+                        resolve();
+                    }
+                }, 100);
+            });
+        }
+
+        // Helper function to select printing by ID
+        async function selectPrintingById(printingValueId, printingLabel) {
+            const printingFilter = document.getElementById('printing-filter');
+            if (!printingFilter) return;
+
+            // Wait for printing buttons to be loaded
+            await new Promise(resolve => {
+                const checkInterval = setInterval(() => {
+                    const buttons = printingFilter.querySelectorAll('button');
+                    if (buttons.length > 0) {
+                        clearInterval(checkInterval);
+                        resolve();
+                    }
+                }, 100);
+                setTimeout(resolve, 5000); // Timeout after 5 seconds
+            });
+
+            // Try to find button by ID first, then by label
+            const buttons = Array.from(printingFilter.querySelectorAll('button'));
+            let matchingButton = buttons.find(btn => btn.getAttribute('data-printing-id') === printingValueId);
+
+            if (!matchingButton && printingLabel) {
+                matchingButton = buttons.find(btn => 
+                    btn.getAttribute('data-printing-text')?.toLowerCase() === printingLabel.toLowerCase()
+                );
+            }
+
+            if (matchingButton) {
+                matchingButton.click();
+                console.log('? Selected printing option:', printingValueId || printingLabel);
+            } else {
+                console.warn('? Printing option not found:', printingValueId, printingLabel);
+            }
+        }
+
+        // Helper function to select finish by ID or label
+        async function selectFinishById(finishValue, finishLabel) {
+            const finishSelect = document.getElementById('finish-select');
+            if (!finishSelect) return;
+
+            // Wait for finish options to be loaded
+            await waitForDropdownOptions(finishSelect);
+
+            const normalizedValue = (finishValue || '').toLowerCase();
+            const normalizedLabel = (finishLabel || '').toLowerCase();
+
+            // Try to match by value or label
+            const matchingOption = Array.from(finishSelect.options).find(opt => 
+                opt.value.toLowerCase() === normalizedValue ||
+                opt.value.toLowerCase() === normalizedLabel ||
+                opt.textContent.toLowerCase() === normalizedLabel
+            );
+
+            if (matchingOption) {
+                finishSelect.value = matchingOption.value;
+                finishSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                console.log('? Selected finish:', matchingOption.value);
+            } else {
+                console.warn('? Finish not found:', finishValue, finishLabel);
+            }
+        }
+
+        // Helper function to select packing procedure
+        async function selectPackingProcedure(packingValue) {
+            if (!packingValue) return;
+
+            const packingSelect = document.getElementById('packing-procedure-select');
+            if (!packingSelect) return;
+
+            // Wait for packing options to be loaded
+            await waitForDropdownOptions(packingSelect);
+
+            const normalizedValue = packingValue.toLowerCase();
+            const matchingOption = Array.from(packingSelect.options).find(opt => 
+                opt.value.toLowerCase() === normalizedValue ||
+                opt.textContent.toLowerCase().includes(normalizedValue)
+            );
+
+            if (matchingOption) {
+                packingSelect.value = matchingOption.value;
+                packingSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                console.log('? Selected packing procedure:', matchingOption.value);
+            } else {
+                console.warn('? Packing procedure not found:', packingValue);
+            }
+        }
+
+        // Helper function to populate quantities
+        function populateQuantities(quantities) {
+            if (!quantities || !Array.isArray(quantities) || quantities.length === 0) {
+                return;
+            }
+
+            const quantityInputs = document.querySelectorAll('input[name="quantity"]');
+            quantities.forEach((qty, index) => {
+                if (index < quantityInputs.length) {
+                    const input = quantityInputs[index];
+                    const row = input.closest('.quantity-row');
+
+                    input.value = qty;
+
+                    // Show the row if it's hidden
+                    if (row && row.classList.contains('d-none')) {
+                        row.classList.remove('d-none');
+                    }
+
+                    console.log(`? Set quantity ${index + 1}:`, qty);
+                }
+            });
+        }
+
+        // Initialize form fields asynchronously
+        (async function() {
+            // Populate material (wait for dropdown to load)
+            if (savedQuote.MaterialValue || savedQuote.Material) {
+                const materialSelect = document.getElementById('material-select');
+                if (materialSelect) {
+                    await waitForDropdownOptions(materialSelect);
+
+                    const materialId = savedQuote.MaterialValue; // SubstrateId from CERM
+                    const materialLabel = savedQuote.Material;   // Description from CERM (may be en-US or en-GB)
+
+                    // Match by substrate ID (data-material-id attribute)
+                    let matchingOption = null;
+                    if (materialId) {
+                        matchingOption = Array.from(materialSelect.options).find(opt => 
+                            opt.dataset.materialId === materialId
+                        );
+                    }
+
+                    // Fallback: match by option value
+                    if (!matchingOption && materialId) {
+                        matchingOption = Array.from(materialSelect.options).find(opt => 
+                            opt.value === materialId
+                        );
+                    }
+
+                    // Check both en-US and en-GB descriptions for text match
+                    if (!matchingOption && materialLabel) {
+                        const normalizedLabel = materialLabel.toLowerCase();
+                        matchingOption = Array.from(materialSelect.options).find(opt => {
+                            const usDescription = (opt.textContent || '').toLowerCase();
+                            const gbDescription = (opt.dataset.gbDescription || '').toLowerCase();
+
+                            // Check if saved label matches either en-US or en-GB description
+                            return usDescription.includes(normalizedLabel) ||
+                                   normalizedLabel.includes(usDescription) ||
+                                   (gbDescription && gbDescription.includes(normalizedLabel)) ||
+                                   (gbDescription && normalizedLabel.includes(gbDescription));
+                        });
+                    }
+
+                    if (matchingOption) {
+                        materialSelect.value = matchingOption.value;
+                        materialSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                        console.log('? Material selected:', matchingOption.textContent);
+                    } else {
+                        console.warn('? Material not found - ID:', materialId, 'Label:', materialLabel);
+                    }
+                }
+            }
+
+            // Populate printing (ColorCodeId or Printing label)
+            if (savedQuote.PrintingValue || savedQuote.Printing) {
+                await selectPrintingById(savedQuote.PrintingValue, savedQuote.Printing);
+            }
+
+            // Populate finish (FinishingTypeId or Finish label)
+            if (savedQuote.FinishValue || savedQuote.Finish) {
+                await selectFinishById(savedQuote.FinishValue, savedQuote.Finish);
+            }
+
+            // Populate packing procedure
+            if (savedQuote.PackingProcedure) {
+                await selectPackingProcedure(savedQuote.PackingProcedure);
+            }
+
+            // Populate corners for rectangles
+            if (savedQuote.Corners || savedQuote.CornersValue) {
+                const cornersValue = savedQuote.CornersValue || savedQuote.Corners;
+                const cornerButton = document.querySelector(`.corner-option[data-value="${cornersValue}"]`);
+                if (cornerButton) {
+                    cornerButton.click();
+                    console.log('? Selected corners:', cornersValue);
+                }
+            }
+
+            // Populate unwind direction
+            if (savedQuote.UnwindDirectionValue || savedQuote.UnwindDirection) {
+                // Prioritize the numeric ID (UnwindDirectionValue) as it's what CERM returns
+                const savedUnwindValue = (savedQuote.UnwindDirectionValue || savedQuote.UnwindDirection || '').trim();
+                // Try to find button by exact value match first
+                let unwindButton = document.querySelector(`.unwind-option[data-value="${savedUnwindValue}"]`);
+
+                // If not found, try to extract the ID from the beginning of the string (e.g., "1" from "1 - Head off first")
+                if (!unwindButton) {
+                    const idMatch = savedUnwindValue.match(/^(\d+)/);
+                    if (idMatch) {
+                        unwindButton = document.querySelector(`.unwind-option[data-value="${idMatch[1]}"]`);
+                    }
+                }
+
+                // Last resort: try to find by label match
+                if (!unwindButton) {
+                    unwindButton = Array.from(document.querySelectorAll('.unwind-option')).find(btn =>
+                        btn.dataset.label?.toLowerCase() === savedUnwindValue.toLowerCase()
+                    );
+                }
+
+                if (unwindButton) {
+                    unwindButton.click();
+                    console.log('? Selected unwind direction:', savedUnwindValue);
+                } else {
+                    console.warn('? Unwind direction not found:', savedUnwindValue);
+                }
+            }
+
+            // Populate quantities if available
+            if (savedQuote.Quantities) {
+                populateQuantities(savedQuote.Quantities);
+            }
+
+            console.log('? Form initialization complete');
+        })();
     })();
 </script>
 }

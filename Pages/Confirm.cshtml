@@ -39,6 +39,15 @@
         return $"{date.ToString("ddd", culture)}, {date:MMM dd, yyyy}";
     }
 
+    string FormatFileSize(long bytes)
+    {
+        if (bytes == 0) return "0 Bytes";
+        var k = 1024.0;
+        var sizes = new[] { "Bytes", "KB", "MB", "GB" };
+        var i = (int)Math.Floor(Math.Log(bytes) / Math.Log(k));
+        return $"{Math.Round(bytes / Math.Pow(k, i), 2)} {sizes[i]}";
+    }
+
     var issuedOn = DateTime.Today;
     var expiresOn = issuedOn.AddDays(30);
     var quoteReference = !string.IsNullOrWhiteSpace(Model.QuoteRequest?.ReferenceValue)
@@ -355,28 +364,60 @@
             </p>
             <div style="display:flex; flex-wrap:wrap; gap:1.25rem; font-size:0.95rem;">
                 <div>
+                    <p style="margin:0.15rem 0;">Material: @FormatMaybeValue(Model.QuoteRequest?.Material)</p>
                     <p style="margin:0.15rem 0;">Printing: @FormatMaybeValue(Model.QuoteRequest?.Printing)</p>
                     <p style="margin:0.15rem 0;">Color Code: @FormatMaybeValue(Model.QuoteRequest?.ColorCode)</p>
+                    <p style="margin:0.15rem 0;">Finish: @FormatMaybeValue(Model.QuoteRequest?.Finish)</p>
                     <p style="margin:0.15rem 0;">Unwind Direction: @FormatMaybeValue(Model.QuoteRequest?.UnwindDirection)</p>
                 </div>
                 <div>
+                    <p style="margin:0.15rem 0;">Shape: @Capitalize(Model.QuoteRequest?.Shape)</p>
+                    <p style="margin:0.15rem 0;">Size: @(string.IsNullOrWhiteSpace(Model.QuoteRequest?.Diameter) ? FormatDimension(Model.QuoteRequest?.LabelWidth, Model.QuoteRequest?.LabelHeight) : $"{Model.QuoteRequest?.Diameter}\" Diameter")</p>
                     <p style="margin:0.15rem 0;">Corners: @FormatMaybeValue(Model.QuoteRequest?.Corners)</p>
                     <p style="margin:0.15rem 0;">Die Size: @FormatMaybeValue(Model.QuoteRequest?.DieSizeInfo)</p>
                     <p style="margin:0.15rem 0;">Cutting Die: @FormatMaybeValue(Model.QuoteRequest?.CuttingDie)</p>
-                    <p style="margin:0.15rem 0;">Application: @FormatMaybeValue(Model.QuoteRequest?.ApplicationMethod)</p>
-                    <p style="margin:0.15rem 0;">Packing: @FormatMaybeValue(Model.QuoteRequest?.PackingProcedure)</p>
                 </div>
                 <div>
+                    <p style="margin:0.15rem 0;">Application: @FormatMaybeValue(Model.QuoteRequest?.ApplicationMethod)</p>
+                    <p style="margin:0.15rem 0;">Packing: @FormatMaybeValue(Model.QuoteRequest?.PackingProcedure)</p>
                     <p style="margin:0.15rem 0;">Quantities: @(
                         Model.QuoteRequest?.Quantities?.Count > 0
                             ? string.Join(", ", Model.QuoteRequest.Quantities)
                             : FormatMaybeValue(Model.QuoteRequest?.TotalQuantity))
                     </p>
                     <p style="margin:0.15rem 0;">Customer: @FormatMaybeValue(Model.QuoteRequest?.CustomerDisplayName)</p>
-                    <p style="margin:0.15rem 0;">Shape Outline: @FormatMaybeValue(Model.QuoteRequest?.ShapeValue)</p>
                 </div>
             </div>
         </section>
+
+        @if (!string.IsNullOrWhiteSpace(Model.QuoteRequest?.UploadedFileName))
+        {
+            <section class="info-panel" style="margin-bottom:2rem;">
+                <h3>Uploaded File</h3>
+                <div style="display:flex; align-items:center; gap:1rem; margin-top:0.75rem;">
+                    <div style="flex:1;">
+                        <p style="margin:0.15rem 0; font-weight:600;">
+                            📎 @Model.QuoteRequest.UploadedFileOriginalName
+                        </p>
+                        <p style="margin:0.15rem 0; color:#64748b; font-size:0.875rem;">
+                            @FormatFileSize(Model.QuoteRequest.UploadedFileSize ?? 0)
+                            @if (!string.IsNullOrWhiteSpace(Model.QuoteRequest.UploadedFileContentType))
+                            {
+                                <span> • @Model.QuoteRequest.UploadedFileContentType</span>
+                            }
+                        </p>
+                    </div>
+                    <div>
+                        <a href="/uploads/quotes/@Model.QuoteRequest.UploadedFileName" 
+                           target="_blank" 
+                           class="btn btn-outline-primary btn-sm"
+                           download="@Model.QuoteRequest.UploadedFileOriginalName">
+                            View File
+                        </a>
+                    </div>
+                </div>
+            </section>
+        }
 
         <table class="line-items">
             <thead>
@@ -423,7 +464,15 @@
                 </thead>
                 <tbody>
                     @* Additional line items for custom die and other charges *@
-                    @if (Model.QuoteRequest?.IsCustomDie == true)
+                    @{
+                        var hasAnyCharges = (Model.QuoteRequest?.IsCustomDie == true && Model.AdditionalCharges.ContainsKey("CustomDie")) 
+                            || (Model.QuoteRequest?.ColorChanges > 0 && Model.AdditionalCharges.ContainsKey("ColorChanges"))
+                            || (Model.QuoteRequest?.DigitalVersionChanges > 0 && Model.AdditionalCharges.ContainsKey("DigitalVersionChanges"))
+                            || (Model.QuoteRequest?.NeedsPressProof == true && Model.AdditionalCharges.ContainsKey("PressProof"))
+                            || (Model.QuoteRequest?.NeedsSpotColorPlateChange == true && Model.AdditionalCharges.ContainsKey("SpotColorPlateChange"));
+                    }
+
+                    @if (Model.QuoteRequest?.IsCustomDie == true && Model.AdditionalCharges.TryGetValue("CustomDie", out var customDieCharge))
                     {
                         <tr style="background: #fef3c7;">
                             <td style="font-weight: 600;">
@@ -433,11 +482,78 @@
                                     Die Size: @FormatMaybeValue(Model.QuoteRequest?.DieSizeInfo)
                                 </small>
                             </td>
-                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(Model.CustomDiePrice)</td>
-                            <td style="font-weight: 600;">@(Model.CustomDieUnit ?? "each")</td>
+                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(customDieCharge.Price)</td>
+                            <td style="font-weight: 600;">@(customDieCharge.Unit)</td>
                         </tr>
                     }
-                    else
+
+                    @if (Model.QuoteRequest?.ColorChanges > 0 && Model.AdditionalCharges.TryGetValue("ColorChanges", out var colorChangesCharge))
+                    {
+                        var totalColorChangePrice = colorChangesCharge.Price * Model.QuoteRequest.ColorChanges.Value;
+                        <tr style="background: #dbeafe;">
+                            <td style="font-weight: 600;">
+                                <span style="color: #1e40af;">🎨</span> Color Changes
+                                <br />
+                                <small style="color: #1e3a8a; font-weight: normal;">
+                                    @Model.QuoteRequest.ColorChanges changes × @FormatCurrency(colorChangesCharge.Price) per change
+                                </small>
+                            </td>
+                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(totalColorChangePrice)</td>
+                            <td style="font-weight: 600;">total</td>
+                        </tr>
+                    }
+
+                    @if (Model.QuoteRequest?.DigitalVersionChanges > 0 && Model.AdditionalCharges.TryGetValue("DigitalVersionChanges", out var digitalVersionChangesCharge))
+                    {
+                        var totalDigitalVersionChangePrice = digitalVersionChangesCharge.Price * Model.QuoteRequest.DigitalVersionChanges.Value;
+                        <tr style="background: #e0e7ff;">
+                            <td style="font-weight: 600;">
+                                <span style="color: #3730a3;">🖨️</span> Digital Full Color Version Changes
+                                <br />
+                                <small style="color: #312e81; font-weight: normal;">
+                                    @Model.QuoteRequest.DigitalVersionChanges changes × @FormatCurrency(digitalVersionChangesCharge.Price) per change
+                                </small>
+                            </td>
+                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(totalDigitalVersionChangePrice)</td>
+                            <td style="font-weight: 600;">total</td>
+                        </tr>
+                    }
+
+                    @if (Model.QuoteRequest?.NeedsPressProof == true && Model.AdditionalCharges.TryGetValue("PressProof", out var pressProofCharge))
+                    {
+                        var pressProofQty = Model.QuoteRequest.PressProofQuantity ?? 1;
+                        var totalPressProofPrice = pressProofCharge.Price * pressProofQty;
+                        <tr style="background: #fce7f3;">
+                            <td style="font-weight: 600;">
+                                <span style="color: #9f1239;">📄</span> Press Proof - Print Only, Not Die Cut
+                                <br />
+                                <small style="color: #881337; font-weight: normal;">
+                                    @pressProofQty × @FormatCurrency(pressProofCharge.Price) @(pressProofCharge.Unit)
+                                </small>
+                            </td>
+                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(totalPressProofPrice)</td>
+                            <td style="font-weight: 600;">total</td>
+                        </tr>
+                    }
+
+                    @if (Model.QuoteRequest?.NeedsSpotColorPlateChange == true && Model.AdditionalCharges.TryGetValue("SpotColorPlateChange", out var spotColorPlateChangeCharge))
+                    {
+                        var plateChangeQty = Model.QuoteRequest.SpotColorPlateChangeQuantity ?? 1;
+                        var totalPlateChangePrice = spotColorPlateChangeCharge.Price * plateChangeQty;
+                        <tr style="background: #fef9c3;">
+                            <td style="font-weight: 600;">
+                                <span style="color: #854d0e;">🎨</span> Spot Color Plate/Copy Change
+                                <br />
+                                <small style="color: #713f12; font-weight: normal;">
+                                    @plateChangeQty × @FormatCurrency(spotColorPlateChangeCharge.Price) @(spotColorPlateChangeCharge.Unit)
+                                </small>
+                            </td>
+                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(totalPlateChangePrice)</td>
+                            <td style="font-weight: 600;">total</td>
+                        </tr>
+                    }
+
+                    @if (!hasAnyCharges)
                     {
                         <tr>
                             <td colspan="3" style="text-align:center; color:#94a3b8; font-style:italic;">
@@ -460,6 +576,116 @@
 
             </p>
         </section>
+
+        @if (Model.QuoteRequest != null)
+        {
+            var q = Model.QuoteRequest;
+            var debugGroups = new[]
+            {
+                ("Customer",      new[] { ("customerId",                   q.CustomerId),
+                                          ("customerDisplayName",          q.CustomerDisplayName),
+                                          ("company",                      q.Company),
+                                          ("name",                         q.Name),
+                                          ("email",                        q.Email),
+                                          ("phone",                        q.Phone),
+                                          ("comments",                     q.Comments) }),
+                ("Reference",     new[] { ("referenceType",                q.ReferenceType),
+                                          ("referenceValue",               q.ReferenceValue),
+                                          ("description",                  q.Description) }),
+                ("Shape",         new[] { ("shape",                        q.Shape),
+                                          ("shapeValue",                   q.ShapeValue),
+                                          ("corners",                      q.Corners),
+                                          ("cornersValue",                 q.CornersValue) }),
+                ("Dimensions",    new[] { ("labelWidth",                   q.LabelWidth),
+                                          ("labelHeight",                  q.LabelHeight),
+                                          ("diameter",                     q.Diameter) }),
+                ("Die",           new[] { ("existingDie",                  q.CuttingDie),
+                                          ("cuttingDieValue",              q.CuttingDieValue),
+                                          ("dieSizeInfo",                  q.DieSizeInfo),
+                                          ("isCustomDie",                  q.IsCustomDie.ToString().ToLower()) }),
+                ("Material",      new[] { ("material",                     q.Material),
+                                          ("materialValue",                q.MaterialValue) }),
+                ("Printing",      new[] { ("printing",                     q.Printing),
+                                          ("printingValue",                q.PrintingValue),
+                                          ("colorCode",                    q.ColorCode),
+                                          ("colorCodeValue",               q.ColorCodeValue) }),
+                ("Finish",        new[] { ("finish",                       q.Finish),
+                                          ("finishValue",                  q.FinishValue) }),
+                ("Packing",       new[] { ("packingProcedure",             q.PackingProcedure) }),
+                ("Application",   new[] { ("applicationMethod",            q.ApplicationMethod),
+                                          ("applicationMethodValue",       q.ApplicationMethodValue) }),
+                ("Unwind",        new[] { ("unwindDirection",              q.UnwindDirection),
+                                          ("unwindDirectionValue",         q.UnwindDirectionValue) }),
+                ("Quantities",    new[] { ("totalQuantity",                q.TotalQuantity),
+                                          ("quantities",                   q.Quantities != null ? string.Join(", ", q.Quantities) : null) }),
+                ("Artwork",       new[] { ("artworkOption",                q.ArtworkOption),
+                                          ("artworkOptionValue",           q.ArtworkOptionValue) }),
+                ("Press Proof",   new[] { ("needsPressProof",              q.NeedsPressProof.ToString().ToLower()),
+                                          ("pressProofQuantity",           q.PressProofQuantity?.ToString()) }),
+                ("Spot Color",    new[] { ("needsSpotColorPlateChange",    q.NeedsSpotColorPlateChange.ToString().ToLower()),
+                                          ("spotColorPlateChangeQty",      q.SpotColorPlateChangeQuantity?.ToString()) }),
+                ("Color Changes", new[] { ("colorChanges",                 q.ColorChanges?.ToString()),
+                                          ("digitalVersionChanges",        q.DigitalVersionChanges?.ToString()) }),
+                ("File",          new[] { ("uploadedFileName",             q.UploadedFileName),
+                                          ("uploadedFileOriginalName",     q.UploadedFileOriginalName),
+                                          ("uploadedFileSize",             q.UploadedFileSize?.ToString()) }),
+            };
+            var groupClasses = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Customer"]   = "table-primary",
+                ["Shape"]      = "table-info",
+                ["Dimensions"] = "table-info",
+                ["Material"]   = "table-success",
+                ["Printing"]   = "table-warning",
+                ["Finish"]     = "table-warning",
+                ["Quantities"] = "table-danger",
+                ["Die"]        = "table-secondary",
+            };
+
+            <div class="card mt-4 border-secondary" style="font-family:'Segoe UI',Roboto,Arial,sans-serif;">
+                <div class="card-header bg-secondary bg-opacity-10 p-2">
+                    <h6 class="mb-0">
+                        <button class="btn btn-link text-decoration-none w-100 text-start d-flex justify-content-between align-items-center py-0"
+                                type="button" data-bs-toggle="collapse"
+                                data-bs-target="#debugConfirmValuesCollapse"
+                                aria-expanded="false" aria-controls="debugConfirmValuesCollapse">
+                            <span>&#x1F527; Debug: Quote Request Values</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-down" viewBox="0 0 16 16">
+                                <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                            </svg>
+                        </button>
+                    </h6>
+                </div>
+                <div class="collapse" id="debugConfirmValuesCollapse">
+                    <div class="card-body p-0">
+                        <table class="table table-sm table-bordered table-hover mb-0">
+                            <thead class="table-dark">
+                                <tr><th style="width:35%">Field</th><th>Value</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var (groupName, fields) in debugGroups)
+                                {
+                                    var anyValues = fields.Any(f => !string.IsNullOrEmpty(f.Item2));
+                                    if (!anyValues) { continue; }
+                                    groupClasses.TryGetValue(groupName, out var rowClass);
+                                    <tr class="table-secondary">
+                                        <td colspan="2" class="fw-bold small py-1 px-2 text-uppercase">@groupName</td>
+                                    </tr>
+                                    foreach (var (fieldName, fieldValue) in fields)
+                                    {
+                                        if (string.IsNullOrEmpty(fieldValue)) { continue; }
+                                        <tr class="@rowClass">
+                                            <td class="fw-semibold small">@fieldName</td>
+                                            <td><code>@fieldValue</code></td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
 
         <p style="text-align: center; margin-top: 2rem; font-size: 0.95rem; color: #475569;">
             Thank you for partnering with WiseLabels. We look forward to supporting your next release.

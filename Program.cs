@@ -35,6 +35,7 @@ builder.Services
     .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
 
 builder.Services.Configure<AccessControlOptions>(builder.Configuration.GetSection("Authorization"));
+builder.Services.Configure<WiseLabels.Configuration.UserFilteringOptions>(builder.Configuration.GetSection("UserFiltering"));
 builder.Services.AddSingleton<IAuthorizationHandler, GroupAccessHandler>();
 builder.Services.AddAuthorization(options =>
 {
@@ -54,7 +55,9 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddRazorPages()
     .AddMicrosoftIdentityUI();
 builder.Services.AddHttpClient();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddDistributedMemoryCache();
+builder.Services.AddMemoryCache();
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(30);
@@ -65,9 +68,11 @@ builder.Services.AddScoped<WiseLabels.Services.IQuoteService, WiseLabels.Service
 builder.Services.AddScoped<WiseLabels.Services.IEmailService, WiseLabels.Services.EmailService>();
 builder.Services.AddScoped<WiseLabels.Services.ICermAuthService, WiseLabels.Services.CermAuthService>();
 builder.Services.AddScoped<WiseLabels.Services.IChatService, WiseLabels.Services.ChatService>();
+builder.Services.AddScoped<WiseLabels.Services.ICustomerContactService, WiseLabels.Services.CustomerContactService>();
+builder.Services.AddScoped<WiseLabels.Services.IUserImpersonationService, WiseLabels.Services.UserImpersonationService>();
 builder.Services.AddDbContext<CermDbContext>(options =>
 options.UseSqlServer(
-    builder.Configuration.GetConnectionString("CermDbConnection"),
+    builder.Configuration.GetConnectionString("CermDatabase"),
     sql => sql.UseCompatibilityLevel(120)));
 builder.Services.AddScoped<CERM.DataAccess.Repositories.Job.IJobRepository, CERM.DataAccess.Repositories.Job.JobRepositoryEF>();
 builder.Services.AddScoped<CERM.DataAccess.Repositories.Substrate.ISubstrateRepository, CERM.DataAccess.Repositories.Substrate.SubstrateRepositoryEF>();

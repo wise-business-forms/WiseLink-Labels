@@ -1,7 +1,7 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj": {}
+    "C:\\Users\\pmenefee\\source\\Wiselink-Labels\\WiseLabels.csproj": {}
   },
   "projects": {
     "C:\\Users\\pmenefee\\source\\CERM.DataAccess\\CERM.DataAccess.csproj": {
@@ -88,18 +88,18 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.104/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj": {
+    "C:\\Users\\pmenefee\\source\\Wiselink-Labels\\WiseLabels.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj",
+        "projectUniqueName": "C:\\Users\\pmenefee\\source\\Wiselink-Labels\\WiseLabels.csproj",
         "projectName": "WiseLabels",
-        "projectPath": "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\WiseLabels.csproj",
+        "projectPath": "C:\\Users\\pmenefee\\source\\Wiselink-Labels\\WiseLabels.csproj",
         "packagesPath": "C:\\Users\\pmenefee\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\pmenefee\\source\\WiseLink-Labels\\obj\\",
+        "outputPath": "C:\\Users\\pmenefee\\source\\Wiselink-Labels\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -195,7 +195,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.104/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

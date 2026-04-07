@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using WiseLabels.Services;
 
 namespace WiseLabels.Pages.Api
 {
@@ -44,12 +45,14 @@ namespace WiseLabels.Pages.Api
         private readonly IConfiguration _configuration;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<ColorCodesModel> _logger;
+        private readonly ICermAuthService _cermAuthService;
 
-        public ColorCodesModel(IConfiguration configuration, IHttpClientFactory httpClientFactory, ILogger<ColorCodesModel> logger)
+        public ColorCodesModel(IConfiguration configuration, IHttpClientFactory httpClientFactory, ILogger<ColorCodesModel> logger, ICermAuthService cermAuthService)
         {
             _configuration = configuration;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
+            _cermAuthService = cermAuthService;
         }
 
         public async Task<IActionResult> OnGetAsync()
@@ -57,32 +60,14 @@ namespace WiseLabels.Pages.Api
             _logger.LogInformation("ColorCodes OnGetAsync called");
             try
             {
-                // Get credentials from configuration
-                var oauthUrl = _configuration["Cerm:OAuthUrl"] ?? "https://brandmark-api.cerm.be/oauth/token";
-                //var colorCodesUrl = _configuration["Cerm:ColorCodesUrl"] ?? "https://brandmark-api.cerm.be/parameter-api/v1/calculation/front-adhesive-backing/colour-codes?Filter=AllowRFQ%20eq%20true%20and%20Blocked%20ne%20true";
                 var colorCodesUrl = _configuration["Cerm:ColorCodesUrl"] ?? "https://brandmark-api.cerm.be/parameter-api/v1/calculation/quick-quote/colour-codes";
-                var username = _configuration["Cerm:Username"];
-                var password = _configuration["Cerm:Password"];
-                var clientId = _configuration["Cerm:ClientId"];
-                var clientSecret = _configuration["Cerm:ClientSecret"];
-                
+
                 _logger.LogInformation("ColorCodes endpoint called. URL: {ColorCodesUrl}", colorCodesUrl);
 
-                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password) || 
-                    string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
-                {
-                    _logger.LogError("CERM API credentials are missing from configuration");
-                    return new JsonResult(new { error = "Server configuration error: CERM API credentials not configured" })
-                    {
-                        StatusCode = 500
-                    };
-                }
-
-                // Authenticate and get access token
-                var (accessToken, authError) = await GetAccessTokenAsync(oauthUrl, username, password, clientId, clientSecret);
+                var accessToken = await _cermAuthService.GetAccessTokenAsync();
                 if (string.IsNullOrEmpty(accessToken))
                 {
-                    return new JsonResult(new { error = authError ?? "Failed to authenticate with CERM API" })
+                    return new JsonResult(new { error = "Failed to authenticate with CERM API" })
                     {
                         StatusCode = 401
                     };

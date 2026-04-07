@@ -3,27 +3,38 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using WiseLabels.Models;
 using System.Text.Json;
 using System.Net;
-using CERM.DataAccess.Repositories.PriceList;
+using Microsoft.Data.SqlClient;
 
 namespace WiseLabels.Pages
 {
+    public class LineItemCharge
+    {
+        public string ItemRef { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public decimal Price { get; set; }
+        public string Unit { get; set; } = string.Empty;
+    }
+
     public class ConfirmModel : PageModel
     {
         private readonly ILogger<ConfirmModel> _logger;
         private readonly WiseLabels.Services.IQuoteService _quoteService;
         private readonly WiseLabels.Services.IEmailService _emailService;
-        private readonly IPriceListItemRepository _priceListRepo;
+        private readonly WiseLabels.Services.ICustomerContactService _customerContactService;
+        private readonly IConfiguration _configuration;
 
         public ConfirmModel(
             ILogger<ConfirmModel> logger, 
             WiseLabels.Services.IQuoteService quoteService, 
             WiseLabels.Services.IEmailService emailService,
-            IPriceListItemRepository priceListRepo)
+            WiseLabels.Services.ICustomerContactService customerContactService,
+            IConfiguration configuration)
         {
             _logger = logger;
             _quoteService = quoteService;
             _emailService = emailService;
-            _priceListRepo = priceListRepo;
+            _customerContactService = customerContactService;
+            _configuration = configuration;
         }
 
         [BindProperty]
@@ -32,8 +43,7 @@ namespace WiseLabels.Pages
         public string? ApiPayloadJson { get; set; }
         public string? FormValuesJson { get; set; }
         public List<QuotePriceBreakdown> PriceBreakdown { get; } = new();
-        public decimal? CustomDiePrice { get; set; }
-        public string? CustomDieUnit { get; set; }
+        public Dictionary<string, LineItemCharge> AdditionalCharges { get; set; } = new();
 
         public async Task OnGetAsync()
         {
@@ -56,12 +66,12 @@ namespace WiseLabels.Pages
             }
 
             LoadPriceBreakdown();
-            await LoadCustomDiePriceAsync();
+            await LoadLineItemPricesAsync();
         }
 
-        private async Task LoadCustomDiePriceAsync()
+        private async Task LoadLineItemPricesAsync()
         {
-            // If custom die is required, fetch the price from CERM price list
+            // Load line item prices based on quote requirements
             if (QuoteRequest?.IsCustomDie == true)
             {
                 _logger.LogInformation(
@@ -69,41 +79,114 @@ namespace WiseLabels.Pages
                     QuoteRequest.IsCustomDie,
                     QuoteRequest.DieSizeInfo ?? "NULL");
 
-                try
+                await LoadLineItemPriceAsync("100001", "CustomDie");
+            }
+
+            // Load color changes line item if spot printing with color changes
+            if (QuoteRequest?.ColorChanges > 0)
+            {
+                _logger.LogInformation(
+                    "Color changes detected. ColorChanges={ColorChanges}",
+                    QuoteRequest.ColorChanges);
+
+                await LoadLineItemPriceAsync("100018", "ColorChanges");
+            }
+
+            // Load digital version changes line item if process color printing with version changes
+            if (QuoteRequest?.DigitalVersionChanges > 0)
+            {
+                _logger.LogInformation(
+                    "Digital version changes detected. DigitalVersionChanges={DigitalVersionChanges}",
+                    QuoteRequest.DigitalVersionChanges);
+
+                await LoadLineItemPriceAsync("100035", "DigitalVersionChanges");
+            }
+
+            // Load press proof line item if requested
+            if (QuoteRequest?.NeedsPressProof == true)
+            {
+                _logger.LogInformation(
+                    "Press proof requested. Quantity={PressProofQuantity}",
+                    QuoteRequest.PressProofQuantity);
+
+                await LoadLineItemPriceAsync("100031", "PressProof");
+            }
+
+            // Load spot color plate change line item if requested
+            if (QuoteRequest?.NeedsSpotColorPlateChange == true)
+            {
+                _logger.LogInformation(
+                    "Spot color plate change requested. Quantity={SpotColorPlateChangeQuantity}",
+                    QuoteRequest.SpotColorPlateChangeQuantity);
+
+                await LoadLineItemPriceAsync("100017", "SpotColorPlateChange");
+            }
+
+            // Easy to add more line items in the future:
+            // await LoadLineItemPriceAsync("100002", "SetupCharge");
+            // await LoadLineItemPriceAsync("100003", "PlateCharge");
+        }
+
+        private async Task LoadLineItemPriceAsync(string itemRef, string chargeKey)
+        {
+            try
+            {
+                var connectionString = _configuration.GetConnectionString("CermDatabase");
+                if (string.IsNullOrEmpty(connectionString))
                 {
-                    // Line item 100001 is for custom die fabrication (standard price for all customers)
-                    var priceListItem = await _priceListRepo.GetByItemRefAsync("100001");
-
-                    if (priceListItem != null)
-                    {
-                        CustomDiePrice = (decimal)priceListItem.PriceExcludingTax;
-                        CustomDieUnit = !string.IsNullOrWhiteSpace(priceListItem.QuantityDescription1) 
-                            ? priceListItem.QuantityDescription1.Trim() 
-                            : "each";
-
-                        _logger.LogInformation(
-                            "Custom die price loaded from item 100001: {Price} {Unit} (from prijs_bm={PriceRaw}, omsaant1={Unit})", 
-                            CustomDiePrice,
-                            CustomDieUnit,
-                            priceListItem.PriceExcludingTax,
-                            priceListItem.QuantityDescription1);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Custom die price item 100001 not found in stdfpl__ table");
-                    }
+                    _logger.LogError("CermDatabase connection string not found");
+                    return;
                 }
-                catch (Exception ex)
+
+                // Query stdfpl__ table directly (like CuttingDie does with stnspr__)
+                var sql = @"
+                    SELECT TOP 1 
+                        fpl__ref,
+                        fpl__rpn,
+                        fkttxt11,
+                        prijs_bm,
+                        omsaant1
+                    FROM stdfpl__ 
+                    WHERE fpl__ref = @itemRef 
+                        AND (geblokk_ IS NULL OR geblokk_ != '1')";
+
+                using (var connection = new SqlConnection(connectionString))
                 {
-                    _logger.LogError(ex, "Error loading custom die price for item 100001");
+                    await connection.OpenAsync();
+
+                    using (var command = new SqlCommand(sql, connection))
+                    {
+                        command.Parameters.AddWithValue("@itemRef", itemRef);
+
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+                            if (await reader.ReadAsync())
+                            {
+                                var charge = new LineItemCharge
+                                {
+                                    ItemRef = reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+                                    Description = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+                                    Price = reader.IsDBNull(3) ? 0 : (decimal)reader.GetDouble(3),
+                                    Unit = reader.IsDBNull(4) ? "each" : reader.GetString(4).Trim()
+                                };
+
+                                AdditionalCharges[chargeKey] = charge;
+
+                                _logger.LogInformation(
+                                    "Loaded line item {ItemRef} ({Key}): {Price} {Unit} - {Description}",
+                                    itemRef, chargeKey, charge.Price, charge.Unit, charge.Description);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Line item {ItemRef} not found in stdfpl__ table", itemRef);
+                            }
+                        }
+                    }
                 }
             }
-            else
+            catch (Exception ex)
             {
-                if (QuoteRequest?.IsCustomDie != true)
-                {
-                    _logger.LogDebug("Not a custom die - skipping price lookup");
-                }
+                _logger.LogError(ex, "Error loading line item price for {ItemRef}", itemRef);
             }
         }
 
@@ -125,11 +208,11 @@ namespace WiseLabels.Pages
                     return RedirectToPage("/Index");
                 }
 
-                // Load the quote request into the property so LoadCustomDiePriceAsync can access it
+                // Load the quote request into the property so LoadLineItemPricesAsync can access it
                 QuoteRequest = quote;
 
-                // Load custom die pricing before storing and redirecting
-                await LoadCustomDiePriceAsync();
+                // Load line item pricing before storing and redirecting
+                await LoadLineItemPricesAsync();
 
                 // Store in database
                 var quoteId = await _quoteService.StoreQuoteAsync(quote);
@@ -162,6 +245,20 @@ namespace WiseLabels.Pages
                     quote.EstimateId = estimateIdForContact;
                 }
 
+                // Update the comment fields in v1bon___ with customer contact information
+                if (!string.IsNullOrWhiteSpace(estimateIdForContact))
+                {
+                    var commentsUpdated = await _customerContactService.UpdateQuoteCommentsAsync(estimateIdForContact, quote);
+                    if (commentsUpdated)
+                    {
+                        _logger.LogInformation("Successfully updated quote comments for estimate {EstimateId}", estimateIdForContact);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Failed to update quote comments for estimate {EstimateId}", estimateIdForContact);
+                    }
+                }
+
                 TempData["QuoteId"] = quoteId;
                 TempData["ApiSuccess"] = apiSuccess.ToString();
                 TempData["QuoteRequest"] = JsonSerializer.Serialize(quote);
@@ -173,12 +270,43 @@ namespace WiseLabels.Pages
                     TempData["CermErrorMessage"] = cermErrorMessage;
                 if (!string.IsNullOrWhiteSpace(cermResponseJson))
                     TempData["CermApiResponse"] = cermResponseJson;
+                if (!string.IsNullOrWhiteSpace(ApiPayloadJson))
+                    TempData["CermApiRequest"] = ApiPayloadJson;
 
-                // Pass custom die information to Success page
-                if (CustomDiePrice.HasValue)
-                    TempData["CustomDiePrice"] = CustomDiePrice.Value.ToString();
-                if (!string.IsNullOrWhiteSpace(CustomDieUnit))
-                    TempData["CustomDieUnit"] = CustomDieUnit;
+                // Pass line item charges to Success page
+                if (AdditionalCharges.TryGetValue("CustomDie", out var customDieCharge))
+                {
+                    TempData["CustomDiePrice"] = customDieCharge.Price.ToString();
+                    TempData["CustomDieUnit"] = customDieCharge.Unit;
+                }
+
+                if (AdditionalCharges.TryGetValue("ColorChanges", out var colorChangesCharge))
+                {
+                    TempData["ColorChangesPrice"] = colorChangesCharge.Price.ToString();
+                    TempData["ColorChangesUnit"] = colorChangesCharge.Unit;
+                    TempData["ColorChangesQty"] = QuoteRequest.ColorChanges?.ToString() ?? "0";
+                }
+
+                if (AdditionalCharges.TryGetValue("DigitalVersionChanges", out var digitalVersionChangesCharge))
+                {
+                    TempData["DigitalVersionChangesPrice"] = digitalVersionChangesCharge.Price.ToString();
+                    TempData["DigitalVersionChangesUnit"] = digitalVersionChangesCharge.Unit;
+                    TempData["DigitalVersionChangesQty"] = QuoteRequest.DigitalVersionChanges?.ToString() ?? "0";
+                }
+
+                if (AdditionalCharges.TryGetValue("PressProof", out var pressProofCharge))
+                {
+                    TempData["PressProofPrice"] = pressProofCharge.Price.ToString();
+                    TempData["PressProofUnit"] = pressProofCharge.Unit;
+                    TempData["PressProofQty"] = QuoteRequest.PressProofQuantity?.ToString() ?? "1";
+                }
+
+                if (AdditionalCharges.TryGetValue("SpotColorPlateChange", out var spotColorPlateChangeCharge))
+                {
+                    TempData["SpotColorPlateChangePrice"] = spotColorPlateChangeCharge.Price.ToString();
+                    TempData["SpotColorPlateChangeUnit"] = spotColorPlateChangeCharge.Unit;
+                    TempData["SpotColorPlateChangeQty"] = QuoteRequest.SpotColorPlateChangeQuantity?.ToString() ?? "1";
+                }
 
                 if (string.IsNullOrWhiteSpace(cermCalculationId) && string.IsNullOrWhiteSpace(cermEstimateId))
                 {
@@ -197,21 +325,6 @@ namespace WiseLabels.Pages
                     catch (Exception emailEx)
                     {
                         _logger.LogError(emailEx, "Failed sending debug email when quote number was missing");
-                    }
-                }
-
-                // Update contact info in CERM database when we have the estimate ID
-                if (!string.IsNullOrWhiteSpace(estimateIdForContact))
-                {
-                    var contactUpdated = await _quoteService.UpdateContactInfoAsync(
-                        estimateIdForContact,
-                        quote.Name ?? "",
-                        quote.Email ?? "",
-                        quote.Phone ?? ""
-                    );
-                    if (!contactUpdated)
-                    {
-                        _logger.LogWarning("Failed to update contact info in CERM for estimate {EstimateId}", estimateIdForContact);
                     }
                 }
 

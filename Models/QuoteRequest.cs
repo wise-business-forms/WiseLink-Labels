@@ -3,6 +3,7 @@ namespace WiseLabels.Models
     public class QuoteRequest
     {
         // Metadata for server-side selection
+        public string? CalculationId { get; set; }
         public string? EstimateId { get; set; }
         public string? CustomerId { get; set; }
         public string? CustomerDisplayName { get; set; }
@@ -26,17 +27,30 @@ namespace WiseLabels.Models
         public string? CuttingDie { get; set; }
         public string? DieSizeInfo { get; set; }
         public bool IsCustomDie { get; set; }
+        public int? ColorChanges { get; set; }
+        public int? DigitalVersionChanges { get; set; }
+        public bool NeedsPressProof { get; set; }
+        public int? PressProofQuantity { get; set; }
+        public bool NeedsSpotColorPlateChange { get; set; }
+        public int? SpotColorPlateChangeQuantity { get; set; }
         public string? Printing { get; set; }
         public string? Material { get; set; }
         public string? ColorCode { get; set; }
         public string? Finish { get; set; }
         public string? PackingProcedure { get; set; }
+        public int? PackingQuantity { get; set; }
         public string? ApplicationMethod { get; set; }
         public string? UnwindDirection { get; set; }
         public string? TotalQuantity { get; set; }
         public List<int>? Quantities { get; set; }
         public string? ArtworkOption { get; set; }
-        
+
+        // File upload information
+        public string? UploadedFileName { get; set; }
+        public string? UploadedFileOriginalName { get; set; }
+        public string? UploadedFileContentType { get; set; }
+        public long? UploadedFileSize { get; set; }
+
         // Form values for restoration
         public string? ShapeValue { get; set; }
         public string? CornersValue { get; set; }
@@ -48,6 +62,7 @@ namespace WiseLabels.Models
         public string? ArtworkOptionValue { get; set; }
         public string? CuttingDieValue { get; set; }
         public string? PrintingValue { get; set; }
+        public string? PackingProcedureValue { get; set; }
         
         public List<QuotePriceBreakdown>? PriceBreakdown { get; set; }
         public string? QuickQuoteResponseJson { get; set; }

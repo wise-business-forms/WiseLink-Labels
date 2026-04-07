@@ -1,3 +1,4 @@
+@inject WiseLabels.Services.IUserImpersonationService ImpersonationService
 @{
     string NormalizePath(string? path)
     {
@@ -21,22 +22,66 @@
 
         return string.Equals(normalizedPage, currentPath, StringComparison.OrdinalIgnoreCase);
     };
+
+    var isAdmin = await ImpersonationService.IsCurrentUserAdminAsync();
 }
 
 <nav class="left-sidebar" aria-label="Left sidebar navigation">
-    <h6 class="left-sidebar-title">Quote Dashboard</h6>
     <ul class="left-nav-list">
         <li>
-            <a asp-page="/Index" class="left-nav-link@(isActive("/Index") ? " active" : string.Empty)">Dashboard</a>
+            <a asp-page="/Index" class="left-nav-link@(isActive("/Index") ? " active" : string.Empty)">
+                <i class="bi bi-house-door me-2"></i>Dashboard
+            </a>
         </li>
         <li>
-            <a asp-page="/Customers" class="left-nav-link@(isActive("/Customers") ? " active" : string.Empty)">Repeat Quote</a>
+            <a asp-page="/Customers" class="left-nav-link@(isActive("/Customers") ? " active" : string.Empty)">
+                <i class="bi bi-people me-2"></i>Customers
+            </a>
         </li>
         <li>
-            <a asp-page="/GetQuote" class="left-nav-link@(isActive("/GetQuote") ? " active" : string.Empty)">Start New Quote</a>
+            <button class="left-nav-link left-nav-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#reportsSubmenu" aria-expanded="@(currentPath.StartsWith("/Reports", StringComparison.OrdinalIgnoreCase) ? "true" : "false")" aria-controls="reportsSubmenu">
+                <i class="bi bi-file-earmark-bar-graph me-2"></i>Reports
+                <i class="bi bi-chevron-down ms-auto submenu-arrow"></i>
+            </button>
+            <div class="collapse@(currentPath.StartsWith("/Reports", StringComparison.OrdinalIgnoreCase) ? " show" : string.Empty)" id="reportsSubmenu">
+                <ul class="left-nav-submenu">
+                    <li>
+                        <a asp-page="/Reports/OpenOrders" class="left-nav-link@(isActive("/Reports/OpenOrders") ? " active" : string.Empty)">
+                            <i class="bi bi-box-seam me-2"></i>Open Orders
+                        </a>
+                    </li>
+                    <li>
+                        <a asp-page="/Reports/ShippedOrders" class="left-nav-link@(isActive("/Reports/ShippedOrders") ? " active" : string.Empty)">
+                            <i class="bi bi-truck me-2"></i>Shipped Orders
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </li>
+        <!--
+        <li>
+            <a asp-page="/OnLineOrders" class="left-nav-link@(isActive("/OnLineOrders") ? " active" : string.Empty)">
+                <i class="bi bi-cart me-2"></i>Online Orders
+            </a>
         </li>
         <li>
-            <a asp-page="/Chat" class="left-nav-link@(isActive("/Chat") ? " active" : string.Empty)">Chat</a>
+            <a asp-page="/GetQuote" class="left-nav-link@(isActive("/GetQuote") ? " active" : string.Empty)">
+                <i class="bi bi-file-earmark-plus me-2"></i>Start New Quote
+            </a>
         </li>
+        -->
     </ul>
+
+    <div class="left-nav-divider"></div>
+
+    @if (isAdmin)
+    {
+        <ul class="left-nav-list">
+            <li>
+                <a asp-page="/Admin/Index" class="left-nav-link@(isActive("/Admin/Index") || currentPath.StartsWith("/Admin", StringComparison.OrdinalIgnoreCase) ? " active" : string.Empty)">
+                    <i class="bi bi-gear me-2"></i>Admin
+                </a>
+            </li>
+        </ul>
+    }
 </nav>

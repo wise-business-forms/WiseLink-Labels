@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WiseLabels.Models;
+using WiseLabels.Services;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -13,12 +14,14 @@ namespace WiseLabels.Pages
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
         private readonly ILogger<SuccessModel> _logger;
+        private readonly ICermAuthService _cermAuthService;
 
-        public SuccessModel(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<SuccessModel> logger)
+        public SuccessModel(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<SuccessModel> logger, ICermAuthService cermAuthService)
         {
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
             _logger = logger;
+            _cermAuthService = cermAuthService;
         }
 
         public string? QuoteId { get; set; }
@@ -35,6 +38,8 @@ namespace WiseLabels.Pages
         public string? CermErrorMessage { get; set; }
         /// <summary>Raw JSON returned from the CERM API submission.</summary>
         public string? ApiResponseJson { get; set; }
+        /// <summary>JSON payload sent to CERM API (for debugging).</summary>
+        public string? ApiRequestJson { get; set; }
         /// <summary>Parsed pricing breakdown from the quick-quote response.</summary>
         public List<QuotePriceBreakdown> PriceBreakdown { get; } = new();
         public bool EmailSent { get; set; }
@@ -42,6 +47,18 @@ namespace WiseLabels.Pages
         public DateTime SubmittedDate { get; set; } = DateTime.UtcNow;
         public decimal? CustomDiePrice { get; set; }
         public string? CustomDieUnit { get; set; }
+        public decimal? ColorChangesPrice { get; set; }
+        public string? ColorChangesUnit { get; set; }
+        public int? ColorChangesQty { get; set; }
+        public decimal? DigitalVersionChangesPrice { get; set; }
+        public string? DigitalVersionChangesUnit { get; set; }
+        public int? DigitalVersionChangesQty { get; set; }
+        public decimal? PressProofPrice { get; set; }
+        public string? PressProofUnit { get; set; }
+        public int? PressProofQty { get; set; }
+        public decimal? SpotColorPlateChangePrice { get; set; }
+        public string? SpotColorPlateChangeUnit { get; set; }
+        public int? SpotColorPlateChangeQty { get; set; }
         /// <summary>Submitted date/time in Eastern Time for display.</summary>
         public DateTime SubmittedDateEastern =>
             TimeZoneInfo.ConvertTimeFromUtc(
@@ -72,6 +89,7 @@ namespace WiseLabels.Pages
             }
 
             CermErrorMessage = TempData["CermErrorMessage"]?.ToString();
+            ApiRequestJson = TempData["CermApiRequest"]?.ToString();
 
             if (bool.TryParse(TempData["EmailSent"]?.ToString(), out var emailSent))
             {
@@ -85,6 +103,50 @@ namespace WiseLabels.Pages
             }
 
             CustomDieUnit = TempData["CustomDieUnit"]?.ToString();
+
+            // Load color changes price and quantity
+            if (decimal.TryParse(TempData["ColorChangesPrice"]?.ToString(), out var colorChangesPrice))
+            {
+                ColorChangesPrice = colorChangesPrice;
+            }
+            ColorChangesUnit = TempData["ColorChangesUnit"]?.ToString();
+            if (int.TryParse(TempData["ColorChangesQty"]?.ToString(), out var colorChangesQty))
+            {
+                ColorChangesQty = colorChangesQty;
+            }
+
+            // Load digital version changes price and quantity
+            if (decimal.TryParse(TempData["DigitalVersionChangesPrice"]?.ToString(), out var digitalVersionChangesPrice))
+            {
+                DigitalVersionChangesPrice = digitalVersionChangesPrice;
+            }
+            DigitalVersionChangesUnit = TempData["DigitalVersionChangesUnit"]?.ToString();
+            if (int.TryParse(TempData["DigitalVersionChangesQty"]?.ToString(), out var digitalVersionChangesQty))
+            {
+                DigitalVersionChangesQty = digitalVersionChangesQty;
+            }
+
+            // Load press proof price and quantity
+            if (decimal.TryParse(TempData["PressProofPrice"]?.ToString(), out var pressProofPrice))
+            {
+                PressProofPrice = pressProofPrice;
+            }
+            PressProofUnit = TempData["PressProofUnit"]?.ToString();
+            if (int.TryParse(TempData["PressProofQty"]?.ToString(), out var pressProofQty))
+            {
+                PressProofQty = pressProofQty;
+            }
+
+            // Load spot color plate change price and quantity
+            if (decimal.TryParse(TempData["SpotColorPlateChangePrice"]?.ToString(), out var spotColorPlateChangePrice))
+            {
+                SpotColorPlateChangePrice = spotColorPlateChangePrice;
+            }
+            SpotColorPlateChangeUnit = TempData["SpotColorPlateChangeUnit"]?.ToString();
+            if (int.TryParse(TempData["SpotColorPlateChangeQty"]?.ToString(), out var spotColorPlateChangeQty))
+            {
+                SpotColorPlateChangeQty = spotColorPlateChangeQty;
+            }
 
             // Get quote request data for PDF generation
             if (TempData.TryGetValue("QuoteRequest", out var quoteData))
@@ -161,32 +223,21 @@ namespace WiseLabels.Pages
                     "Submit the quote to CERM and use the returned calculation ID to download the PDF.");
             }
 
-            var oauthUrl = _configuration["Cerm:OAuthUrl"] ?? "https://brandmark-api.cerm.be/oauth/token";
             var pdfTemplate = _configuration["Cerm:QuoteLetterPdfUrlTemplate"];
-            var username = _configuration["Cerm:Username"];
-            var password = _configuration["Cerm:Password"];
-            var clientId = _configuration["Cerm:ClientId"];
-            var clientSecret = _configuration["Cerm:ClientSecret"];
 
             if (string.IsNullOrWhiteSpace(pdfTemplate))
             {
                 return StatusCode(500, "Server configuration error: Cerm:QuoteLetterPdfUrlTemplate not configured");
             }
 
-            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password) ||
-                string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
-            {
-                return StatusCode(500, "Server configuration error: CERM API credentials not configured");
-            }
-
             var pdfUrl = pdfTemplate.Replace("{calculationId}", Uri.EscapeDataString(effectiveId));
 
             try
             {
-                var (accessToken, authError) = await GetAccessTokenAsync(oauthUrl, username, password, clientId, clientSecret);
+                var accessToken = await _cermAuthService.GetAccessTokenAsync();
                 if (string.IsNullOrWhiteSpace(accessToken))
                 {
-                    return StatusCode(401, authError ?? "Failed to authenticate with CERM API");
+                    return StatusCode(401, "Failed to authenticate with CERM API");
                 }
 
                 var httpClient = _httpClientFactory.CreateClient();
@@ -232,123 +283,6 @@ namespace WiseLabels.Pages
             if (string.IsNullOrWhiteSpace(id)) return false;
             // Our StoreQuote returns Guid.NewGuid().ToString(); CERM uses numeric calculation IDs.
             return Regex.IsMatch(id.Trim(), @"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
-        }
-
-        private async Task<(string? accessToken, string? errorMessage)> GetAccessTokenAsync(
-            string oauthUrl,
-            string username,
-            string password,
-            string clientId,
-            string clientSecret)
-        {
-            // Same overall approach as other CERM proxy endpoints: try body-only first,
-            // then retry with Basic Auth header variations for compatibility.
-            oauthUrl = oauthUrl.TrimEnd('/');
-
-            var (token1, err1) = await TryTokenBodyOnly(oauthUrl, username, password, clientId, clientSecret);
-            if (!string.IsNullOrWhiteSpace(token1)) return (token1, null);
-
-            var (token2, err2) = await TryTokenBasicAuthPlusBody(oauthUrl, username, password, clientId, clientSecret);
-            if (!string.IsNullOrWhiteSpace(token2)) return (token2, null);
-
-            return (null, $"OAuth authentication failed. BodyOnly: {err1}. BasicAuth+Body: {err2}");
-        }
-
-        private async Task<(string? accessToken, string? errorMessage)> TryTokenBodyOnly(
-            string oauthUrl,
-            string username,
-            string password,
-            string clientId,
-            string clientSecret)
-        {
-            try
-            {
-                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-
-                var formData = new List<KeyValuePair<string, string>>
-                {
-                    new("grant_type", "password"),
-                    new("username", username),
-                    new("password", password),
-                    new("client_id", clientId),
-                    new("client_secret", clientSecret)
-                };
-
-                using var request = new HttpRequestMessage(HttpMethod.Post, oauthUrl)
-                {
-                    Content = new FormUrlEncodedContent(formData)
-                };
-                request.Headers.Add("Accept", "application/json");
-
-                using var response = await httpClient.SendAsync(request);
-                var json = await response.Content.ReadAsStringAsync();
-                if (!response.IsSuccessStatusCode)
-                {
-                    return (null, $"{response.StatusCode} - {json}");
-                }
-
-                var tokenData = JsonSerializer.Deserialize<JsonElement>(json);
-                if (tokenData.TryGetProperty("access_token", out var accessToken))
-                {
-                    return (accessToken.GetString(), null);
-                }
-
-                return (null, "access_token not found in response");
-            }
-            catch (Exception ex)
-            {
-                return (null, ex.Message);
-            }
-        }
-
-        private async Task<(string? accessToken, string? errorMessage)> TryTokenBasicAuthPlusBody(
-            string oauthUrl,
-            string username,
-            string password,
-            string clientId,
-            string clientSecret)
-        {
-            try
-            {
-                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-
-                var formData = new List<KeyValuePair<string, string>>
-                {
-                    new("grant_type", "password"),
-                    new("username", username),
-                    new("password", password),
-                    new("client_id", clientId),
-                    new("client_secret", clientSecret)
-                };
-
-                using var request = new HttpRequestMessage(HttpMethod.Post, oauthUrl)
-                {
-                    Content = new FormUrlEncodedContent(formData)
-                };
-                request.Headers.Add("Accept", "application/json");
-
-                var clientCredentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", clientCredentials);
-
-                using var response = await httpClient.SendAsync(request);
-                var json = await response.Content.ReadAsStringAsync();
-                if (!response.IsSuccessStatusCode)
-                {
-                    return (null, $"{response.StatusCode} - {json}");
-                }
-
-                var tokenData = JsonSerializer.Deserialize<JsonElement>(json);
-                if (tokenData.TryGetProperty("access_token", out var accessToken))
-                {
-                    return (accessToken.GetString(), null);
-                }
-
-                return (null, "access_token not found in response");
-            }
-            catch (Exception ex)
-            {
-                return (null, ex.Message);
-            }
         }
     }
 

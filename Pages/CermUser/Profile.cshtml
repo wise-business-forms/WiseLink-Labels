@@ -1,0 +1,167 @@
+@page "/CermUser/Profile"
+@model WiseLabels.Pages.CermUser.ProfileModel
+@{
+    ViewData["Title"] = $"User Profile - {Model.UserName}";
+}
+
+<div class="dashboard-container">
+    @await Html.PartialAsync("_LeftSidebar")
+    <main class="dashboard-main">
+        <div class="container-fluid">
+            <div class="row mb-4">
+                <div class="col">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="h3 mb-1">@Model.UserName</h1>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <!-- Contact Information Card -->
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">📧 Contact Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="fw-semibold" style="width: 40%;">User ID</td>
+                                        <td><code>@Model.UserId</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-semibold">Name</td>
+                                        <td>@Model.UserName</td>
+                                    </tr>
+                                    @if (!string.IsNullOrWhiteSpace(Model.Email))
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold">Email</td>
+                                            <td><a href="mailto:@Model.Email">@Model.Email</a></td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(Model.Function))
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold">Function</td>
+                                            <td>@Model.Function</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(Model.Department))
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold">Department</td>
+                                            <td>@Model.Department</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(Model.Phone))
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold">Phone</td>
+                                            <td>@Model.Phone</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(Model.Mobile))
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold">Mobile</td>
+                                            <td>@Model.Mobile</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(Model.Fax))
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold">Fax</td>
+                                            <td>@Model.Fax</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(Model.Street) || 
+                     !string.IsNullOrWhiteSpace(Model.City) || 
+                     !string.IsNullOrWhiteSpace(Model.State) ||
+                     !string.IsNullOrWhiteSpace(Model.PostalCode))
+                {
+                    <!-- Address Card -->
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0">📍 Address</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-sm mb-0">
+                                    <tbody>
+                                        @if (!string.IsNullOrWhiteSpace(Model.Street))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold" style="width: 40%;">Street</td>
+                                                <td>@Model.Street</td>
+                                            </tr>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(Model.City))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">City</td>
+                                                <td>@Model.City</td>
+                                            </tr>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(Model.State))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">State</td>
+                                                <td>@Model.State</td>
+                                            </tr>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(Model.PostalCode))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">Postal Code</td>
+                                                <td>@Model.PostalCode</td>
+                                            </tr>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(Model.CountryCode))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">Country Code</td>
+                                                <td>@Model.CountryCode</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (Model.Commission.HasValue && Model.Commission.Value > 0)
+                {
+                    <!-- Sales Information Card -->
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">💼 Sales Information</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-sm mb-0">
+                                    <tbody>
+                                        <tr>
+                                            <td class="fw-semibold" style="width: 40%;">Commission Rate</td>
+                                            <td>@Model.Commission.Value.ToString("P2")</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </main>
+</div>

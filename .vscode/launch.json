@@ -2,6 +2,13 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Launch Chrome",
+            "request": "launch",
+            "type": "pwa-chrome",
+            "url": "http://localhost:5241",
+            "webRoot": "${workspaceFolder}"
+        },
+        {
             "name": "Launch WiseLabels (Chrome)",
             "type": "coreclr",
             "request": "launch",
@@ -11,7 +18,7 @@
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "serverReadyAction": {
-                "action": "openExternally",
+                "action": "debugWithChrome",
                 "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
                 "uriFormat": "%s"
             },
@@ -43,6 +50,15 @@
             "type": "coreclr",
             "request": "attach",
             "processId": "${command:pickProcess}"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "WiseLabels + Chrome",
+            "configurations": [
+                "Launch WiseLabels (No Browser)",
+                "Launch Chrome"
+            ]
         }
     ]
 }

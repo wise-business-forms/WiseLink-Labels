@@ -152,14 +152,9 @@ namespace WiseLabels.Pages.Api
             try
             {
                 using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-                var body = new FormUrlEncodedContent(new Dictionary<string, string>
-                {
-                    { "grant_type", "password" },
-                    { "username", username },
-                    { "password", password },
-                    { "client_id", clientId },
-                    { "client_secret", clientSecret }
-                });
+                var bodyString = $"grant_type=password&username={Uri.EscapeDataString(username)}&password={Uri.EscapeDataString(password)}&client_id={Uri.EscapeDataString(clientId)}&client_secret={Uri.EscapeDataString(clientSecret)}";
+                var body = new StringContent(bodyString);
+                body.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/x-www-form-urlencoded");
 
                 var response = await httpClient.PostAsync(oauthUrl, body);
                 if (!response.IsSuccessStatusCode)
@@ -198,12 +193,9 @@ namespace WiseLabels.Pages.Api
                 var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
                 httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authValue);
 
-                var body = new FormUrlEncodedContent(new Dictionary<string, string>
-                {
-                    { "grant_type", "password" },
-                    { "username", username },
-                    { "password", password }
-                });
+                var bodyString = $"grant_type=password&username={Uri.EscapeDataString(username)}&password={Uri.EscapeDataString(password)}";
+                var body = new StringContent(bodyString);
+                body.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/x-www-form-urlencoded");
 
                 var response = await httpClient.PostAsync(oauthUrl, body);
                 if (!response.IsSuccessStatusCode)

@@ -8,101 +8,436 @@
     @await Html.PartialAsync("_LeftSidebar")
     <main class="dashboard-main">        
         <h1 class="dashboard-page-title">Quote Dashboard</h1>
+
+        <!-- Dashboard Cards - Always Visible -->
         <div class="dashboard-stats-row">
-            <div class="dashboard-stat-card">
-                <span class="dashboard-stat-value">0</span>
-                <span class="dashboard-stat-label">Active Quotes</span>
-            </div>
-            <div class="dashboard-stat-card">
-                <span class="dashboard-stat-value">0</span>
-                <span class="dashboard-stat-label">Completed This Month</span>
-            </div>
-            <div class="dashboard-stat-card">
-                <span class="dashboard-stat-value">0</span>
-                <span class="dashboard-stat-label">Pending Approval</span>
-            </div>
-            <div class="dashboard-stat-card">
-                <span class="dashboard-stat-value">$0</span>
-                <span class="dashboard-stat-label">Total Value</span>
-            </div>
-        </div>
-        <div class="dashboard-content-section">
-            <h2 class="dashboard-section-title">Recent Quotes</h2>
-            <p class="text-muted">Your recent quote requests and their status.</p>
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Description</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td>Today, 2:34 PM</td><td>Custom rectangle labels</td><td><span class="badge bg-success">Submitted</span></td><td><a href="#" class="btn btn-sm btn-outline-primary">View</a></td></tr>
-                    <tr><td>Yesterday</td><td>Circle stickers</td><td><span class="badge bg-warning">In Review</span></td><td><a href="#" class="btn btn-sm btn-outline-primary">View</a></td></tr>
-                    <tr><td>2 days ago</td><td>Oval labels</td><td><span class="badge bg-info">Approved</span></td><td><a href="#" class="btn btn-sm btn-outline-primary">View</a></td></tr>
-                </tbody>
-            </table>
-        </div>
-        <!--
-        <div class="dashboard-content-section">
-            <div class="alert alert-info mb-4">
-                <div class="row g-4">
-                    <div class="col-lg-6">
-                        <h3 class="h6 text-uppercase text-muted mb-3">How to get a quote</h3>
-                        <ol class="mb-0 ps-3">
-                            <li class="mb-2">
-                                <strong>Start New Quote</strong>
-                                <span class="d-block text-muted">Use <em>Start New Quote</em> to jump into the customer list.</span>
-                                <button type="button"
-                                        class="guide-preview-trigger btn btn-link p-0 align-baseline"
-                                        data-guide-image="img/start-quick-quote.png"
-                                        data-guide-alt="Screenshot showing the Start New Quote button">
-                                    <span class="me-1" aria-hidden="true">&#9432;</span>Hover to preview
-                                </button>
-                            </li>
-                            <li class="mb-2">
-                                <strong>Select a customer.</strong>
-                                <span class="d-block text-muted">Pick the account, view their past quotes, and choose one.</span>
-                                <button type="button"
-                                        class="guide-preview-trigger btn btn-link p-0 align-baseline"
-                                        data-guide-image="img/pick-job.png"
-                                        data-guide-alt="Screenshot showing the past jobs for a customer">
-                                    <span class="me-1" aria-hidden="true">&#9432;</span>Hover to preview
-                                </button>
-                            </li>
-                            <li class="mb-2">
-                                <strong>Review on Get Quote.</strong>
-                                <span class="d-block text-muted">ensure this is the job to requote then select "Use This Quote".</span>
-                                <button type="button"
-                                        class="guide-preview-trigger btn btn-link p-0 align-baseline"
-                                        data-guide-image="img/use-quote.png"
-                                        data-guide-alt="Screenshot showing button to use quote">
-                                    <span class="me-1" aria-hidden="true">&#9432;</span>Hover to preview
-                                </button>
-                            </li>
-                            <li>
-                                <strong>Edit Quote</strong>
-                                <span class="d-block text-muted">The form will prepopulate with data from the selected job.</span>
-                            </li>
-                            <li>
-                                <strong>Generate Quote</strong>
-                                <span class="d-block text-muted">Once everything has been updated. Select "Generate Quote"</span>
-                            </li>
-                            <li>
-                                <strong>Confirm Quote</strong>
-                                <span class="d-block text-muted">Review the information. Select "Generate Quote"</span>
-                            </li>
-                            <li>
-                                <strong>Quote Generated</strong>
-                                <span class="d-block text-muted">Now that the quote has been generated take note of the Quote number and notifiy the customer.</span>
-                            </li>
-                        </ol>
-                    </div>
+            <a href="/?view=total" class="dashboard-stat-card @(Model.CurrentView == "total" ? "active" : "")" style="text-decoration: none; color: inherit; cursor: pointer;" title="Click to view all quotes" data-card="total">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="dashboard-stat-label" style="flex: 1;">Total Quotes</span>
+                    <button class="btn btn-sm btn-link p-0 chart-toggle" data-target="total" onclick="event.preventDefault(); event.stopPropagation(); toggleChart('total');" style="color: inherit;" title="Toggle chart view">
+                        <i class="bi bi-graph-up"></i>
+                    </button>
                 </div>
-            </div>
+                <div class="stat-content-wrapper">
+                    <span class="dashboard-stat-value stat-number" data-card="total">@Model.TotalQuotesCount</span>
+                    <canvas class="stat-chart" id="totalChart" style="display: none; height: 100px;"></canvas>
+                </div>
+            </a>
+            <a href="/?view=month" class="dashboard-stat-card @(Model.CurrentView == "month" ? "active" : "")" style="text-decoration: none; color: inherit; cursor: pointer;" title="Click to view this month's quotes" data-card="month">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="dashboard-stat-label" style="flex: 1;">Quotes This Month</span>
+                    <button class="btn btn-sm btn-link p-0 chart-toggle" data-target="month" onclick="event.preventDefault(); event.stopPropagation(); toggleChart('month');" style="color: inherit;" title="Toggle chart view">
+                        <i class="bi bi-graph-up"></i>
+                    </button>
+                </div>
+                <div class="stat-content-wrapper">
+                    <span class="dashboard-stat-value stat-number" data-card="month">@Model.QuotesThisMonth</span>
+                    <canvas class="stat-chart" id="monthChart" style="display: none; height: 100px;"></canvas>
+                </div>
+            </a>
+            <a href="/?view=recent" class="dashboard-stat-card @(Model.CurrentView == "recent" ? "active" : "")" style="text-decoration: none; color: inherit; cursor: pointer;" title="Click to view recent quotes" data-card="recent">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="dashboard-stat-label" style="flex: 1;">Recent (Showing)</span>
+                    <button class="btn btn-sm btn-link p-0 chart-toggle" data-target="recent" onclick="event.preventDefault(); event.stopPropagation(); toggleChart('recent');" style="color: inherit;" title="Toggle chart view">
+                        <i class="bi bi-graph-up"></i>
+                    </button>
+                </div>
+                <div class="stat-content-wrapper">
+                    <span class="dashboard-stat-value stat-number" data-card="recent">@Model.RecentQuotes.Count</span>
+                    <canvas class="stat-chart" id="recentChart" style="display: none; height: 100px;"></canvas>
+                </div>
+            </a>
         </div>
-        -->
+
+        @if (string.IsNullOrWhiteSpace(Model.CurrentView))
+        {
+            <!-- Default Dashboard View -->
+            <div class="dashboard-content-section">
+                <h2 class="dashboard-section-title">Recent Quotes</h2>
+                <p class="text-muted">Click a card above to drill down, or click a quote below to view details.</p>
+                @if (Model.RecentQuotes.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Estimate ID</th>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Description</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var quote in Model.RecentQuotes)
+                                {
+                                    var customerProfileUrl = !string.IsNullOrWhiteSpace(quote.CustomerId) 
+                                        ? $"/Customers/Profile?customerId={quote.CustomerId}&estimateId={quote.EstimateId}" 
+                                        : "#";
+                                    <tr style="cursor: pointer;" onclick="window.location.href='@customerProfileUrl';" title="Click to view customer profile and quote details">
+                                        <td><code>@quote.EstimateId</code></td>
+                                        <td>
+                                            @if (quote.OrderDate.HasValue && quote.OrderDate.Value.Year > 1900)
+                                            {
+                                                @quote.OrderDate.Value.ToString("MM/dd/yyyy")
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">�</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrWhiteSpace(quote.CustomerName))
+                                            {
+                                                @quote.CustomerName
+                                            }
+                                            else if (!string.IsNullOrWhiteSpace(quote.CustomerId))
+                                            {
+                                                <span class="text-muted">Customer @quote.CustomerId</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">�</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrWhiteSpace(quote.Description))
+                                            {
+                                                <span>@quote.Description</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">No description</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrWhiteSpace(quote.StatusCode))
+                                            {
+                                                <span class="badge bg-secondary">@quote.StatusCode</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">�</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <svg width="20" height="20" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                            <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                        </svg>
+                        No recent quotes found.
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <!-- Drill-Down View -->
+            <div class="dashboard-content-section">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h2 class="dashboard-section-title mb-1">
+                            @switch(Model.CurrentView?.ToLower())
+                            {
+                                case "total":
+                                    <text>All Quotes</text>
+                                    break;
+                                case "month":
+                                    <text>Quotes This Month</text>
+                                    break;
+                                case "recent":
+                                    <text>Recent Quotes (Last 100)</text>
+                                    break;
+                                default:
+                                    <text>Quotes</text>
+                                    break;
+                            }
+                        </h2>
+                        <p class="text-muted mb-0">
+                            Showing @Model.RecentQuotes.Count 
+                            @if (!string.IsNullOrWhiteSpace(Model.SearchTerm))
+                            {
+                                <text>matching "@Model.SearchTerm"</text>
+                            }
+                        </p>
+                    </div>
+
+                    <!-- Search Form -->
+                    <form method="get" class="d-flex gap-2" style="width: 400px;">
+                        <input type="hidden" name="view" value="@Model.CurrentView" />
+                        <input type="search" 
+                               name="search" 
+                               value="@Model.SearchTerm" 
+                               class="form-control form-control-sm" 
+                               placeholder="Search quotes..." />
+                        <button type="submit" class="btn btn-primary btn-sm">Search</button>
+                        @if (!string.IsNullOrWhiteSpace(Model.SearchTerm))
+                        {
+                            <a href="/?view=@Model.CurrentView" class="btn btn-outline-secondary btn-sm">Clear</a>
+                        }
+                    </form>
+                </div>
+
+                @if (Model.RecentQuotes.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Estimate ID</th>
+                                    <th>Date</th>
+                                    <th>Customer</th>
+                                    <th>Description</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var quote in Model.RecentQuotes)
+                                {
+                                    var customerProfileUrl = !string.IsNullOrWhiteSpace(quote.CustomerId) 
+                                        ? $"/Customers/Profile?customerId={quote.CustomerId}&estimateId={quote.EstimateId}" 
+                                        : "#";
+                                    <tr style="cursor: pointer;" onclick="window.location.href='@customerProfileUrl';" title="Click to view customer profile and quote details">
+                                        <td><code>@quote.EstimateId</code></td>
+                                        <td>
+                                            @if (quote.OrderDate.HasValue && quote.OrderDate.Value.Year > 1900)
+                                            {
+                                                @quote.OrderDate.Value.ToString("MM/dd/yyyy")
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">�</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrWhiteSpace(quote.CustomerName))
+                                            {
+                                                @quote.CustomerName
+                                            }
+                                            else if (!string.IsNullOrWhiteSpace(quote.CustomerId))
+                                            {
+                                                <span class="text-muted">Customer @quote.CustomerId</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">�</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrWhiteSpace(quote.Description))
+                                            {
+                                                <span>@quote.Description</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">No description</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrWhiteSpace(quote.StatusCode))
+                                            {
+                                                <span class="badge bg-secondary">@quote.StatusCode</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">�</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    @if (Model.TotalPages > 1)
+                    {
+                        <nav aria-label="Quote pagination" class="mt-3">
+                            <ul class="pagination justify-content-center">
+                                @if (Model.CurrentPage > 1)
+                                {
+                                    <li class="page-item">
+                                        <a class="page-link" href="/?view=@Model.CurrentView&search=@Model.SearchTerm&page=@(Model.CurrentPage - 1)">Previous</a>
+                                    </li>
+                                }
+                                else
+                                {
+                                    <li class="page-item disabled">
+                                        <span class="page-link">Previous</span>
+                                    </li>
+                                }
+
+                                @for (int i = Math.Max(1, Model.CurrentPage - 2); i <= Math.Min(Model.TotalPages, Model.CurrentPage + 2); i++)
+                                {
+                                    <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                                        <a class="page-link" href="/?view=@Model.CurrentView&search=@Model.SearchTerm&page=@i">@i</a>
+                                    </li>
+                                }
+
+                                @if (Model.CurrentPage < Model.TotalPages)
+                                {
+                                    <li class="page-item">
+                                        <a class="page-link" href="/?view=@Model.CurrentView&search=@Model.SearchTerm&page=@(Model.CurrentPage + 1)">Next</a>
+                                    </li>
+                                }
+                                else
+                                {
+                                    <li class="page-item disabled">
+                                        <span class="page-link">Next</span>
+                                    </li>
+                                }
+                            </ul>
+                            <div class="text-center text-muted">
+                                <small>Page @Model.CurrentPage of @Model.TotalPages</small>
+                            </div>
+                        </nav>
+                    }
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <svg width="20" height="20" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                            <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                        </svg>
+                        @if (!string.IsNullOrWhiteSpace(Model.SearchTerm))
+                        {
+                            <text>No quotes found matching "@Model.SearchTerm".</text>
+                        }
+                        else
+                        {
+                            <text>No quotes found.</text>
+                        }
+                    </div>
+                }
+            </div>
+        }
     </main>
 </div>
+
+@section Scripts {
+<script>
+    // Chart data from server
+    const monthLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.MonthLabels));
+    const monthlyData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.MonthlyQuoteCounts));
+    const dailyLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DailyLabels));
+    const dailyData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DailyQuoteCounts));
+
+    let charts = {};
+
+    // Toggle chart view
+    function toggleChart(cardType) {
+        const statNumber = document.querySelector(`[data-card="${cardType}"] .stat-number`);
+        const statChart = document.querySelector(`#${cardType}Chart`);
+        const toggleBtn = document.querySelector(`[data-target="${cardType}"] i`);
+
+        if (statChart.style.display === 'none') {
+            // Show chart, hide number
+            statNumber.style.display = 'none';
+            statChart.style.display = 'block';
+            toggleBtn.classList.remove('bi-graph-up');
+            toggleBtn.classList.add('bi-123');
+
+            // Initialize chart if not already created
+            if (!charts[cardType]) {
+                createChart(cardType);
+            }
+        } else {
+            // Show number, hide chart
+            statNumber.style.display = 'block';
+            statChart.style.display = 'none';
+            toggleBtn.classList.remove('bi-123');
+            toggleBtn.classList.add('bi-graph-up');
+        }
+    }
+
+    // Create chart
+    function createChart(cardType) {
+        const ctx = document.getElementById(`${cardType}Chart`);
+        let labels, data, label;
+
+        if (cardType === 'recent') {
+            labels = dailyLabels;
+            data = dailyData;
+            label = 'Quotes (Past 30 Days)';
+        } else {
+            labels = monthLabels;
+            data = monthlyData;
+            label = cardType === 'total' ? 'All Quotes (Past 12 Months)' : 'Quotes This Month (Past 12 Months)';
+        }
+
+        charts[cardType] = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: label,
+                    data: data,
+                    borderColor: '#145C7D',
+                    backgroundColor: 'rgba(20, 92, 125, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#145C7D',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 3,
+                    pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(20, 92, 125, 0.9)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        padding: 10,
+                        cornerRadius: 4
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0,
+                            color: '#6c757d',
+                            font: {
+                                size: 10
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: '#6c757d',
+                            font: {
+                                size: 9
+                            },
+                            maxRotation: 45,
+                            minRotation: 45
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+</script>
+}

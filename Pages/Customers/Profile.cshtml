@@ -1,0 +1,427 @@
+@page "/Customers/Profile"
+@model WiseLabels.Pages.Customers.ProfileModel
+@{
+    ViewData["Title"] = $"Customer Profile - {Model.Customer?.Name ?? "Unknown"}";
+}
+
+<div class="dashboard-container">
+    @await Html.PartialAsync("_LeftSidebar")
+    <main class="dashboard-main">
+        <div class="container-fluid">
+            @if (Model.Customer != null)
+            {                
+                <div class="row mb-4">
+                    <div class="col">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h1 class="h3 mb-1">@Model.Customer.Name</h1>
+                                <p class="text-muted mb-0">Customer ID: <code>@Model.Customer.Id</code></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @if (Model.SelectedEstimate != null)
+                {
+                    <!-- Selected Quote Details Card -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card border-primary">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">📄 Quote Details</h5>
+                                    <span class="badge bg-light text-dark">Estimate ID: @Model.SelectedEstimate.EstimateId</span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <table class="table table-sm mb-0">
+                                                <tbody>
+                                                    <tr>
+                                                        <td class="fw-semibold" style="width: 40%;">Estimate ID</td>
+                                                        <td><code>@Model.SelectedEstimate.EstimateId</code></td>
+                                                    </tr>
+                                                    @if (!string.IsNullOrWhiteSpace(Model.SelectedEstimate.Description))
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold">Description</td>
+                                                            <td>@Model.SelectedEstimate.Description</td>
+                                                        </tr>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(Model.SelectedEstimate.StatusCode))
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold">Status</td>
+                                                            <td><span class="badge bg-secondary">@Model.SelectedEstimate.StatusCode</span></td>
+                                                        </tr>
+                                                    }
+                                                    @if (Model.SelectedEstimate.OrderDate.HasValue && Model.SelectedEstimate.OrderDate.Value.Year > 1900)
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold">Order Date</td>
+                                                            <td>@Model.SelectedEstimate.OrderDate.Value.ToString("MM/dd/yyyy")</td>
+                                                        </tr>
+                                                    }
+                                                    @if (Model.SelectedEstimate.RequestedDate.HasValue && Model.SelectedEstimate.RequestedDate.Value.Year > 1900)
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold">Requested Date</td>
+                                                            <td>@Model.SelectedEstimate.RequestedDate.Value.ToString("MM/dd/yyyy")</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <table class="table table-sm mb-0">
+                                                <tbody>
+                                                    @if (Model.SelectedEstimate.DeliveryDate.HasValue && Model.SelectedEstimate.DeliveryDate.Value.Year > 1900)
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold" style="width: 40%;">Delivery Date</td>
+                                                            <td>@Model.SelectedEstimate.DeliveryDate.Value.ToString("MM/dd/yyyy")</td>
+                                                        </tr>
+                                                    }
+                                                    @if (Model.SelectedEstimate.ValidUntilDate.HasValue && Model.SelectedEstimate.ValidUntilDate.Value.Year > 1900)
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold">Valid Until</td>
+                                                            <td>@Model.SelectedEstimate.ValidUntilDate.Value.ToString("MM/dd/yyyy")</td>
+                                                        </tr>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(Model.SelectedEstimate.ContactName))
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold">Contact</td>
+                                                            <td>@Model.SelectedEstimate.ContactName</td>
+                                                        </tr>
+                                                    }
+                                                    @if (Model.SelectedEstimate.Commission.HasValue && Model.SelectedEstimate.Commission.Value > 0)
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold">Commission</td>
+                                                            <td>@Model.SelectedEstimate.Commission.Value.ToString("P2")</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- Customer Information Card -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">📋 Customer Information</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-sm mb-0">
+                                    <tbody>
+                                        <tr>
+                                            <td class="fw-semibold" style="width: 40%;">Customer ID</td>
+                                            <td><code>@Model.Customer.Id</code></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-semibold">Name</td>
+                                            <td>@Model.Customer.Name</td>
+                                        </tr>
+                                        @if (!string.IsNullOrWhiteSpace(Model.Customer.Email))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">Email</td>
+                                                <td><a href="mailto:@Model.Customer.Email">@Model.Customer.Email</a></td>
+                                            </tr>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(Model.Customer.PhoneNumber))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">Phone</td>
+                                                <td><a href="tel:@Model.Customer.PhoneNumber">@Model.Customer.PhoneNumber</a></td>
+                                            </tr>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(Model.Customer.Website))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">Website</td>
+                                                <td><a href="@Model.Customer.Website" target="_blank">@Model.Customer.Website</a></td>
+                                            </tr>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(Model.Customer.Status))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">Status</td>
+                                                <td>
+                                                    <span class="badge @(Model.Customer.Status?.ToLower() == "active" ? "bg-success" : "bg-secondary")">
+                                                        @Model.Customer.Status
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Address Card -->
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">📍 Address</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-sm mb-0">
+                                    <tbody>
+                                        @if (!string.IsNullOrWhiteSpace(Model.Customer.Street))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold" style="width: 40%;">Street</td>
+                                                <td>@Model.Customer.Street</td>
+                                            </tr>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(Model.Customer.City))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">City</td>
+                                                <td>@Model.Customer.City</td>
+                                            </tr>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(Model.Customer.State))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">State</td>
+                                                <td>@Model.Customer.State</td>
+                                            </tr>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(Model.Customer.PostalCode))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">Postal Code</td>
+                                                <td>@Model.Customer.PostalCode</td>
+                                            </tr>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(Model.Customer.Country))
+                                        {
+                                            <tr>
+                                                <td class="fw-semibold">Country</td>
+                                                <td>@Model.Customer.Country</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+
+                                @if (!string.IsNullOrWhiteSpace(Model.GetFullAddress()) && !string.IsNullOrWhiteSpace(Model.GoogleMapsApiKey))
+                                {
+                                    <div class="mt-3">
+                                        <iframe
+                                            width="100%"
+                                            height="250"
+                                            style="border:0; border-radius: 8px;"
+                                            loading="lazy"
+                                            allowfullscreen
+                                            referrerpolicy="no-referrer-when-downgrade"
+                                            src="https://www.google.com/maps/embed/v1/place?key=@Model.GoogleMapsApiKey&q=@System.Uri.EscapeDataString(Model.GetFullAddress())">
+                                        </iframe>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Customer Contact Information Card -->
+                @if (Model.Customer?.Email != null || Model.Customer?.PhoneNumber != null)
+                {
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">📞 Customer Contact Information</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <table class="table table-sm mb-0">
+                                                <tbody>
+                                                    @if (!string.IsNullOrWhiteSpace(Model.Customer.Email))
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold" style="width: 40%;">Email</td>
+                                                            <td><a href="mailto:@Model.Customer.Email">@Model.Customer.Email</a></td>
+                                                        </tr>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(Model.Customer.PhoneNumber))
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold">Phone</td>
+                                                            <td><a href="tel:@Model.Customer.PhoneNumber">@Model.Customer.PhoneNumber</a></td>
+                                                        </tr>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(Model.Customer.FaxNumber))
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold">Fax</td>
+                                                            <td>@Model.Customer.FaxNumber</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <table class="table table-sm mb-0">
+                                                <tbody>
+                                                    @if (!string.IsNullOrWhiteSpace(Model.Customer.JobController))
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold" style="width: 40%;">Job Controller</td>
+                                                            <td>@Model.Customer.JobController</td>
+                                                        </tr>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(Model.Customer.JobControllerEmail))
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold">Job Controller Email</td>
+                                                            <td><a href="mailto:@Model.Customer.JobControllerEmail">@Model.Customer.JobControllerEmail</a></td>
+                                                        </tr>
+                                                    }
+                                                    @if (Model.Representative != null)
+                                                    {
+                                                        <tr>
+                                                            <td class="fw-semibold">Sales Rep</td>
+                                                            <td>
+                                                                @Model.Representative.Name
+                                                                @if (!string.IsNullOrWhiteSpace(Model.Representative.Email))
+                                                                {
+                                                                    <br/><small><a href="mailto:@Model.Representative.Email">@Model.Representative.Email</a></small>
+                                                                }
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- Order History Card -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">📦 Order History</h5>
+                            </div>
+                            <div class="card-body">
+                                @if (Model.OrderHistory.Any())
+                                {
+                                    <div class="table-responsive">
+                                        <table class="table table-hover table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Order #</th>
+                                                    <th>Description</th>
+                                                    <th>Order Date</th>
+                                                    <th>Delivery Date</th>
+                                                    <th>Status</th>
+                                                    <th>Contact</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var order in Model.OrderHistory)
+                                                {
+                                                    <tr>
+                                                        <td>
+                                                            <code class="text-primary">@order.OrderConfirmationRef</code>
+                                                        </td>
+                                                        <td>
+                                                            @if (!string.IsNullOrWhiteSpace(order.Description))
+                                                            {
+                                                                @order.Description
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">—</span>
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (order.OrderDate.Year > 1900)
+                                                            {
+                                                                @order.OrderDate.ToString("MM/dd/yyyy")
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">—</span>
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (order.DeliveryDate.Year > 1900)
+                                                            {
+                                                                @order.DeliveryDate.ToString("MM/dd/yyyy")
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">—</span>
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (!string.IsNullOrWhiteSpace(order.StatusRef))
+                                                            {
+                                                                <span class="badge bg-secondary">@order.StatusRef</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">—</span>
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (!string.IsNullOrWhiteSpace(order.Name))
+                                                            {
+                                                                <small>@order.Name</small>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">—</span>
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="text-muted mt-2">
+                                        <small>Showing @Model.OrderHistory.Count most recent orders</small>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="alert alert-info mb-0">
+                                        <svg width="20" height="20" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                            <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                                        </svg>
+                                        No order history found for this customer.
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-danger">
+                    Customer not found or you don't have permission to view this customer.
+                </div>
+                <a href="/Customers" class="btn btn-primary">← Back to Customers</a>
+            }
+        </div>
+    </main>
+</div>

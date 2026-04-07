@@ -1,0 +1,275 @@
+@page
+@model WiseLabels.Pages.Reports.OpenOrdersModel
+@{
+    ViewData["Title"] = "Open Orders Report";
+    Layout = "_Layout";
+}
+
+<style>
+    .reports-page .dashboard-main {
+        padding: 2rem;
+        max-width: 100%;
+    }
+
+    .report-table-container {
+        overflow-x: auto;
+        background: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .report-table {
+        width: 100%;
+        font-size: 0.875rem;
+    }
+
+    .report-table thead {
+        background-color: var(--wbf-primary);
+        color: white;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .report-table thead th {
+        padding: 0.75rem;
+        font-weight: 600;
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .report-table tbody td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .report-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .report-summary {
+        background: white;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .report-summary-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .report-summary-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .text-truncate-custom {
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+</style>
+
+<div class="reports-page">
+    <div class="dashboard-container">
+        @await Html.PartialAsync("_LeftSidebar")
+        <main class="dashboard-main">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="admin-page-title">Open Orders Report</h1>
+                    @if (Model.IsFiltered)
+                    {
+                        <p class="text-muted mb-0">
+                            <i class="bi bi-funnel me-2"></i>Filtered for representative: @Model.FilteredByUserId
+                        </p>
+                    }
+                </div>
+                <div>
+                    <button type="button" class="btn btn-outline-secondary" onclick="window.print()">
+                        <i class="bi bi-printer me-2"></i>Print
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="exportToCSV()">
+                        <i class="bi bi-download me-2"></i>Export CSV
+                    </button>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="alert alert-danger" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    @Model.ErrorMessage
+                </div>
+            }
+            else
+            {
+                <div class="report-summary">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="report-summary-item">
+                                <div class="report-summary-icon" style="background-color: rgba(var(--bs-primary-rgb), 0.1); color: var(--wbf-primary);">
+                                    <i class="bi bi-box-seam"></i>
+                                </div>
+                                <div>
+                                    <h3 class="mb-0">@Model.Orders.Count</h3>
+                                    <small class="text-muted">Total Open Orders</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="report-summary-item">
+                                <div class="report-summary-icon" style="background-color: rgba(var(--bs-success-rgb), 0.1); color: var(--bs-success);">
+                                    <i class="bi bi-people"></i>
+                                </div>
+                                <div>
+                                    <h3 class="mb-0">@Model.Orders.Select(o => o.CustomerID).Distinct().Count()</h3>
+                                    <small class="text-muted">Unique Customers</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="report-summary-item">
+                                <div class="report-summary-icon" style="background-color: rgba(var(--bs-warning-rgb), 0.1); color: var(--bs-warning);">
+                                    <i class="bi bi-calendar-event"></i>
+                                </div>
+                                <div>
+                                    <h3 class="mb-0">@(Model.Orders.Where(o => o.OrderExpected.HasValue).Count())</h3>
+                                    <small class="text-muted">With Expected Dates</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @if (Model.Orders.Any())
+                {
+                    <div class="report-table-container">
+                        <table class="table table-striped table-hover report-table" id="openOrdersTable">
+                            <thead>
+                                <tr>
+                                    <th>Customer ID</th>
+                                    <th>Customer Name</th>
+                                    <th>Ordered By</th>
+                                    <th>Order Date</th>
+                                    <th>Expected</th>
+                                    <th>Ordered Unit</th>
+                                    <th>Product Description</th>
+                                    <th>Expected Amount</th>
+                                    <th>Status</th>
+                                    <th>Bon Ref</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var order in Model.Orders)
+                                {
+                                    <tr>
+                                        <td>@order.CustomerID</td>
+                                        <td>
+                                            <span class="fw-semibold">@order.CustomerName</span>
+                                        </td>
+                                        <td>@order.OrderedBy</td>
+                                        <td>
+                                            @if (order.OrderDate.HasValue)
+                                            {
+                                                @order.OrderDate.Value.ToString("MM/dd/yyyy")
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (order.OrderExpected.HasValue)
+                                            {
+                                                @order.OrderExpected.Value.ToString("MM/dd/yyyy")
+                                            }
+                                            else if (order.ExpectedDate.HasValue)
+                                            {
+                                                @order.ExpectedDate.Value.ToString("MM/dd/yyyy")
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td>@(order.OrderedUnit?.ToString("N0") ?? "—")</td>
+                                        <td>
+                                            <span class="text-truncate-custom" title="@order.ProductDescription">
+                                                @order.ProductDescription
+                                            </span>
+                                        </td>
+                                        <td>@(order.ExpectedAmount?.ToString("N2") ?? "—")</td>
+                                        <td>
+                                            @if (order.Statuses.Any())
+                                            {
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    @foreach (var status in order.Statuses)
+                                                    {
+                                                        <span class="badge bg-primary" style="font-size: 0.75rem;">@status</span>
+                                                    }
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td><small class="text-muted">@order.BonRef</small></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info text-center py-5" role="alert">
+                        <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                        <h5>No Open Orders Found</h5>
+                        <p class="mb-0">There are currently no open orders in the system.</p>
+                    </div>
+                }
+            }
+        </main>
+    </div>
+</div>
+
+<script>
+    function exportToCSV() {
+        const table = document.getElementById('openOrdersTable');
+        if (!table) return;
+
+        let csv = [];
+        const rows = table.querySelectorAll('tr');
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = [];
+            const cols = rows[i].querySelectorAll('td, th');
+
+            for (let j = 0; j < cols.length; j++) {
+                let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, ' ').replace(/"/g, '""');
+                row.push('"' + data + '"');
+            }
+
+            csv.push(row.join(','));
+        }
+
+        const csvFile = new Blob([csv.join('\n')], { type: 'text/csv' });
+        const downloadLink = document.createElement('a');
+        downloadLink.download = 'open-orders-' + new Date().toISOString().split('T')[0] + '.csv';
+        downloadLink.href = window.URL.createObjectURL(csvFile);
+        downloadLink.style.display = 'none';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    }
+</script>

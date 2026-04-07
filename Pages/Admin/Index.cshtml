@@ -1,0 +1,110 @@
+@page "/Admin"
+@model WiseLabels.Pages.Admin.IndexModel
+@{
+    ViewData["Title"] = "Admin";
+}
+
+<div class="dashboard-container">
+    @await Html.PartialAsync("_LeftSidebar")
+    <main class="dashboard-main">
+        <div class="container-fluid">
+            <div class="row mb-4">
+                <div class="col">
+                    <h1 class="h3 mb-3">Admin</h1>
+                    <p class="text-muted">Manage user filtering and impersonation settings</p>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">📊 CERM Users & Sales Team</h5>
+                            <form method="get" class="d-flex align-items-center gap-2">
+                                <label for="user-type-filter" class="form-label mb-0 me-2">Filter:</label>
+                                <select class="form-select form-select-sm" 
+                                        id="user-type-filter" 
+                                        name="UserTypeFilter" 
+                                        style="width: auto;"
+                                        onchange="this.form.submit()">
+                                    <option value="all" selected="@(string.IsNullOrWhiteSpace(Model.UserTypeFilter) || Model.UserTypeFilter == "all")">All Users</option>
+                                    <option value="System User" selected="@(Model.UserTypeFilter == "System User")">System Users</option>
+                                    <option value="Sales Team" selected="@(Model.UserTypeFilter == "Sales Team")">Sales Team</option>
+                                </select>
+                            </form>
+                        </div>
+                        <div class="card-body">
+                            @if (Model.Users.Any())
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Email</th>
+                                                <th>Function</th>
+                                                <th>Type</th>
+                                                <th>Filters Active</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var user in Model.Users)
+                                            {
+                                                var isCurrentUser = !string.IsNullOrWhiteSpace(Model.CurrentCermUsername) && 
+                                                                   user.UserId.Equals(Model.CurrentCermUsername, StringComparison.OrdinalIgnoreCase);
+                                                <tr class="@(isCurrentUser ? "table-success" : "")">
+                                                    <td>
+                                                        @user.UserName
+                                                        @if (isCurrentUser)
+                                                        {
+                                                            <span class="badge bg-success ms-1">YOU</span>
+                                                        }
+                                                    </td>
+                                                    <td>@(user.Email ?? "-")</td>
+                                                    <td>@(user.Function ?? "-")</td>
+                                                    <td>
+                                                        <span class="badge @(user.UserType == "System User" ? "bg-primary" : "bg-info")">
+                                                            @user.UserType
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge @(user.HasActiveFilters ? "bg-success" : "bg-secondary")">
+                                                            @(user.HasActiveFilters ? "Yes" : "No")
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <form method="post" asp-page-handler="SetImpersonation" class="d-inline">
+                                                            @Html.AntiForgeryToken()
+                                                            <input type="hidden" name="userId" value="@user.UserId" />
+                                                            <button type="submit" class="btn btn-sm btn-outline-primary" title="Impersonate this user">
+                                                                👤 Impersonate
+                                                            </button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-info mb-0">
+                                    @if (!string.IsNullOrWhiteSpace(Model.UserTypeFilter) && Model.UserTypeFilter != "all")
+                                    {
+                                        <span>No users found matching filter: <strong>@Model.UserTypeFilter</strong></span>
+                                    }
+                                    else
+                                    {
+                                        <span>No users found in CERM database (paswrd__ or verte___ tables).</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>

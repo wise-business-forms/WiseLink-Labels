@@ -37,12 +37,45 @@ namespace WiseLabels.Pages
         public bool Testing { get; set; }
         public string? SelectedCustomerName { get; private set; }
         public IReadOnlyDictionary<string, string[]> PrintingFinishFilters { get; }
+        /// <summary>JSON payload that was sent to CERM API (for debugging on error).</summary>
+        public string? ApiRequestJson { get; set; }
+        /// <summary>JSON response from CERM API (for debugging on error).</summary>
+        public string? ApiResponseJson { get; set; }
 
         public async Task OnGetAsync()
         {
             string? estimateId = null;
             string? customerId = null;
             string? customerName = null;
+            string? contactName = null;
+            string? contactEmail = null;
+            string? contactPhone = null;
+
+            // Check for customer and contact from query parameters (for "New Quote" button from Customers page)
+            if (Request.Query.TryGetValue("customerId", out var customerIdQuery))
+            {
+                customerId = customerIdQuery.ToString();
+            }
+
+            if (Request.Query.TryGetValue("customerName", out var customerNameQuery))
+            {
+                customerName = customerNameQuery.ToString();
+            }
+
+            if (Request.Query.TryGetValue("contactName", out var contactNameQuery))
+            {
+                contactName = contactNameQuery.ToString();
+            }
+
+            if (Request.Query.TryGetValue("contactEmail", out var contactEmailQuery))
+            {
+                contactEmail = contactEmailQuery.ToString();
+            }
+
+            if (Request.Query.TryGetValue("contactPhone", out var contactPhoneQuery))
+            {
+                contactPhone = contactPhoneQuery.ToString();
+            }
 
             var selectedQuote = LoadSelectedQuoteFromSession();
 
@@ -51,13 +84,32 @@ namespace WiseLabels.Pages
                 estimateId ??= selectedQuote.EstimateId;
                 customerId ??= selectedQuote.CustomerId;
                 customerName ??= selectedQuote.CustomerDisplayName ?? selectedQuote.Name;
+
+                // Use the selected quote as SavedQuoteRequest to pre-fill the form
+                SavedQuoteRequest = selectedQuote;
+            }
+
+            // If we have customer info from query params, create a basic SavedQuoteRequest
+            if (SavedQuoteRequest == null && !string.IsNullOrWhiteSpace(customerId))
+            {
+                SavedQuoteRequest = new QuoteRequest
+                {
+                    CustomerId = customerId,
+                    CustomerDisplayName = customerName,
+                    Company = customerName,
+                    Name = contactName,
+                    Email = contactEmail,
+                    Phone = contactPhone
+                };
+                _logger.LogInformation("Creating new quote for customer {CustomerId} - {CustomerName} with contact {ContactName}", 
+                    customerId, customerName, contactName);
             }
 
             Testing = string.Equals(Request.Query["testing"].ToString(), "1", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(Request.Host.Host, "localhost", StringComparison.OrdinalIgnoreCase);
             SelectedCustomerName = string.IsNullOrWhiteSpace(customerName) ? null : customerName;
 
-            // Check for query parameters from chat (highest priority)
+            // Check for query parameters from chat (highest priority - overrides session)
             var chatQuoteData = BuildQuoteRequestFromQueryParams();
             if (chatQuoteData != null)
             {
@@ -66,6 +118,7 @@ namespace WiseLabels.Pages
                 return;
             }
 
+            // TempData has second priority (overrides session if present)
             if (TempData.TryGetValue("QuoteRequest", out var quoteData))
             {
                 try
@@ -80,6 +133,7 @@ namespace WiseLabels.Pages
                 }
             }
 
+            // If we still don't have data but have an estimate ID, try loading from database
             if (SavedQuoteRequest == null && !string.IsNullOrWhiteSpace(estimateId))
             {
                 try
@@ -122,16 +176,81 @@ namespace WiseLabels.Pages
         public async Task<IActionResult> OnPostSubmitAsync()
         {
             var form = Request.Form;
+
+            // Handle file upload
+            string? uploadedFileName = null;
+            string? uploadedFileOriginalName = null;
+            string? uploadedFileContentType = null;
+            long? uploadedFileSize = null;
+
+            var artworkFile = Request.Form.Files.GetFile("artworkFile");
+            if (artworkFile != null && artworkFile.Length > 0)
+            {
+                try
+                {
+                    // Validate file size (50 MB max)
+                    const long maxFileSize = 50 * 1024 * 1024;
+                    if (artworkFile.Length > maxFileSize)
+                    {
+                        ModelState.AddModelError(string.Empty, "File size exceeds 50 MB limit.");
+                        SavedQuoteRequest = BuildQuoteRequestFromForm(form);
+                        return Page();
+                    }
+
+                    // Create uploads directory if it doesn't exist
+                    var uploadsPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "quotes");
+                    Directory.CreateDirectory(uploadsPath);
+
+                    // Generate unique filename
+                    var fileExtension = Path.GetExtension(artworkFile.FileName);
+                    var uniqueFileName = $"{Guid.NewGuid()}{fileExtension}";
+                    var filePath = Path.Combine(uploadsPath, uniqueFileName);
+
+                    // Save file
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await artworkFile.CopyToAsync(stream);
+                    }
+
+                    uploadedFileName = uniqueFileName;
+                    uploadedFileOriginalName = artworkFile.FileName;
+                    uploadedFileContentType = artworkFile.ContentType;
+                    uploadedFileSize = artworkFile.Length;
+
+                    _logger.LogInformation(
+                        "File uploaded successfully: {OriginalName} -> {UniqueFileName} ({Size} bytes)",
+                        uploadedFileOriginalName,
+                        uploadedFileName,
+                        uploadedFileSize);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error uploading file");
+                    ModelState.AddModelError(string.Empty, "Failed to upload file. Please try again.");
+                    SavedQuoteRequest = BuildQuoteRequestFromForm(form);
+                    return Page();
+                }
+            }
+
             var materialId = GetFormValue(form, "material", "materialValue");
             var materialLabel = GetFormValue(form, "materialDisplay", "materialLabel");
             var rawShapeValue = GetFormValue(form, "shapeValue", "shapeKey");
             var shapeLabel = form["shape"].ToString();
             var resolvedShapeValue = ResolveShapeOutline(rawShapeValue, shapeLabel);
 
-            // Load customer info from session
-            var selectedQuote = LoadSelectedQuoteFromSession();
-            var customerId = selectedQuote?.CustomerId;
-            var customerDisplayName = selectedQuote?.CustomerDisplayName ?? selectedQuote?.Name;
+            // Load customer info from form fields (hidden inputs carry the values through POST)
+            var customerId = form["customerId"].ToString();
+            var customerDisplayName = form["customerDisplayName"].ToString();
+            if (string.IsNullOrWhiteSpace(customerId))
+            {
+                var selectedQuote = LoadSelectedQuoteFromSession();
+                customerId = selectedQuote?.CustomerId;
+                customerDisplayName = selectedQuote?.CustomerDisplayName ?? selectedQuote?.Name;
+            }
+            else
+            {
+                LoadSelectedQuoteFromSession(); // clear session
+            }
 
             var quoteRequest = new QuoteRequest
             {
@@ -153,6 +272,12 @@ namespace WiseLabels.Pages
                 CuttingDie = form["existingDie"].ToString(),
                 DieSizeInfo = form["dieSizeInfo"].ToString(),
                 IsCustomDie = form["isCustomDie"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase),
+                ColorChanges = int.TryParse(form["colorChanges"].ToString(), out var colorChanges) ? colorChanges : (int?)null,
+                DigitalVersionChanges = int.TryParse(form["digitalVersionChanges"].ToString(), out var digitalVersionChanges) ? digitalVersionChanges : (int?)null,
+                NeedsPressProof = form["needsPressProof"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase),
+                PressProofQuantity = int.TryParse(form["pressProofQuantity"].ToString(), out var pressProofQuantity) ? pressProofQuantity : (int?)null,
+                NeedsSpotColorPlateChange = form["needsSpotColorPlateChange"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase),
+                SpotColorPlateChangeQuantity = int.TryParse(form["spotColorPlateChangeQuantity"].ToString(), out var spotColorPlateChangeQuantity) ? spotColorPlateChangeQuantity : (int?)null,
                 Printing = form["printing"].ToString(),
                 Material = string.IsNullOrEmpty(materialLabel) ? materialId : materialLabel,
                 ColorCode = form["colorCode"].ToString(),
@@ -172,14 +297,67 @@ namespace WiseLabels.Pages
                 UnwindDirectionValue = form["unwindDirectionValue"].ToString(),
                 ArtworkOptionValue = form["artworkOptionValue"].ToString(),
                 CuttingDieValue = form["cuttingDieValue"].ToString(),
-                PrintingValue = form["printingValue"].ToString()
+                PrintingValue = form["printingValue"].ToString(),
+                UploadedFileName = uploadedFileName,
+                UploadedFileOriginalName = uploadedFileOriginalName,
+                UploadedFileContentType = uploadedFileContentType,
+                UploadedFileSize = uploadedFileSize
             };
+
+            // Log the JSON request being submitted
+            var jsonRequest = JsonSerializer.Serialize(quoteRequest, new JsonSerializerOptions 
+            { 
+                WriteIndented = true,
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            });
+            _logger.LogInformation("Quote submission JSON request:\n{JsonRequest}", jsonRequest);
+
+            // Validate required dimensions based on shape
+            var isRectangularShape = quoteRequest.ShapeValue == "1" || 
+                                     (quoteRequest.Shape ?? "").Equals("rectangle", StringComparison.OrdinalIgnoreCase);
+            var isCircleShape = quoteRequest.ShapeValue == "2" || quoteRequest.ShapeValue == "3" ||
+                                (quoteRequest.Shape ?? "").Equals("circle", StringComparison.OrdinalIgnoreCase);
+
+            if (isRectangularShape)
+            {
+                if (string.IsNullOrWhiteSpace(quoteRequest.LabelWidth) || !double.TryParse(quoteRequest.LabelWidth, out var w) || w <= 0)
+                {
+                    ModelState.AddModelError(string.Empty, "Width is required for rectangular labels.");
+                }
+                if (string.IsNullOrWhiteSpace(quoteRequest.LabelHeight) || !double.TryParse(quoteRequest.LabelHeight, out var h) || h <= 0)
+                {
+                    ModelState.AddModelError(string.Empty, "Height is required for rectangular labels.");
+                }
+            }
+            else if (isCircleShape)
+            {
+                if (string.IsNullOrWhiteSpace(quoteRequest.Diameter) || !double.TryParse(quoteRequest.Diameter, out var d) || d <= 0)
+                {
+                    ModelState.AddModelError(string.Empty, "Diameter/radius is required for circular labels.");
+                }
+            }
+
+            if (!ModelState.IsValid)
+            {
+                SavedQuoteRequest = quoteRequest;
+                return Page();
+            }
 
             var pricingResult = await _quoteService.GetQuickQuotePricingAsync(quoteRequest);
             if (!pricingResult.Success)
             {
                 ModelState.AddModelError(string.Empty, pricingResult.ErrorMessage ?? "Unable to retrieve quick quote pricing. Please try again.");
                 SavedQuoteRequest = quoteRequest;
+
+                // Store the API payload for debugging
+                var apiPayload = _quoteService.TransformToApiPayload(quoteRequest);
+                ApiRequestJson = JsonSerializer.Serialize(apiPayload, new JsonSerializerOptions 
+                { 
+                    WriteIndented = true,
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                });
+                ApiResponseJson = pricingResult.ResponseJson;
+
                 return Page();
             }
 
@@ -223,7 +401,7 @@ namespace WiseLabels.Pages
                 Email = estimate.Email,
                 Phone = estimate.PhoneNumber,
                 ReferenceType = "Past Quote",
-                ReferenceValue = estimate.Reference ?? estimate.EstimateId,
+                ReferenceValue = estimate.EstimateId,
                 Description = TruncateDescription(estimate.Description ?? string.Empty)
             };
         }
@@ -245,7 +423,6 @@ namespace WiseLabels.Pages
                 "rectangle" => "1",
                 "square" => "2",
                 "circle" => "3",
-                "oval" => "4",
                 _ => shapeLabel.Trim()
             };
         }
@@ -366,8 +543,26 @@ namespace WiseLabels.Pages
                 "rectangle" => "1",
                 "square" => "2",
                 "circle" => "3",
-                "oval" => "4",
                 _ => shape
+            };
+        }
+
+        private QuoteRequest BuildQuoteRequestFromForm(IFormCollection form)
+        {
+            return new QuoteRequest
+            {
+                Name = form["name"].ToString(),
+                Company = form["company"].ToString(),
+                Email = form["email"].ToString(),
+                Phone = form["phone"].ToString(),
+                Comments = form["comments"].ToString(),
+                Description = form["description"].ToString(),
+                Shape = form["shape"].ToString(),
+                LabelWidth = form["labelWidth"].ToString(),
+                LabelHeight = form["labelHeight"].ToString(),
+                Material = form["materialDisplay"].ToString(),
+                Printing = form["printing"].ToString(),
+                Finish = form["finish"].ToString()
             };
         }
     }

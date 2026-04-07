@@ -72,6 +72,16 @@
             Set to true when shape, dimensions, material, printing, finish, and totalQuantity are all provided.
             </summary>
         </member>
+        <member name="T:WiseLabels.Pages.Api.CermCalculationModel">
+            <summary>
+            Proxy endpoint to fetch calculation details from CERM API with OAuth authentication
+            </summary>
+        </member>
+        <member name="T:WiseLabels.Pages.Api.CermCustomerCalculationsModel">
+            <summary>
+            Proxy endpoint to fetch customer calculations from CERM API with OAuth authentication
+            </summary>
+        </member>
         <member name="M:WiseLabels.Pages.Api.ChatStreamModel.TryExtractJson(System.String,System.String@,System.Object@)">
             <summary>
             Attempts to extract JSON from a response that may contain mixed text and JSON.
@@ -120,7 +130,7 @@
             CORS/auth requirements and centralizes token handling and mapping logic.
             </summary>
         </member>
-        <member name="M:WiseLabels.Pages.Api.FinishingTypesModel.#ctor(System.Net.Http.IHttpClientFactory,Microsoft.Extensions.Configuration.IConfiguration,Microsoft.Extensions.Logging.ILogger{WiseLabels.Pages.Api.FinishingTypesModel})">
+        <member name="M:WiseLabels.Pages.Api.FinishingTypesModel.#ctor(System.Net.Http.IHttpClientFactory,Microsoft.Extensions.Configuration.IConfiguration,Microsoft.Extensions.Logging.ILogger{WiseLabels.Pages.Api.FinishingTypesModel},WiseLabels.Services.ICermAuthService)">
             <summary>
             Constructor - dependencies are injected by the Razor Pages framework.
             </summary>
@@ -204,6 +214,12 @@
             Tries two approaches: body-only and basic auth + body.
             </summary>
         </member>
+        <member name="P:WiseLabels.Pages.GetQuoteModel.ApiRequestJson">
+            <summary>JSON payload that was sent to CERM API (for debugging on error).</summary>
+        </member>
+        <member name="P:WiseLabels.Pages.GetQuoteModel.ApiResponseJson">
+            <summary>JSON response from CERM API (for debugging on error).</summary>
+        </member>
         <member name="P:WiseLabels.Pages.SuccessModel.CermCalculationId">
             <summary>CERM calculation ID (Data.Id) from submission.</summary>
         </member>
@@ -222,11 +238,39 @@
         <member name="P:WiseLabels.Pages.SuccessModel.ApiResponseJson">
             <summary>Raw JSON returned from the CERM API submission.</summary>
         </member>
+        <member name="P:WiseLabels.Pages.SuccessModel.ApiRequestJson">
+            <summary>JSON payload sent to CERM API (for debugging).</summary>
+        </member>
         <member name="P:WiseLabels.Pages.SuccessModel.PriceBreakdown">
             <summary>Parsed pricing breakdown from the quick-quote response.</summary>
         </member>
         <member name="P:WiseLabels.Pages.SuccessModel.SubmittedDateEastern">
             <summary>Submitted date/time in Eastern Time for display.</summary>
+        </member>
+        <member name="T:WiseLabels.Services.CustomerContactService">
+            <summary>
+            Service for storing customer contact information in CERM database.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.CustomerContactService.StoreCustomerContactAsync(WiseLabels.Models.QuoteRequest,System.String)">
+            <summary>
+            Stores customer contact information from a quote request into CERM database.
+            TODO: Map to actual CERM database table once table structure is known.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.CustomerContactService.UpdateCustomerContactAsync(System.String,System.String,System.String,System.String,System.String)">
+            <summary>
+            Updates existing customer contact information in CERM database.
+            TODO: Map to actual CERM database table once table structure is known.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.CustomerContactService.UpdateQuoteCommentsAsync(System.String,WiseLabels.Models.QuoteRequest)">
+            <summary>
+            Updates the comment fields in the v1bon___ table with customer contact information.
+            komment1: Full name and company (max 60 chars)
+            komment2: Email and phone number (max 60 chars)
+            komment3: Additional comments (max 60 chars)
+            </summary>
         </member>
         <member name="T:WiseLabels.Services.ICermAuthService">
             <summary>
@@ -258,11 +302,37 @@
             <param name="newData">The new quote data to merge</param>
             <returns>The merged quote data</returns>
         </member>
-        <member name="M:WiseLabels.Services.IQuoteService.UpdateContactInfoAsync(System.String,System.String,System.String,System.String)">
+        <member name="T:WiseLabels.Services.ICustomerContactService">
             <summary>
-            Updates contact info (name, email, phone) in the CERM database for the given estimate ID.
-            Requires the estimate ID returned from CERM (e.g. from SubmitToCermApiAsync).
+            Service for storing and managing customer contact information in CERM database
             </summary>
+        </member>
+        <member name="M:WiseLabels.Services.ICustomerContactService.StoreCustomerContactAsync(WiseLabels.Models.QuoteRequest,System.String)">
+            <summary>
+            Stores customer contact information from a quote request into CERM database
+            </summary>
+            <param name="quoteRequest">Quote request containing customer contact details</param>
+            <param name="estimateId">Optional estimate ID to associate with the contact</param>
+            <returns>True if successfully stored, false otherwise</returns>
+        </member>
+        <member name="M:WiseLabels.Services.ICustomerContactService.UpdateCustomerContactAsync(System.String,System.String,System.String,System.String,System.String)">
+            <summary>
+            Updates existing customer contact information in CERM database
+            </summary>
+            <param name="contactId">Existing contact ID</param>
+            <param name="name">Contact name</param>
+            <param name="email">Contact email</param>
+            <param name="phone">Contact phone</param>
+            <param name="company">Contact company</param>
+            <returns>True if successfully updated, false otherwise</returns>
+        </member>
+        <member name="M:WiseLabels.Services.ICustomerContactService.UpdateQuoteCommentsAsync(System.String,WiseLabels.Models.QuoteRequest)">
+            <summary>
+            Updates the comment fields in the v1bon___ table with customer contact information
+            </summary>
+            <param name="quoteNumber">The quote number (bon__ref)</param>
+            <param name="quoteRequest">Quote request containing customer contact details</param>
+            <returns>True if successfully updated, false otherwise</returns>
         </member>
         <member name="M:WiseLabels.Services.QuoteService.BuildCermPayloadJson(WiseLabels.Models.QuoteRequest)">
             <summary>
@@ -271,12 +341,46 @@
         </member>
         <member name="M:WiseLabels.Services.QuoteService.NormalizeShapeKey(System.String,System.String)">
             <summary>
-            Maps form shape value/ID to CERM API Outline (shape name): Rectangle, Circle, Oval, Special.
+            Maps form shape value/ID to CERM API Outline (shape name): Rectangle, Square, Circle, Oval.
             </summary>
         </member>
         <member name="M:WiseLabels.Services.QuoteService.ParseCermCalculationResponse(System.String)">
             <summary>
             Parses the CERM calculations POST response to extract Calculation ID (Data.Id) and Estimate ID (Data.EstimateId).
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.UserImpersonationService.GetCurrentUserCermIdAsync">
+            <summary>
+            Gets the current authenticated user's CERM ID by matching their email
+            to either the paswrd__ table (system users) or verte___ table (sales team)
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.UserImpersonationService.GetEffectiveUserIdAsync">
+            <summary>
+            Gets the effective user ID for data filtering purposes.
+            Returns impersonated user if impersonating, otherwise returns current user's CERM ID.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.UserImpersonationService.IsCurrentUserAdminAsync">
+            <summary>
+            Checks if the current authenticated user is defined as an administrator
+            in the UserFiltering:Administrators configuration
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.UserImpersonationService.IsSystemUserAsync(System.String)">
+            <summary>
+            Checks if the given user ID belongs to a system user (administrator)
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.UserImpersonationService.ShouldFilterDataAsync">
+            <summary>
+            Determines if data should be filtered based on user.
+            Returns true if:
+            - User is NOT an admin/system user, OR
+            - User IS an admin but is impersonating a non-admin user (sales rep)
+            Returns false if:
+            - User is an admin and NOT impersonating
+            - User is an admin impersonating another admin/system user
             </summary>
         </member>
     </members>

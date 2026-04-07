@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using CERM.DataAccess;
+using WiseLabels.Services;
 
 namespace WiseLabels.Pages.Api
 {
@@ -54,42 +55,27 @@ namespace WiseLabels.Pages.Api
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<MaterialsModel> _logger;
         private readonly CermDbContext _dbContext;
+        private readonly ICermAuthService _cermAuthService;
 
-        public MaterialsModel(IConfiguration configuration, IHttpClientFactory httpClientFactory, ILogger<MaterialsModel> logger, CermDbContext dbContext)
+        public MaterialsModel(IConfiguration configuration, IHttpClientFactory httpClientFactory, ILogger<MaterialsModel> logger, CermDbContext dbContext, ICermAuthService cermAuthService)
         {
             _configuration = configuration;
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _dbContext = dbContext;
+            _cermAuthService = cermAuthService;
         }
 
         public async Task<IActionResult> OnGetAsync()
         {
             try
             {
-                // Get credentials from configuration
-                var oauthUrl = _configuration["Cerm:OAuthUrl"] ?? "https://brandmark-api.cerm.be/oauth/token";
                 var materialsUrl = _configuration["Cerm:MaterialsUrl"] ?? "https://brandmark-api.cerm.be/parameter-api/v1/calculation/substrates";
-                var username = _configuration["Cerm:Username"];
-                var password = _configuration["Cerm:Password"];
-                var clientId = _configuration["Cerm:ClientId"];
-                var clientSecret = _configuration["Cerm:ClientSecret"];
 
-                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password) ||
-                    string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
-                {
-                    _logger.LogError("CERM API credentials are missing from configuration");
-                    return new JsonResult(new { error = "Server configuration error: CERM API credentials not configured" })
-                    {
-                        StatusCode = 500
-                    };
-                }
-
-                // Authenticate and get access token
-                var (accessToken, authError) = await GetAccessTokenAsync(oauthUrl, username, password, clientId, clientSecret);
+                var accessToken = await _cermAuthService.GetAccessTokenAsync();
                 if (string.IsNullOrEmpty(accessToken))
                 {
-                    return new JsonResult(new { error = authError ?? "Failed to authenticate with CERM API" })
+                    return new JsonResult(new { error = "Failed to authenticate with CERM API" })
                     {
                         StatusCode = 401
                     };
@@ -454,8 +440,8 @@ namespace WiseLabels.Pages.Api
                 if (paramResponse != null && paramResponse.Count > 0)
                 {
                     NormalizeMaterialIds(paramResponse);
-                    // Filter only on AllowRFQ flag being true
-                    paramResponse = paramResponse.Where(m => m.AllowRFQ).ToList();
+                    // Filter only materials where AllowQuickQuote is true
+                    paramResponse = paramResponse.Where(m => m.AllowQuickQuote).ToList();
 
                     // Sort materials alphabetically by their display description (en-US)
                     paramResponse = paramResponse.OrderBy(material =>
@@ -471,7 +457,7 @@ namespace WiseLabels.Pages.Api
                         return string.Empty;
                     }, StringComparer.OrdinalIgnoreCase).ToList();
 
-                    _logger.LogInformation("Returning {Count} materials after filtering and sorting", paramResponse.Count);
+                    _logger.LogInformation("Returning {Count} materials after filtering for AllowQuickQuote and sorting", paramResponse.Count);
                     return paramResponse;
                 }
 
