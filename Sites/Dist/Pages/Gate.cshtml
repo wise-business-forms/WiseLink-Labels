@@ -1,0 +1,36 @@
+@page "/gate/{token?}"
+@model WiseLabels.Dist.Pages.GateModel
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WiseLink Labels — Distributor Portal</title>
+    <link rel="stylesheet" href="~/css/dist-theme.css" />
+</head>
+<body class="gate-page">
+    <main class="gate-container">
+        <img src="~/img/wise-logo-blue.png" alt="WiseLink Labels" class="gate-logo" />
+
+        @if (Model.TokenValid)
+        {
+            <h1>Welcome, Authorized Distributor</h1>
+            <p>You have arrived via an authorized WiseLink Labels distributor link.</p>
+            <form method="post" asp-page-handler="Acknowledge">
+                @Html.AntiForgeryToken()
+                <label class="gate-checkbox">
+                    <input type="checkbox" name="confirmed" value="true" required />
+                    I confirm I am an authorized WiseLink Labels distributor and have been given this private link.
+                </label>
+                <button type="submit" class="gate-btn">Access Distributor Portal</button>
+            </form>
+        }
+        else
+        {
+            <h1>Access Not Authorized</h1>
+            <p>This link is not valid or has expired. Please contact your WiseLink Labels representative.</p>
+        }
+    </main>
+</body>
+</html>

@@ -1,0 +1,79 @@
+/*
+ * WiseLink Labels — Channel Partner Portal Theme
+ * Overrides and extensions on top of the shared base styles in WiseLabels.Shared/wwwroot/css/
+ *
+ * Add partner-specific branding here (professional, partner-focused colors).
+ */
+
+:root {
+    --portal-primary:   #5c3c8c;   /* purple — partner / premium channel color */
+    --portal-accent:    #9c6cd4;
+    --portal-bg:        #f5f0fb;
+}
+
+.gate-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--portal-bg);
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.gate-container {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.10);
+    padding: 2.5rem 3rem;
+    max-width: 480px;
+    width: 100%;
+    text-align: center;
+}
+
+.gate-logo {
+    max-height: 64px;
+    margin-bottom: 1.5rem;
+}
+
+.gate-container h1 {
+    color: var(--portal-primary);
+    font-size: 1.6rem;
+    margin-bottom: 0.75rem;
+}
+
+.gate-container p {
+    color: #555;
+    margin-bottom: 1.25rem;
+}
+
+.gate-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    font-size: 0.9rem;
+    color: #444;
+    text-align: left;
+    margin-bottom: 1.5rem;
+    cursor: pointer;
+}
+
+.gate-checkbox input[type="checkbox"] {
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.gate-btn {
+    background: var(--portal-primary);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 0.65rem 2rem;
+    font-size: 1rem;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.2s;
+}
+
+.gate-btn:hover {
+    background: var(--portal-accent);
+}

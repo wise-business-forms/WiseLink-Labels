@@ -1,0 +1,37 @@
+@page "/gate/{token?}"
+@model WiseLabels.EndUser.Pages.GateModel
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WiseLink Labels — Order Portal</title>
+    <link rel="stylesheet" href="~/css/enduser-theme.css" />
+</head>
+<body class="gate-page">
+    <main class="gate-container">
+        <img src="~/img/wise-logo-blue.png" alt="WiseLink Labels" class="gate-logo" />
+
+        @if (Model.TokenValid)
+        {
+            <h1>Welcome</h1>
+            <p>You have arrived via a private WiseLink Labels ordering link.</p>
+            <form method="post" asp-page-handler="Acknowledge">
+                @Html.AntiForgeryToken()
+                <label class="gate-checkbox">
+                    <input type="checkbox" name="confirmed" value="true" required />
+                    I confirm I have been given this private link and agree to the
+                    <a href="/Privacy" target="_blank">terms of use</a>.
+                </label>
+                <button type="submit" class="gate-btn">Proceed to Order Form</button>
+            </form>
+        }
+        else
+        {
+            <h1>Access Not Authorized</h1>
+            <p>This link is not valid or has expired. Please contact WiseLink Labels for a new link.</p>
+        }
+    </main>
+</body>
+</html>

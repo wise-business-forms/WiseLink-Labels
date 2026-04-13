@@ -1,0 +1,41 @@
+name: Deploy — End User Portal
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Sites/EndUser/**'
+      - 'Sites/Shared/**'
+      - '.github/workflows/deploy-enduser.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      - name: Restore dependencies
+        run: dotnet restore Sites/EndUser/WiseLabels.EndUser.csproj
+
+      - name: Build
+        run: dotnet build Sites/EndUser/WiseLabels.EndUser.csproj --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish Sites/EndUser/WiseLabels.EndUser.csproj --configuration Release --no-build --output enduser-publish
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: wiselabels-enduser
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_ENDUSER }}
+          package: enduser-publish
