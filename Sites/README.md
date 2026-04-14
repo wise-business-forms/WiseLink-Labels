@@ -9,13 +9,13 @@ services, and static assets through the **WiseLabels.Shared** Razor Class Librar
 ```
 Sites/
 ├── Shared/          Razor Class Library — common pages, services, models, assets
-│   ├── Middleware/  PortalGateMiddleware (used by all four portals)
+│   ├── Middleware/  PortalGateMiddleware + SubdomainDistributorMiddleware
 │   ├── Models/      DistributorProfile (white-label branding model)
 │   └── Services/    IDistributorProfileService / DistributorProfileService
-├── Dist/            Print Distributor portal  →  distributor.wiselabels.com
-├── EndUser/         End User / Order portal   →  order.wiselabels.com
-├── Partner/         Channel Partner portal    →  partner.wiselabels.com
-└── WhiteLabel/      Distributor white-label portal  →  order.wiselabels.com  (shared URL)
+├── Dist/            Print Distributor portal  →  distributor.labels-tags.com
+├── EndUser/         End User / Order portal   →  order.labels-tags.com
+├── Partner/         Channel Partner portal    →  partner.labels-tags.com
+└── WhiteLabel/      Distributor white-label portal  →  *.labels-tags.com
 ```
 
 ## How Access Works
@@ -23,7 +23,7 @@ Sites/
 Each portal uses a **token-in-URL gate** pattern:
 
 1. An authorized customer is given a private URL such as:
-   `https://distributor.wiselabels.com/gate/abc123def456`
+   `https://distributor.labels-tags.com/gate/abc123def456`
 2. The `Gate.cshtml` page validates the token against `Sites:<Segment>:ValidTokens` in configuration.
 3. If valid, a one-click acknowledgement checkbox is shown (similar to an age-verification gate).
 4. On acknowledgement, a session cookie (`dist_access`, `enduser_access`, or `partner_access`) is written.

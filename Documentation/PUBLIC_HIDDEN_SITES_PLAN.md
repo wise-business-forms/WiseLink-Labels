@@ -35,9 +35,9 @@ Two options are presented below. Choose one per site (or use the same for all th
 Each portal's private URL contains a short, human-readable passphrase embedded as a path segment or query parameter:
 
 ```
-https://portal.wiselabels.com/dist/abc123
-https://portal.wiselabels.com/enduser/xyz789
-https://portal.wiselabels.com/partner/mnop456
+https://labels-tags.com/dist/abc123
+https://labels-tags.com/enduser/xyz789
+https://labels-tags.com/partner/mnop456
 ```
 
 The landing page checks whether the token in the URL matches a list of valid tokens stored in Azure App Configuration / environment variables. If valid, a short-lived session cookie is written and the visitor is admitted. If invalid, they see a "Not Authorized" message.
@@ -195,26 +195,26 @@ Two sets of URL structures are presented. Select one set for all three portals.
 ### URL Set A — Subdomain per Segment (Cleaner, Professional)
 
 ```
-https://distributor.wiselabels.com
-https://order.wiselabels.com
-https://partner.wiselabels.com
+https://distributor.labels-tags.com
+https://order.labels-tags.com
+https://partner.labels-tags.com
 ```
 
-- Each subdomain is a custom domain mapping in Azure App Service (or a separate slot).
-- Requires adding three CNAME records in DNS at your domain registrar.
+- Each subdomain is a custom domain mapping in Azure App Service.
+- Requires adding three CNAME records in the `labels-tags.com` DNS zone (Azure DNS).
 - Most professional appearance; hides the fact they share infrastructure.
 - Easiest to hand out in emails and printed materials.
 
-### URL Set B — Sub-path on Existing Domain (Simpler, Fewer DNS Changes)
+### URL Set B — Sub-path on `labels-tags.com` (Simpler, Fewer DNS Changes)
 
 ```
-https://portal.wiselabels.com/dist
-https://portal.wiselabels.com/enduser
-https://portal.wiselabels.com/partner
+https://labels-tags.com/dist
+https://labels-tags.com/enduser
+https://labels-tags.com/partner
 ```
 
-- A single new `portal` subdomain with path-based routing.
-- Only one DNS record and one TLS certificate required.
+- A single apex domain with path-based routing.
+- Only one DNS binding and one TLS certificate required.
 - Routing handled by Azure Application Gateway or within the ASP.NET Core app itself using Area routing.
 - Slightly less visually "clean" but requires less DNS / certificate management.
 
@@ -230,7 +230,7 @@ The steps below assume **Azure App Service + URL Set A (subdomains)** — one Ap
 
 - Azure subscription (Contributor or Owner role)
 - GitHub repository with existing WiseLink-Labels code
-- Domain `wiselabels.com` with access to DNS management
+- Domain `labels-tags.com` with access to DNS management (Azure DNS recommended)
 - .NET 8 SDK installed locally for testing
 
 ---
@@ -313,9 +313,9 @@ For each App Service:
 For each App Service:
 
 1. Go to App Service → **Custom domains** → **+ Add custom domain**.
-2. Enter the subdomain (e.g., `distributor.wiselabels.com`).
+2. Enter the subdomain (e.g., `distributor.labels-tags.com`).
 3. Azure provides a TXT record (ownership verification) and a CNAME record to add.
-4. In your DNS provider (e.g., GoDaddy, Cloudflare, Azure DNS):
+4. In your DNS provider (Azure DNS for `labels-tags.com`):
    - Add the TXT record shown by Azure.
    - Add a CNAME: `distributor` → `wiselabels-dist.azurewebsites.net`
 5. Click **Validate** in Azure Portal. Once DNS propagates (up to 48 hours), click **Add**.
@@ -573,7 +573,7 @@ Before going live, verify each portal:
 |---|---|---|
 | Access verification | Option A: Token-in-URL + one-click acknowledgement | Option B: Cloudflare Turnstile CAPTCHA |
 | Cloud hosting | Azure App Service (Option 1) | Azure Static Web Apps (Option 2) |
-| URL structure | URL Set A: subdomains (`distributor.wiselabels.com`) | URL Set B: sub-paths (`portal.wiselabels.com/dist`) |
+| URL structure | URL Set A: subdomains (`distributor.labels-tags.com`) | URL Set B: sub-paths (`labels-tags.com/dist`) |
 | Code sharing | Razor Class Library (`WiseLabels.Shared`) | Single project with Areas |
 | CI/CD | GitHub Actions workflow per portal | Azure Deployment Center auto-generated workflow |
 | White-label branding | Per-distributor profile stored in Azure App Config / Key Vault | Separate Azure App Service per distributor |
@@ -753,9 +753,9 @@ Sites/
 │       ├── IDistributorProfileService.cs        # NEW — token & subdomain → profile lookup
 │       └── DistributorProfileService.cs         # NEW — configuration-backed implementation
 │
-├── Dist/         Print Distributor portal  →  distributor.wiselabels.com
-├── EndUser/      End User portal           →  order.wiselabels.com  (or enduser.wiselabels.com)
-├── Partner/      Channel Partner portal    →  partner.wiselabels.com
+├── Dist/         Print Distributor portal  →  distributor.labels-tags.com
+├── EndUser/      End User portal           →  order.labels-tags.com
+├── Partner/      Channel Partner portal    →  partner.labels-tags.com
 │
 └── WhiteLabel/   NEW — Distributor white-label portal  →  *.labels-tags.com
     ├── WiseLabels.WhiteLabel.csproj             # References WiseLabels.Shared
