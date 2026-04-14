@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Text.Json;
+using WiseLabels.Shared.Middleware;
 using WiseLabels.Shared.Models;
 using WiseLabels.Shared.Services;
 
@@ -9,13 +10,20 @@ namespace WiseLabels.WhiteLabel.Pages;
 /// <summary>
 /// Landing gate page for the white-label distributor portal.
 ///
-/// Flow:
-/// 1. Distributor sends their customers a private URL:
-///    https://order.wiselabels.com/gate/&lt;distributor-token&gt;
-/// 2. This page looks up the token → DistributorProfile in configuration.
-/// 3. If valid, the profile (company name, logo, contact info) is serialized into
-///    the server-side session so every downstream page can render the distributor's branding.
-/// 4. The visitor sees a one-click acknowledgement (checkbox) before being admitted.
+/// Supports two identification modes, tried in order:
+///
+/// **Mode 1 — Subdomain routing (recommended):**
+/// The distributor is identified by their subdomain (e.g. <c>abc-printing.labels-tags.com</c>).
+/// <see cref="SubdomainDistributorMiddleware"/> has already resolved the
+/// <see cref="DistributorProfile"/> from the <c>Host</c> header and stored it in
+/// <see cref="HttpContext.Items"/>. No token in the URL is required.
+/// Customer URL example: <c>https://abc-printing.labels-tags.com/gate</c>
+///
+/// **Mode 2 — Token-in-URL (fallback):**
+/// The distributor is identified by a private token in the URL path.
+/// Used when accessing the portal through the base App Service hostname or as a
+/// fallback when no subdomain is configured for a distributor.
+/// Customer URL example: <c>https://orders.labels-tags.com/gate/&lt;token&gt;</c>
 /// </summary>
 public class GateModel : PageModel
 {
@@ -35,21 +43,24 @@ public class GateModel : PageModel
 
     public IActionResult OnGet(string? token)
     {
-        if (string.IsNullOrWhiteSpace(token))
+        // Mode 1: subdomain-identified — profile was resolved by SubdomainDistributorMiddleware
+        Profile = HttpContext.Items[SubdomainDistributorMiddleware.DistributorProfileItemKey]
+                      as DistributorProfile;
+
+        // Mode 2: token-in-URL fallback
+        if (Profile is null && !string.IsNullOrWhiteSpace(token))
         {
-            TokenValid = false;
-            return Page();
+            Profile = _profiles.FindByToken(token);
         }
 
-        Profile = _profiles.FindByToken(token);
         TokenValid = Profile is not null;
 
         if (TokenValid)
         {
             // Store a validation flag and the serialized profile server-side in session.
             // The profile is stored so the acknowledgement POST (which does not carry the
-            // token) can still write the profile into the access-granted session without
-            // re-exposing the token to the client.
+            // token or subdomain) can still write the profile into the access-granted session
+            // without re-exposing the token to the client.
             HttpContext.Session.SetString(SessionKeyValidated, "yes");
             HttpContext.Session.SetString(SessionKeyProfile,
                 JsonSerializer.Serialize(Profile));

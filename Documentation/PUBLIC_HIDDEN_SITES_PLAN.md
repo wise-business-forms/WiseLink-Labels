@@ -427,12 +427,13 @@ WiseLink-Labels/
 │   ├── Shared/                          # Shared Razor Pages library (class library project)
 │   │   ├── WiseLabels.Shared.csproj
 │   │   ├── Middleware/
-│   │   │   └── PortalGateMiddleware.cs  # Enforces session access on all non-public paths
+│   │   │   ├── PortalGateMiddleware.cs  # Enforces session access on all non-public paths
+│   │   │   └── SubdomainDistributorMiddleware.cs  # Resolves distributor by Host header subdomain
 │   │   ├── Models/
 │   │   │   └── DistributorProfile.cs    # Per-distributor branding model (white-label)
 │   │   ├── Services/
 │   │   │   ├── IDistributorProfileService.cs
-│   │   │   └── DistributorProfileService.cs  # Token → profile lookup
+│   │   │   └── DistributorProfileService.cs  # Token & subdomain → profile lookup
 │   │   ├── Pages/
 │   │   │   ├── Quote.cshtml             # Shared quote form (all portals use this)
 │   │   │   ├── Confirm.cshtml
@@ -473,13 +474,13 @@ WiseLink-Labels/
 │   │
 │   └── WhiteLabel/                      # Distributor white-label portal (NEW)
 │       ├── WiseLabels.WhiteLabel.csproj # References WiseLabels.Shared
-│       ├── Program.cs                   # Registers DistributorProfileService + gate
-│       ├── appsettings.json             # Distributors array (populated via Azure config)
+│       ├── Program.cs                   # Registers SubdomainDistributorMiddleware + gate
+│       ├── appsettings.json             # ApexDomain + Distributors (populated via Azure config)
 │       ├── Pages/
 │       │   ├── _ViewStart.cshtml        # Uses _WhiteLabelLayout
 │       │   ├── _ViewImports.cshtml
 │       │   ├── Gate.cshtml              # Shows distributor logo/contact before acknowledgement
-│       │   ├── Gate.cshtml.cs           # Token → profile lookup; stores profile in session
+│       │   ├── Gate.cshtml.cs           # Subdomain or token → profile; stores in session
 │       │   └── Shared/
 │       │       └── _WhiteLabelLayout.cshtml  # Header with dist. branding; footer attribution
 │       └── wwwroot/
@@ -511,8 +512,10 @@ WiseLink-Labels/
 
 3. **WiseLabels.WhiteLabel** is the distributor-branded end-user portal.
    - References `WiseLabels.Shared` for the ordering form and services.
-   - Adds `Gate.cshtml` / `Gate.cshtml.cs` that performs a token → `DistributorProfile`
-     lookup and stores the profile in server-side session.
+   - Registers `SubdomainDistributorMiddleware` with `ApexDomain = "labels-tags.com"` so
+     all `{slug}.labels-tags.com` requests automatically resolve to the matching profile.
+   - Adds `Gate.cshtml` / `Gate.cshtml.cs` that first checks `HttpContext.Items` for a
+     profile resolved by the subdomain middleware, then falls back to token-in-URL lookup.
    - Adds `_WhiteLabelLayout.cshtml` which reads the profile from session and renders the
      distributor's logo, company name, and contact info in the page header.
 
@@ -622,7 +625,10 @@ Azure Key Vault.
 Example Azure App Setting structure (using the `__` separator for nested JSON in Azure):
 
 ```
+Sites__WhiteLabel__ApexDomain                        labels-tags.com
+
 Sites__WhiteLabel__Distributors__0__Slug             abc-printing
+Sites__WhiteLabel__Distributors__0__Subdomain        abc-printing
 Sites__WhiteLabel__Distributors__0__CompanyName      ABC Printing Co.
 Sites__WhiteLabel__Distributors__0__LogoUrl          https://yourcdn.blob.core.windows.net/logos/abc.png
 Sites__WhiteLabel__Distributors__0__LogoAlt          ABC Printing Co. logo
@@ -632,12 +638,17 @@ Sites__WhiteLabel__Distributors__0__ContactEmail     jane@abcprinting.com
 Sites__WhiteLabel__Distributors__0__PrimaryColor     #003399
 Sites__WhiteLabel__Distributors__0__ReferencePrefix  ABC-
 Sites__WhiteLabel__Distributors__0__Tokens__0        <random-token-1>
-Sites__WhiteLabel__Distributors__0__Tokens__1        <random-token-2>
 
 Sites__WhiteLabel__Distributors__1__Slug             xyz-supply
+Sites__WhiteLabel__Distributors__1__Subdomain        xyz-supply
 Sites__WhiteLabel__Distributors__1__CompanyName      XYZ Supply Inc.
 ...
 ```
+
+- `Subdomain` is the DNS label that will be used as the subdomain on `labels-tags.com`
+  (e.g. `"abc-printing"` → `abc-printing.labels-tags.com`).
+- `Tokens` remain useful as a fallback (for sharing via token URL when no subdomain has
+  been set up yet, or as an extra-security option).
 
 Add additional distributors by incrementing the array index (`__1__`, `__2__`, ...).
 
@@ -649,40 +660,79 @@ Add additional distributors by incrementing the array index (`__1__`, `__2__`, .
 
 ### White-Label URL Options
 
-Two options for structuring white-label URLs:
+Three options for structuring white-label URLs. All examples use the `labels-tags.com` domain.
 
-#### Option W-A — Single Shared Subdomain (Recommended)
+#### Option W-A — Per-Distributor Subdomain on `labels-tags.com` (Recommended)
 
 ```
-https://order.wiselabels.com/gate/<distributor-token>
+https://abc-printing.labels-tags.com
+https://xyz-supply.labels-tags.com
 ```
 
-- One App Service, one subdomain, one TLS certificate.
-- The distributor token in the URL is the only differentiator between distributors.
-- Simplest to operate; adding a new distributor only requires adding a new profile to config.
-- The distributor does not need to know or publish `order.wiselabels.com` — they can use
-  a **URL shortener** (e.g. `links.abcprinting.com → order.wiselabels.com/gate/<token>`) to
-  further hide the WiseLink origin if desired.
+- Each distributor gets their own subdomain on the WiseLink-owned `labels-tags.com` domain.
+- A single **wildcard DNS record** points all `*.labels-tags.com` subdomains to the same
+  App Service: `*.labels-tags.com CNAME wiselabels-whitelabel.azurewebsites.net`
+- A single **wildcard TLS certificate** covers all distributor subdomains
+  (Azure App Service Managed Certificate supports wildcard certs via Azure DNS zone).
+- The ASP.NET Core app reads the subdomain from the `Host` header at runtime and looks
+  up the matching `DistributorProfile` — no DNS change needed per distributor, just a
+  config update.
+- Distributor sees a clean URL with no WiseLink identity visible in the path.
+- Gate page URL: `https://abc-printing.labels-tags.com/gate` (no token in URL — the
+  subdomain itself is the access gate, plus the one-click acknowledgement).
 
-#### Option W-B — Per-Distributor Subdomain
+**Pros**
+- Clean, professional URL for each distributor.
+- Adding a new distributor requires only a config update — zero DNS changes.
+- Wildcard cert means no new TLS certificate per distributor.
+- The subdomain is the only differentiator; no token in the URL means the URL is shareable
+  (acceptable when the one-click gate is the access mechanism).
+
+**Cons**
+- Requires Azure DNS zone for `labels-tags.com` to issue the wildcard managed certificate.
+- If a distributor wants their _own_ domain (e.g. `labels.abcprinting.com`), that requires
+  a separate custom domain binding and cert (see Option W-C below).
+
+#### Option W-B — Per-Distributor Subfolder on `labels-tags.com`
+
+```
+https://labels-tags.com/abc-printing
+https://labels-tags.com/xyz-supply
+```
+
+- A single apex domain with path-prefix routing.
+- The distributor `Slug` value appears as the first path segment.
+- Single TLS certificate; one custom domain binding.
+- Adding a new distributor requires only a config update.
+
+**Pros**
+- Simplest DNS and certificate setup — only the apex domain is needed.
+- One App Service, one TLS cert.
+
+**Cons**
+- Less visually distinct — all distributors share the same domain.
+- Path-prefix routing requires a routing middleware or `IPageRouteModelConvention` that
+  extracts the first path segment and resolves the distributor profile from it.
+- The WiseLink-owned domain is fully visible in the URL.
+
+> **Recommendation: Option W-A (per-distributor subdomain)** — provides the cleanest
+> per-distributor experience while remaining easy to operate at scale.  Option W-B is a
+> valid fallback if a wildcard TLS certificate cannot be obtained.
+
+#### Option W-C — Per-Distributor Custom Domain (Distributor's Own Domain)
 
 ```
 https://labels.abcprinting.com    (CNAME → wiselabels-whitelabel.azurewebsites.net)
 https://labels.xyzupply.com       (CNAME → wiselabels-whitelabel.azurewebsites.net)
 ```
 
-- Each distributor owns their own subdomain on their domain (not `wiselabels.com`).
-- The distributor adds a CNAME record with their DNS provider pointing to the
-  App Service's default hostname.
-- Azure App Service **custom domain** feature is used to bind each subdomain.
-- The subdomain itself becomes the distributor identifier — no token in the URL is needed
-  (or a token can still be used for an extra layer of access control).
-- More effort to set up (requires per-distributor DNS change and custom domain binding).
-- Best for distributors who want a fully "white-boxed" experience with zero WiseLink
-  branding visible in the URL.
+- Each distributor adds a CNAME at their own DNS provider.
+- Azure App Service **custom domain** binding is required per distributor.
+- Best for distributors who want zero WiseLink/labels-tags.com branding in the URL.
+- More operational effort (requires per-distributor DNS change and Azure portal binding).
 
-> **Recommendation:** Start with **Option W-A** (single subdomain + token URL). Graduate
-> individual distributors to **Option W-B** only if they specifically request a custom domain.
+> **Recommendation:** Reserve Option W-C for distributors that specifically request their
+> own domain. Start with Option W-A for all new distributors.
 
 ---
 
@@ -695,33 +745,34 @@ Sites/
 ├── Shared/
 │   ├── WiseLabels.Shared.csproj
 │   ├── Middleware/
-│   │   └── PortalGateMiddleware.cs        # Shared — used by all four portals
+│   │   ├── PortalGateMiddleware.cs              # Shared — used by all four portals
+│   │   └── SubdomainDistributorMiddleware.cs    # NEW — resolves distributor by Host header
 │   ├── Models/
-│   │   └── DistributorProfile.cs          # NEW — per-distributor branding model
+│   │   └── DistributorProfile.cs               # NEW — per-distributor branding model
 │   └── Services/
-│       ├── IDistributorProfileService.cs  # NEW — token → profile lookup interface
-│       └── DistributorProfileService.cs   # NEW — configuration-backed implementation
+│       ├── IDistributorProfileService.cs        # NEW — token & subdomain → profile lookup
+│       └── DistributorProfileService.cs         # NEW — configuration-backed implementation
 │
 ├── Dist/         Print Distributor portal  →  distributor.wiselabels.com
 ├── EndUser/      End User portal           →  order.wiselabels.com  (or enduser.wiselabels.com)
 ├── Partner/      Channel Partner portal    →  partner.wiselabels.com
 │
-└── WhiteLabel/   NEW — Distributor white-label portal  →  order.wiselabels.com
-    ├── WiseLabels.WhiteLabel.csproj       # References WiseLabels.Shared
-    ├── Program.cs                          # Registers DistributorProfileService + gate middleware
-    ├── appsettings.json                    # Distributors array (empty — populated via Azure config)
+└── WhiteLabel/   NEW — Distributor white-label portal  →  *.labels-tags.com
+    ├── WiseLabels.WhiteLabel.csproj             # References WiseLabels.Shared
+    ├── Program.cs                               # Registers SubdomainDistributorMiddleware + gate
+    ├── appsettings.json                         # ApexDomain + Distributors (empty — Azure config)
     ├── Pages/
-    │   ├── _ViewStart.cshtml               # Sets layout to _WhiteLabelLayout
+    │   ├── _ViewStart.cshtml                    # Uses _WhiteLabelLayout
     │   ├── _ViewImports.cshtml
-    │   ├── Gate.cshtml                     # Shows distributor logo + contact before acknowledgement
-    │   ├── Gate.cshtml.cs                  # Token → profile lookup; stores profile in session
+    │   ├── Gate.cshtml                          # Shows distributor logo + contact; acknowledgement
+    │   ├── Gate.cshtml.cs                       # Subdomain or token → profile; stores in session
     │   └── Shared/
-    │       └── _WhiteLabelLayout.cshtml    # Header with dist. logo/contact; footer attribution
+    │       └── _WhiteLabelLayout.cshtml         # Header with dist. branding; footer attribution
     └── wwwroot/
         ├── css/
-        │   └── whitelabel-base.css         # Base styles with CSS custom property overrides
+        │   └── whitelabel-base.css              # CSS custom property overrides per distributor
         └── img/
-            └── (distributor logos can be served locally or from Azure Blob Storage CDN)
+            └── (distributor logos: Azure Blob Storage CDN or local fallbacks)
 ```
 
 ---
@@ -751,6 +802,8 @@ When a new distributor wants their own white-label portal:
    - Company logo (PNG/SVG, ideally on a transparent or white background, min 200 px wide)
    - Brand hex color (optional)
    - Contact name, phone, and email for the portal header
+   - Desired subdomain label (e.g. `abc-printing` for `abc-printing.labels-tags.com`);
+     must be lowercase letters, digits, and hyphens only (valid DNS label)
 
 2. **Upload the logo** to Azure Blob Storage:
    - In the Azure Portal, go to the Storage Account → **Containers** → `logos`.
@@ -758,16 +811,19 @@ When a new distributor wants their own white-label portal:
    - Copy the public HTTPS URL.
 
 3. **Add a distributor profile** in Azure App Settings for `wiselabels-whitelabel`:
-   - Set `Sites__WhiteLabel__Distributors__N__*` keys (increment N for each new distributor).
-   - Generate 1–3 random tokens (at least 20 characters each).
-   - Set `Sites__WhiteLabel__Distributors__N__Tokens__0`, `__Tokens__1`, etc.
+   - Set `Sites__WhiteLabel__Distributors__N__Slug` (e.g. `abc-printing`)
+   - Set `Sites__WhiteLabel__Distributors__N__Subdomain` (e.g. `abc-printing`)
+   - Set all other `Sites__WhiteLabel__Distributors__N__*` keys (logo URL, contact info, etc.)
+   - Optionally set `Sites__WhiteLabel__Distributors__N__Tokens__0` as a token-URL fallback.
 
-4. **Restart the App Service** to pick up the new configuration.
+4. **Restart the App Service** to pick up the new configuration
+   (or use a **Deployment Slot** swap to avoid downtime).
 
-5. **Test** by opening `https://order.wiselabels.com/gate/<token>` — the distributor's logo
-   and contact info should appear.
+5. **Test** by opening `https://abc-printing.labels-tags.com/gate` — the distributor's logo
+   and contact info should appear on the gate page.
 
-6. **Send the distributor** their private URL(s) to share with customers.
+6. **Send the distributor** their URL: `https://abc-printing.labels-tags.com`
+   (they can share this directly with their customers).
 
 ---
 
@@ -778,19 +834,47 @@ Follow the same steps as Section 4, with these additions:
 1. **Create** a fourth App Service: `wiselabels-whitelabel` on the existing
    `asp-wiselabels-portals` App Service Plan.
 
-2. **Custom domain:** Map `order.wiselabels.com` (or your chosen subdomain) to
-   `wiselabels-whitelabel.azurewebsites.net`.
+2. **Move `labels-tags.com` DNS to Azure DNS (required for wildcard managed certificate):**
+   - In the Azure Portal, search for **DNS zones** → **+ Create**.
+   - Enter `labels-tags.com` as the zone name.
+   - Azure provides four name servers (e.g. `ns1-xx.azure-dns.com`).
+   - At your domain registrar, change the name server records for `labels-tags.com` to
+     the four Azure DNS name servers.
+   - Wait for NS propagation (typically 10–60 minutes).
 
-3. **Azure Blob Storage for logos:**
-   - Create a Storage Account: `sawiselinks` (or similar).
+3. **Add a wildcard CNAME in Azure DNS:**
+   - In the `labels-tags.com` DNS zone → **+ Record set**.
+   - Name: `*`
+   - Type: `CNAME`
+   - Value: `wiselabels-whitelabel.azurewebsites.net`
+   - This routes all `*.labels-tags.com` requests to the white-label App Service.
+
+4. **Bind the wildcard custom domain to the App Service:**
+   - In the `wiselabels-whitelabel` App Service → **Custom domains** → **+ Add custom domain**.
+   - Enter `*.labels-tags.com`.
+   - Azure validates via the DNS TXT record it provides; add the TXT record in Azure DNS.
+   - Click **Validate** → **Add**.
+
+5. **Issue a wildcard managed TLS certificate:**
+   - In the App Service → **Certificates** → **Managed certificates** → **+ Add certificate**.
+   - Select `*.labels-tags.com`.
+   - Azure provisions a wildcard certificate (auto-renews). This requires the domain to be
+     in Azure DNS (Step 2 above).
+
+6. **Set `AllowedHosts` in App Settings:**
+   - Azure App Setting: `AllowedHosts` → `*.labels-tags.com;labels-tags.com`
+   - This prevents host header injection attacks while allowing all distributor subdomains.
+
+7. **Azure Blob Storage for logos:**
+   - Create a Storage Account: `salabelstags` (or similar).
    - Create a public blob container: `logos`.
    - Set container access level to **Blob** (anonymous read for blobs only).
    - Upload distributor logos; note each blob's HTTPS URL.
 
-4. **GitHub Actions secret:** Add `AZURE_PUBLISH_PROFILE_WHITELABEL` to GitHub Secrets
+8. **GitHub Actions secret:** Add `AZURE_PUBLISH_PROFILE_WHITELABEL` to GitHub Secrets
    (download publish profile from `wiselabels-whitelabel` App Service).
 
-5. **CI/CD workflow:** `.github/workflows/deploy-whitelabel.yml` is already included in
+9. **CI/CD workflow:** `.github/workflows/deploy-whitelabel.yml` is already included in
    the repository and will trigger on changes to `Sites/WhiteLabel/**` or `Sites/Shared/**`.
 
 ---

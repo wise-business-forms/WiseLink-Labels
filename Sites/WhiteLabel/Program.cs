@@ -32,6 +32,12 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseSession();
 
+// Subdomain distributor middleware — runs before the gate so that the Gate page
+// can find the DistributorProfile in HttpContext.Items when routing by subdomain.
+// e.g. abc-printing.labels-tags.com → profile for "abc-printing"
+var apexDomain = app.Configuration["Sites:WhiteLabel:ApexDomain"] ?? "labels-tags.com";
+app.UseSubdomainDistributor(apexDomain);
+
 // Gate middleware — must come after UseSession so the session is available
 // "wl_access" is the white-label portal session key
 app.UsePortalGate("wl_access");

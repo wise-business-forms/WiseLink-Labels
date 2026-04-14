@@ -31,19 +31,27 @@ Each portal uses a **token-in-URL gate** pattern:
 
 ## White-Label Portal
 
-Distributors can share a private URL with their end customers that shows the distributor's
+Distributors can share a URL with their end customers that shows the distributor's
 own branding (logo, company name, contact info) instead of WiseLink Labels branding.
+Each distributor gets their own subdomain on `labels-tags.com` (e.g. `abc-printing.labels-tags.com`).
 
 **How it works:**
 1. Each distributor has a profile in `Sites:WhiteLabel:Distributors` config (Azure App Settings / Key Vault).
-2. The distributor hands their customers a URL like `https://order.wiselabels.com/gate/<distributor-token>`.
-3. `Gate.cshtml.cs` looks up the token → `DistributorProfile`, stores it in server-side session.
-4. `_WhiteLabelLayout.cshtml` reads the profile from session and renders the distributor's logo,
+2. The `Subdomain` field in the profile maps to a subdomain on the configured `ApexDomain` (`labels-tags.com`).
+3. `SubdomainDistributorMiddleware` reads the `Host` header, extracts the subdomain label,
+   and resolves the matching `DistributorProfile` into `HttpContext.Items`.
+4. `Gate.cshtml.cs` picks up the profile from `HttpContext.Items` (no token in URL required).
+5. `_WhiteLabelLayout.cshtml` reads the profile from session and renders the distributor's logo,
    company name, and contact info in the header on every page.
-5. A "Powered by WiseLink Labels" attribution appears in the footer.
+6. A "Powered by WiseLink Labels" attribution appears in the footer.
 
-**Adding a new distributor** — add a profile to `Sites__WhiteLabel__Distributors__N__*` in Azure App Settings.
+**Adding a new distributor** — add a profile to `Sites__WhiteLabel__Distributors__N__*` in Azure App Settings
+(include `Subdomain: "abc-printing"` for `abc-printing.labels-tags.com`).
 See the "Adding a New Distributor — Checklist" in `Documentation/PUBLIC_HIDDEN_SITES_PLAN.md` (Section 8).
+
+**Azure DNS setup** — a single wildcard CNAME (`*.labels-tags.com → wiselabels-whitelabel.azurewebsites.net`)
+and wildcard managed TLS certificate cover all distributor subdomains.
+See "Azure Setup Additions for White-Label" in Section 8 of the plan.
 
 ## Running Locally
 
@@ -85,9 +93,11 @@ For the white-label portal:
 {
   "Sites": {
     "WhiteLabel": {
+      "ApexDomain": "localhost",
       "Distributors": [
         {
           "Slug": "test-dist",
+          "Subdomain": "test-dist",
           "CompanyName": "Test Distributor Co.",
           "LogoUrl": "/img/wise-logo-blue.png",
           "LogoAlt": "Test Distributor",
@@ -104,7 +114,13 @@ For the white-label portal:
 }
 ```
 
-Then navigate to: `https://localhost:5001/gate/local-wl-token`
+**Subdomain routing locally:** Add `test-dist.localhost` to your `hosts` file:
+```
+127.0.0.1   test-dist.localhost
+```
+Then navigate to: `https://test-dist.localhost:5001/gate`
+
+**Token fallback locally:** navigate to `https://localhost:5001/gate/local-wl-token`
 
 ## Deployment
 

@@ -33,7 +33,9 @@ namespace WiseLabels.Shared.Services;
 public sealed class DistributorProfileService : IDistributorProfileService
 {
     // token (case-sensitive) → profile
-    private readonly Dictionary<string, DistributorProfile> _index;
+    private readonly Dictionary<string, DistributorProfile> _tokenIndex;
+    // subdomain label (case-insensitive, e.g. "abc-printing") → profile
+    private readonly Dictionary<string, DistributorProfile> _subdomainIndex;
 
     public DistributorProfileService(IConfiguration configuration, ILogger<DistributorProfileService> logger)
     {
@@ -41,7 +43,8 @@ public sealed class DistributorProfileService : IDistributorProfileService
             .GetSection("Sites:WhiteLabel:Distributors")
             .Get<DistributorProfile[]>() ?? [];
 
-        _index = new Dictionary<string, DistributorProfile>(StringComparer.Ordinal);
+        _tokenIndex = new Dictionary<string, DistributorProfile>(StringComparer.Ordinal);
+        _subdomainIndex = new Dictionary<string, DistributorProfile>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var profile in profiles)
         {
@@ -50,14 +53,27 @@ public sealed class DistributorProfileService : IDistributorProfileService
                 if (string.IsNullOrWhiteSpace(token))
                     continue;
 
-                if (!_index.TryAdd(token, profile))
+                if (!_tokenIndex.TryAdd(token, profile))
                 {
                     // Two distributor profiles share the same token — this is a misconfiguration.
-                    var existing = _index[token];
+                    var existing = _tokenIndex[token];
                     logger.LogWarning(
                         "Duplicate distributor token detected. Token belongs to both '{ExistingSlug}' and '{NewSlug}'. " +
                         "The first profile ('{ExistingSlug}') will be used. Fix the configuration to avoid unexpected behavior.",
                         existing.Slug, profile.Slug, existing.Slug);
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(profile.Subdomain))
+            {
+                if (!_subdomainIndex.TryAdd(profile.Subdomain, profile))
+                {
+                    var existing = _subdomainIndex[profile.Subdomain];
+                    logger.LogWarning(
+                        "Duplicate distributor subdomain '{Subdomain}' detected. " +
+                        "Belongs to both '{ExistingSlug}' and '{NewSlug}'. " +
+                        "The first profile will be used.",
+                        profile.Subdomain, existing.Slug, profile.Slug);
                 }
             }
         }
@@ -66,5 +82,10 @@ public sealed class DistributorProfileService : IDistributorProfileService
     /// <inheritdoc />
     public DistributorProfile? FindByToken(string token)
         => string.IsNullOrWhiteSpace(token) ? null
-           : _index.TryGetValue(token, out var profile) ? profile : null;
+           : _tokenIndex.TryGetValue(token, out var profile) ? profile : null;
+
+    /// <inheritdoc />
+    public DistributorProfile? FindBySubdomain(string subdomain)
+        => string.IsNullOrWhiteSpace(subdomain) ? null
+           : _subdomainIndex.TryGetValue(subdomain, out var profile) ? profile : null;
 }

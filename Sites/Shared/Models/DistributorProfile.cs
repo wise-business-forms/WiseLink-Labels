@@ -56,4 +56,13 @@ public class DistributorProfile
     /// (e.g. "abc-printing", "xyz-supply").  Must be unique across all distributor profiles.
     /// </summary>
     public string Slug { get; init; } = string.Empty;
+
+    /// <summary>
+    /// DNS subdomain label for this distributor on the shared apex domain
+    /// (e.g. "abc-printing" → <c>abc-printing.labels-tags.com</c>).
+    /// Must be a valid DNS label: lowercase letters, digits, and hyphens only; no dots.
+    /// Leave empty if you do not want a dedicated subdomain for this distributor and
+    /// prefer token-in-URL access instead.
+    /// </summary>
+    public string Subdomain { get; init; } = string.Empty;
 }
