@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WiseLabels.WhiteLabel</RootNamespace>
+    <AssemblyName>WiseLabels.WhiteLabel</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Shared Razor Class Library — contains the common form pages, services, and assets -->
+    <ProjectReference Include="..\Shared\WiseLabels.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

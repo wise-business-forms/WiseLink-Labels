@@ -1,0 +1,77 @@
+@using System.Text.Json
+@using WiseLabels.Shared.Models
+
+@{
+    // Read the distributor profile from session (written by Gate.cshtml.cs)
+    var profileJson = Context.Session.GetString(WiseLabels.WhiteLabel.Pages.GateModel.SessionKeyProfile);
+    DistributorProfile? dist = null;
+    if (!string.IsNullOrEmpty(profileJson))
+    {
+        try { dist = JsonSerializer.Deserialize<DistributorProfile>(profileJson); }
+        catch { /* session corrupted — dist stays null, fall back to WiseLink branding */ }
+    }
+
+    var primaryColor = dist?.PrimaryColor;
+    var companyName  = dist?.CompanyName ?? "WiseLink Labels";
+    var logoUrl      = dist?.LogoUrl ?? "~/img/wise-logo-blue.png";
+    var logoAlt      = (!string.IsNullOrEmpty(dist?.LogoAlt) ? dist.LogoAlt : null) ?? companyName;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] — @companyName</title>
+    <link rel="stylesheet" href="~/css/whitelabel-base.css" asp-append-version="true" />
+    @if (!string.IsNullOrEmpty(primaryColor))
+    {
+        <style>:root { --portal-primary: @primaryColor; }</style>
+    }
+    @RenderSection("Styles", required: false)
+</head>
+<body>
+    <!-- ===== White-label header: distributor branding ===== -->
+    <header class="wl-header">
+        <div class="wl-header-brand">
+            <img src="@logoUrl" alt="@logoAlt" class="wl-header-logo" />
+            <span class="wl-header-company">@companyName</span>
+        </div>
+
+        @* Show distributor contact info in the header *@
+        @if (dist is not null && (
+             !string.IsNullOrEmpty(dist.ContactPhone) ||
+             !string.IsNullOrEmpty(dist.ContactEmail)))
+        {
+            <div class="wl-header-contact">
+                @if (!string.IsNullOrEmpty(dist.ContactName))
+                {
+                    <span class="wl-contact-name">@dist.ContactName</span>
+                }
+                @if (!string.IsNullOrEmpty(dist.ContactPhone))
+                {
+                    <a href="tel:@dist.ContactPhone" class="wl-contact-phone">@dist.ContactPhone</a>
+                }
+                @if (!string.IsNullOrEmpty(dist.ContactEmail))
+                {
+                    <a href="mailto:@dist.ContactEmail" class="wl-contact-email">@dist.ContactEmail</a>
+                }
+            </div>
+        }
+    </header>
+
+    <!-- ===== Page content ===== -->
+    <main class="wl-main">
+        @RenderBody()
+    </main>
+
+    <!-- ===== Footer: powered-by attribution ===== -->
+    <footer class="wl-footer">
+        <span>Ordering powered by</span>
+        <a href="https://wiselabels.com" target="_blank" rel="noopener">
+            <img src="~/img/wise-logo-blue.png" alt="WiseLink Labels" class="wl-footer-logo" />
+        </a>
+    </footer>
+
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

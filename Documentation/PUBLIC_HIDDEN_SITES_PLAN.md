@@ -426,54 +426,65 @@ WiseLink-Labels/
 ├── Sites/
 │   ├── Shared/                          # Shared Razor Pages library (class library project)
 │   │   ├── WiseLabels.Shared.csproj
+│   │   ├── Middleware/
+│   │   │   └── PortalGateMiddleware.cs  # Enforces session access on all non-public paths
+│   │   ├── Models/
+│   │   │   └── DistributorProfile.cs    # Per-distributor branding model (white-label)
+│   │   ├── Services/
+│   │   │   ├── IDistributorProfileService.cs
+│   │   │   └── DistributorProfileService.cs  # Token → profile lookup
 │   │   ├── Pages/
-│   │   │   ├── Quote.cshtml             # Shared quote form (all three portals use this)
+│   │   │   ├── Quote.cshtml             # Shared quote form (all portals use this)
 │   │   │   ├── Confirm.cshtml
 │   │   │   ├── Success.cshtml
 │   │   │   ├── Api/                     # Shared API proxies (CERM, etc.)
 │   │   │   └── Shared/                  # Shared layouts, partials
-│   │   ├── Services/                    # Shared services (QuoteService, EmailService, etc.)
-│   │   ├── Models/
 │   │   └── wwwroot/                     # Shared static assets (CSS, JS, images)
 │   │
 │   ├── Dist/                            # Print Distributor portal
 │   │   ├── WiseLabels.Dist.csproj       # References WiseLabels.Shared
-│   │   ├── Program.cs                   # Dist-specific DI / middleware (gate middleware)
+│   │   ├── Program.cs
 │   │   ├── appsettings.json
-│   │   ├── appsettings.Production.json
 │   │   ├── Pages/
-│   │   │   ├── Gate.cshtml              # Token verification + one-click acknowledgement
+│   │   │   ├── Gate.cshtml
 │   │   │   ├── Gate.cshtml.cs
 │   │   │   └── NotAuthorized.cshtml
-│   │   └── wwwroot/
-│   │       └── css/
-│   │           └── dist-theme.css       # Distributor-specific branding overrides
+│   │   └── wwwroot/css/dist-theme.css
 │   │
 │   ├── EndUser/                         # End User portal
 │   │   ├── WiseLabels.EndUser.csproj    # References WiseLabels.Shared
 │   │   ├── Program.cs
 │   │   ├── appsettings.json
-│   │   ├── appsettings.Production.json
 │   │   ├── Pages/
 │   │   │   ├── Gate.cshtml
 │   │   │   ├── Gate.cshtml.cs
 │   │   │   └── NotAuthorized.cshtml
-│   │   └── wwwroot/
-│   │       └── css/
-│   │           └── enduser-theme.css
+│   │   └── wwwroot/css/enduser-theme.css
 │   │
-│   └── Partner/                         # Channel Partner portal
-│       ├── WiseLabels.Partner.csproj    # References WiseLabels.Shared
-│       ├── Program.cs
-│       ├── appsettings.json
-│       ├── appsettings.Production.json
+│   ├── Partner/                         # Channel Partner portal
+│   │   ├── WiseLabels.Partner.csproj    # References WiseLabels.Shared
+│   │   ├── Program.cs
+│   │   ├── appsettings.json
+│   │   ├── Pages/
+│   │   │   ├── Gate.cshtml
+│   │   │   ├── Gate.cshtml.cs
+│   │   │   └── NotAuthorized.cshtml
+│   │   └── wwwroot/css/partner-theme.css
+│   │
+│   └── WhiteLabel/                      # Distributor white-label portal (NEW)
+│       ├── WiseLabels.WhiteLabel.csproj # References WiseLabels.Shared
+│       ├── Program.cs                   # Registers DistributorProfileService + gate
+│       ├── appsettings.json             # Distributors array (populated via Azure config)
 │       ├── Pages/
-│       │   ├── Gate.cshtml
-│       │   ├── Gate.cshtml.cs
-│       │   └── NotAuthorized.cshtml
+│       │   ├── _ViewStart.cshtml        # Uses _WhiteLabelLayout
+│       │   ├── _ViewImports.cshtml
+│       │   ├── Gate.cshtml              # Shows distributor logo/contact before acknowledgement
+│       │   ├── Gate.cshtml.cs           # Token → profile lookup; stores profile in session
+│       │   └── Shared/
+│       │       └── _WhiteLabelLayout.cshtml  # Header with dist. branding; footer attribution
 │       └── wwwroot/
-│           └── css/
-│               └── partner-theme.css
+│           ├── css/whitelabel-base.css  # CSS custom property overrides per distributor
+│           └── img/                     # Optional: local copies of distributor logos
 │
 ├── Pages/                               # Existing internal (authenticated) app — unchanged
 ├── Services/
@@ -484,23 +495,32 @@ WiseLink-Labels/
     └── PUBLIC_HIDDEN_SITES_PLAN.md      # This document
 ```
 
-### How the Three Projects Share Code
+### How the Four Projects Share Code
 
 1. **WiseLabels.Shared** is a [Razor Class Library](https://learn.microsoft.com/en-us/aspnet/core/razor-pages/ui-class) project.
    - All common Razor Pages (Quote form, Confirm, Success, API proxies) live here.
    - Common services (QuoteService, EmailService, CermAuthService) live here.
    - Common static assets (site.css, quote.js) live in `wwwroot/` here.
+   - The `DistributorProfile` model and `IDistributorProfileService` live here so the
+     white-label portal and any future portal can reference them.
 
 2. **WiseLabels.Dist / EndUser / Partner** are thin ASP.NET Core web applications.
    - Each references `WiseLabels.Shared`.
    - Each adds only site-specific pages (Gate, NotAuthorized) and branding overrides.
    - Each has its own `Program.cs` to register site-specific middleware (the gate check).
 
-3. **The existing internal app** (`WiseLabels.csproj`) remains unchanged. It can also reference `WiseLabels.Shared` if desired, or keep its own copies.
+3. **WiseLabels.WhiteLabel** is the distributor-branded end-user portal.
+   - References `WiseLabels.Shared` for the ordering form and services.
+   - Adds `Gate.cshtml` / `Gate.cshtml.cs` that performs a token → `DistributorProfile`
+     lookup and stores the profile in server-side session.
+   - Adds `_WhiteLabelLayout.cshtml` which reads the profile from session and renders the
+     distributor's logo, company name, and contact info in the page header.
+
+4. **The existing internal app** (`WiseLabels.csproj`) remains unchanged.
 
 ### Solution File
 
-Add all four projects to a single solution for easy local development:
+Add all five projects to a single solution for easy local development:
 
 ```
 WiseLabels.slnx
@@ -508,7 +528,8 @@ WiseLabels.slnx
   ├── WiseLabels.Shared
   ├── WiseLabels.Dist
   ├── WiseLabels.EndUser
-  └── WiseLabels.Partner
+  ├── WiseLabels.Partner
+  └── WiseLabels.WhiteLabel
 ```
 
 ### Segment-Specific Customizations
@@ -522,6 +543,7 @@ Each portal can customize the shared base through:
 | Pricing / product catalog | Separate CERM customer IDs per portal (env variable `Cerm__CustomerID`) |
 | Email notifications | Separate "from" address and template per portal |
 | Quote reference prefix | `Sites__ReferencePrefix = "DIST-"` / `"EU-"` / `"CP-"` |
+| **White-label branding** | **`DistributorProfile` in `Sites:WhiteLabel:Distributors` config — per-distributor logo, color, contact info** |
 
 ---
 
@@ -537,6 +559,8 @@ Before going live, verify each portal:
 - [ ] HSTS header is enabled in `Program.cs`.
 - [ ] Application Insights alerts are configured for unusual traffic spikes on the Gate endpoint.
 - [ ] Access tokens are rotated at least annually (or when a distribution batch is retired).
+- [ ] White-label distributor logos are served over HTTPS (Azure Blob Storage CDN). No distributor logo URLs are accepted from untrusted sources.
+- [ ] The `DistributorProfile` stored in session contains no secrets — only branding data. Tokens are never stored in the session.
 
 ---
 
@@ -549,6 +573,225 @@ Before going live, verify each portal:
 | URL structure | URL Set A: subdomains (`distributor.wiselabels.com`) | URL Set B: sub-paths (`portal.wiselabels.com/dist`) |
 | Code sharing | Razor Class Library (`WiseLabels.Shared`) | Single project with Areas |
 | CI/CD | GitHub Actions workflow per portal | Azure Deployment Center auto-generated workflow |
+| White-label branding | Per-distributor profile stored in Azure App Config / Key Vault | Separate Azure App Service per distributor |
+
+---
+
+## Section 8 — White-Label Sites for Distributors
+
+### Overview
+
+Print distributors in the **Dist** segment can re-share a private link with their own end
+customers. When a customer opens that link, they see a portal branded with **the
+distributor's logo and contact information** rather than the WiseLink Labels brand.
+The underlying ordering form, CERM integration, and email workflow are identical to the
+shared core — only the visual branding differs.
+
+This approach is sometimes called a "powered-by" or "co-branded" portal:
+the distributor presents it as their own ordering experience while WiseLink Labels handles
+all the manufacturing and fulfilment in the background.
+
+---
+
+### How It Works (Token → Profile Lookup)
+
+Each distributor is given **one or more private tokens** to embed in their customer-facing
+URL.  When a customer opens the link, the White-Label portal:
+
+1. Reads the token from the URL path (`/gate/<token>`).
+2. Looks up the matching `DistributorProfile` (name, logo, contact info, brand color) from
+   the configuration stored in Azure App Settings / Key Vault.
+3. Serializes the profile into the **server-side session**.
+4. Shows the distributor's logo and contact block on the gate page.
+5. After the customer clicks the acknowledgement checkbox, every subsequent page is
+   rendered by `_WhiteLabelLayout.cshtml`, which reads the profile from session and injects:
+   - The distributor's logo in the header.
+   - The distributor's company name as the page `<title>`.
+   - The distributor's contact name, phone, and email in the header.
+   - An optional CSS custom property override for the distributor's primary brand color.
+6. A "Powered by WiseLink Labels" attribution appears in the page footer.
+
+---
+
+### Distributor Profile Configuration
+
+Profiles are stored in the `Sites:WhiteLabel:Distributors` configuration array.
+**Never commit real tokens to the repository.** Add profiles via Azure App Settings or
+Azure Key Vault.
+
+Example Azure App Setting structure (using the `__` separator for nested JSON in Azure):
+
+```
+Sites__WhiteLabel__Distributors__0__Slug             abc-printing
+Sites__WhiteLabel__Distributors__0__CompanyName      ABC Printing Co.
+Sites__WhiteLabel__Distributors__0__LogoUrl          https://yourcdn.blob.core.windows.net/logos/abc.png
+Sites__WhiteLabel__Distributors__0__LogoAlt          ABC Printing Co. logo
+Sites__WhiteLabel__Distributors__0__ContactName      Jane Doe
+Sites__WhiteLabel__Distributors__0__ContactPhone     (555) 100-2000
+Sites__WhiteLabel__Distributors__0__ContactEmail     jane@abcprinting.com
+Sites__WhiteLabel__Distributors__0__PrimaryColor     #003399
+Sites__WhiteLabel__Distributors__0__ReferencePrefix  ABC-
+Sites__WhiteLabel__Distributors__0__Tokens__0        <random-token-1>
+Sites__WhiteLabel__Distributors__0__Tokens__1        <random-token-2>
+
+Sites__WhiteLabel__Distributors__1__Slug             xyz-supply
+Sites__WhiteLabel__Distributors__1__CompanyName      XYZ Supply Inc.
+...
+```
+
+Add additional distributors by incrementing the array index (`__1__`, `__2__`, ...).
+
+> **Security note:** Store token values in **Azure Key Vault** and reference them from App
+> Settings with `@Microsoft.KeyVault(...)`.  Each distributor only ever sees their own
+> private URL; they have no knowledge of other distributors' tokens.
+
+---
+
+### White-Label URL Options
+
+Two options for structuring white-label URLs:
+
+#### Option W-A — Single Shared Subdomain (Recommended)
+
+```
+https://order.wiselabels.com/gate/<distributor-token>
+```
+
+- One App Service, one subdomain, one TLS certificate.
+- The distributor token in the URL is the only differentiator between distributors.
+- Simplest to operate; adding a new distributor only requires adding a new profile to config.
+- The distributor does not need to know or publish `order.wiselabels.com` — they can use
+  a **URL shortener** (e.g. `links.abcprinting.com → order.wiselabels.com/gate/<token>`) to
+  further hide the WiseLink origin if desired.
+
+#### Option W-B — Per-Distributor Subdomain
+
+```
+https://labels.abcprinting.com    (CNAME → wiselabels-whitelabel.azurewebsites.net)
+https://labels.xyzupply.com       (CNAME → wiselabels-whitelabel.azurewebsites.net)
+```
+
+- Each distributor owns their own subdomain on their domain (not `wiselabels.com`).
+- The distributor adds a CNAME record with their DNS provider pointing to the
+  App Service's default hostname.
+- Azure App Service **custom domain** feature is used to bind each subdomain.
+- The subdomain itself becomes the distributor identifier — no token in the URL is needed
+  (or a token can still be used for an extra layer of access control).
+- More effort to set up (requires per-distributor DNS change and custom domain binding).
+- Best for distributors who want a fully "white-boxed" experience with zero WiseLink
+  branding visible in the URL.
+
+> **Recommendation:** Start with **Option W-A** (single subdomain + token URL). Graduate
+> individual distributors to **Option W-B** only if they specifically request a custom domain.
+
+---
+
+### Repository Structure Additions
+
+The white-label portal adds a fourth thin project:
+
+```
+Sites/
+├── Shared/
+│   ├── WiseLabels.Shared.csproj
+│   ├── Middleware/
+│   │   └── PortalGateMiddleware.cs        # Shared — used by all four portals
+│   ├── Models/
+│   │   └── DistributorProfile.cs          # NEW — per-distributor branding model
+│   └── Services/
+│       ├── IDistributorProfileService.cs  # NEW — token → profile lookup interface
+│       └── DistributorProfileService.cs   # NEW — configuration-backed implementation
+│
+├── Dist/         Print Distributor portal  →  distributor.wiselabels.com
+├── EndUser/      End User portal           →  order.wiselabels.com  (or enduser.wiselabels.com)
+├── Partner/      Channel Partner portal    →  partner.wiselabels.com
+│
+└── WhiteLabel/   NEW — Distributor white-label portal  →  order.wiselabels.com
+    ├── WiseLabels.WhiteLabel.csproj       # References WiseLabels.Shared
+    ├── Program.cs                          # Registers DistributorProfileService + gate middleware
+    ├── appsettings.json                    # Distributors array (empty — populated via Azure config)
+    ├── Pages/
+    │   ├── _ViewStart.cshtml               # Sets layout to _WhiteLabelLayout
+    │   ├── _ViewImports.cshtml
+    │   ├── Gate.cshtml                     # Shows distributor logo + contact before acknowledgement
+    │   ├── Gate.cshtml.cs                  # Token → profile lookup; stores profile in session
+    │   └── Shared/
+    │       └── _WhiteLabelLayout.cshtml    # Header with dist. logo/contact; footer attribution
+    └── wwwroot/
+        ├── css/
+        │   └── whitelabel-base.css         # Base styles with CSS custom property overrides
+        └── img/
+            └── (distributor logos can be served locally or from Azure Blob Storage CDN)
+```
+
+---
+
+### What Pages the Distributor's Customers See
+
+Once past the gate, the distributor's customers see the **same order form, confirmation
+page, and success page** as direct end users — the only difference is:
+
+| Element | Direct End User portal | White-Label portal |
+|---|---|---|
+| Page `<title>` | "WiseLink Labels — Order Portal" | "ABC Printing Co. — Order Portal" |
+| Header logo | WiseLink Labels logo | ABC Printing Co. logo |
+| Header contact | WiseLink contact info | ABC Printing rep's name, phone, email |
+| Brand color | WiseLink navy (#1a3a5c) | Distributor's color (e.g. #003399) |
+| Footer | WiseLink contact | "Powered by WiseLink Labels" |
+| Quote reference prefix | `EU-` | `ABC-` (or distributor-configured prefix) |
+| Confirmation email | "From: WiseLink Labels" | "From: WiseLink Labels" (internal) + copy to dist. rep |
+
+---
+
+### Adding a New Distributor — Checklist
+
+When a new distributor wants their own white-label portal:
+
+1. **Obtain branding assets** from the distributor:
+   - Company logo (PNG/SVG, ideally on a transparent or white background, min 200 px wide)
+   - Brand hex color (optional)
+   - Contact name, phone, and email for the portal header
+
+2. **Upload the logo** to Azure Blob Storage:
+   - In the Azure Portal, go to the Storage Account → **Containers** → `logos`.
+   - Upload the logo file.
+   - Copy the public HTTPS URL.
+
+3. **Add a distributor profile** in Azure App Settings for `wiselabels-whitelabel`:
+   - Set `Sites__WhiteLabel__Distributors__N__*` keys (increment N for each new distributor).
+   - Generate 1–3 random tokens (at least 20 characters each).
+   - Set `Sites__WhiteLabel__Distributors__N__Tokens__0`, `__Tokens__1`, etc.
+
+4. **Restart the App Service** to pick up the new configuration.
+
+5. **Test** by opening `https://order.wiselabels.com/gate/<token>` — the distributor's logo
+   and contact info should appear.
+
+6. **Send the distributor** their private URL(s) to share with customers.
+
+---
+
+### Azure Setup Additions for White-Label
+
+Follow the same steps as Section 4, with these additions:
+
+1. **Create** a fourth App Service: `wiselabels-whitelabel` on the existing
+   `asp-wiselabels-portals` App Service Plan.
+
+2. **Custom domain:** Map `order.wiselabels.com` (or your chosen subdomain) to
+   `wiselabels-whitelabel.azurewebsites.net`.
+
+3. **Azure Blob Storage for logos:**
+   - Create a Storage Account: `sawiselinks` (or similar).
+   - Create a public blob container: `logos`.
+   - Set container access level to **Blob** (anonymous read for blobs only).
+   - Upload distributor logos; note each blob's HTTPS URL.
+
+4. **GitHub Actions secret:** Add `AZURE_PUBLISH_PROFILE_WHITELABEL` to GitHub Secrets
+   (download publish profile from `wiselabels-whitelabel` App Service).
+
+5. **CI/CD workflow:** `.github/workflows/deploy-whitelabel.yml` is already included in
+   the repository and will trigger on changes to `Sites/WhiteLabel/**` or `Sites/Shared/**`.
 
 ---
 
@@ -556,9 +799,11 @@ Before going live, verify each portal:
 
 1. **Choose** the access verification option (A or B) and URL structure (Set A or B).
 2. **Create** the `WiseLabels.Shared` Razor Class Library and refactor common pages into it.
-3. **Create** the three thin portal projects (`WiseLabels.Dist`, `WiseLabels.EndUser`, `WiseLabels.Partner`).
-4. **Provision** Azure resources (Steps 1–8 above).
-5. **Configure** DNS records for chosen subdomains.
-6. **Generate** and distribute the first set of access tokens to each customer segment.
-7. **Test** each portal end-to-end before sharing links externally.
-8. **Set up monitoring** alerts in Application Insights.
+3. **Create** the three core portal projects (`WiseLabels.Dist`, `WiseLabels.EndUser`, `WiseLabels.Partner`).
+4. **Create** the white-label portal project (`WiseLabels.WhiteLabel`) using the scaffold in `Sites/WhiteLabel/`.
+5. **Provision** Azure resources (Steps 1–8 above) plus the white-label App Service and Blob Storage account.
+6. **Configure** DNS records for chosen subdomains.
+7. **Generate** and distribute the first set of access tokens to each customer segment and each initial distributor white-label profile.
+8. **Onboard** the first white-label distributor using the "Adding a New Distributor" checklist in Section 8.
+9. **Test** each portal end-to-end before sharing links externally.
+10. **Set up monitoring** alerts in Application Insights.

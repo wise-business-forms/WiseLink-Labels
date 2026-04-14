@@ -1,0 +1,247 @@
+/*
+ * WiseLink Labels — White-Label Portal Base Theme
+ *
+ * CSS custom property --portal-primary is overridden per-distributor via an inline
+ * <style> block injected by the layout when the distributor has a PrimaryColor configured.
+ *
+ * Default colors are WiseLink brand colors; individual distributors override only
+ * --portal-primary (and optionally --portal-accent) through their profile.
+ */
+
+:root {
+    --portal-primary: #1a3a5c;        /* WiseLink navy — overridden per distributor */
+    --portal-accent:  #e8a020;        /* WiseLink gold  — overridden per distributor */
+    --portal-bg:      #f4f6f9;
+    --portal-text:    #212529;
+    --portal-muted:   #6c757d;
+    --portal-white:   #ffffff;
+    --portal-border:  #dee2e6;
+    --header-height:  64px;
+}
+
+/* ===== Reset / base ===== */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 16px;
+    background: var(--portal-bg);
+    color: var(--portal-text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+a { color: var(--portal-primary); }
+a:hover { color: var(--portal-accent); }
+
+/* ===== White-label header ===== */
+.wl-header {
+    background: var(--portal-primary);
+    color: var(--portal-white);
+    height: var(--header-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5rem;
+    gap: 1rem;
+    flex-shrink: 0;
+}
+
+.wl-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.wl-header-logo {
+    height: 40px;
+    width: auto;
+    object-fit: contain;
+    /* White logos look best; for colored logos add a white background pill */
+    background: var(--portal-white);
+    border-radius: 4px;
+    padding: 3px 6px;
+}
+
+.wl-header-company {
+    font-size: 1.1rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 280px;
+}
+
+/* ===== Header contact block ===== */
+.wl-header-contact {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.875rem;
+    flex-shrink: 0;
+}
+
+.wl-contact-name {
+    opacity: 0.85;
+}
+
+.wl-header-contact a {
+    color: var(--portal-white);
+    text-decoration: none;
+    opacity: 0.9;
+}
+
+.wl-header-contact a:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+    .wl-header-company { max-width: 140px; font-size: 0.95rem; }
+    .wl-header-contact { display: none; }  /* hide on very small screens */
+}
+
+/* ===== Main content area ===== */
+.wl-main {
+    flex: 1;
+    padding: 2rem 1.5rem;
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+/* ===== Footer ===== */
+.wl-footer {
+    background: var(--portal-white);
+    border-top: 1px solid var(--portal-border);
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--portal-muted);
+    flex-shrink: 0;
+}
+
+.wl-footer-logo {
+    height: 20px;
+    width: auto;
+    opacity: 0.7;
+    vertical-align: middle;
+}
+
+/* ===== Gate page ===== */
+.gate-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--portal-bg);
+}
+
+.gate-container {
+    background: var(--portal-white);
+    border-radius: 8px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.10);
+    padding: 2.5rem 3rem;
+    max-width: 500px;
+    width: 100%;
+    text-align: center;
+}
+
+.gate-logo {
+    max-height: 72px;
+    max-width: 240px;
+    object-fit: contain;
+    margin-bottom: 1.25rem;
+}
+
+.gate-container h1 {
+    color: var(--portal-primary);
+    font-size: 1.5rem;
+    margin-bottom: 0.6rem;
+}
+
+.gate-container p {
+    color: var(--portal-muted);
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+}
+
+/* ===== Distributor contact card (inside gate) ===== */
+.distributor-contact {
+    background: var(--portal-bg);
+    border-radius: 6px;
+    border: 1px solid var(--portal-border);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.9rem;
+}
+
+.distributor-contact strong {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--portal-muted);
+    margin-bottom: 0.2rem;
+}
+
+.distributor-contact a {
+    color: var(--portal-primary);
+    text-decoration: none;
+}
+
+.distributor-contact a:hover { text-decoration: underline; }
+
+/* ===== Acknowledgement checkbox ===== */
+.gate-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    font-size: 0.875rem;
+    color: var(--portal-text);
+    text-align: left;
+    margin-bottom: 1.25rem;
+    cursor: pointer;
+}
+
+.gate-checkbox input[type="checkbox"] {
+    margin-top: 2px;
+    flex-shrink: 0;
+    accent-color: var(--portal-primary);
+}
+
+/* ===== Gate proceed button ===== */
+.gate-btn {
+    background: var(--portal-primary);
+    color: var(--portal-white);
+    border: none;
+    border-radius: 4px;
+    padding: 0.65rem 2rem;
+    font-size: 1rem;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.2s, color 0.2s;
+}
+
+.gate-btn:hover {
+    background: var(--portal-accent);
+    color: var(--portal-primary);
+}
+
+/* ===== Gate footer attribution ===== */
+.gate-footer {
+    margin-top: 1.5rem;
+    font-size: 0.75rem;
+    color: var(--portal-muted);
+}
+
+.gate-footer a { color: var(--portal-muted); }
+.gate-footer a:hover { color: var(--portal-primary); }
