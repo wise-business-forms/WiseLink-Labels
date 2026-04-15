@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet run:*)",
+      "Bash(dotnet build:*)",
+      "WebFetch(domain:10.1.10.53)"
+    ]
+  }
+}

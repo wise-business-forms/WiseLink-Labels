@@ -25,14 +25,17 @@
     <Content Update="appsettings.*.json" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="CERM.DataAccess\Models\" />
-  </ItemGroup>
-  <ItemGroup>
   <None Include="Libraries\**\*">
     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     <CopyToPublishDirectory>Always</CopyToPublishDirectory>
   </None>
 </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="CERM.DataAccess\**" />
+    <Content Remove="CERM.DataAccess\**" />
+    <EmbeddedResource Remove="CERM.DataAccess\**" />
+    <None Remove="CERM.DataAccess\**" />
+  </ItemGroup>
  <!-- 
   <Target Name="UpdateWebConfigForSelfContained" AfterTargets="Publish" Condition="'$(SelfContained)' == 'true'">
     <PropertyGroup>

@@ -1,8 +1,4 @@
 <Solution>
   <Project Path="../CERM.DataAccess/CERM.DataAccess.csproj" Id="0c0d26b3-6fd9-4a4f-9769-9829004beab3" />
-  <Project Path="../CERM.Schema/CERM.Schema.sqlproj" Id="751dd099-9165-47cd-a457-6738667955b5">
-    <Build />
-    <Deploy />
-  </Project>
   <Project Path="WiseLabels.csproj" />
 </Solution>

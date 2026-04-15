@@ -147,5 +147,15 @@
     "C:\\Users\\wprettyman.WISENT\\.nuget\\packages\\system.xml.readerwriter\\4.0.11\\system.xml.readerwriter.4.0.11.nupkg.sha512",
     "C:\\Users\\wprettyman.WISENT\\.nuget\\packages\\system.xml.xdocument\\4.0.11\\system.xml.xdocument.4.0.11.nupkg.sha512"
   ],
-  "logs": []
+  "logs": [
+    {
+      "code": "Undefined",
+      "level": "Warning",
+      "message": "Problem reading the cache file C:\\Users\\wprettyman.WISENT\\Documents\\GitHub\\WiseLink-Labels\\obj\\project.nuget.cache : '<' is an invalid start of a property name. Expected a '\"'. Path: $ | LineNumber: 2 | BytePositionInLine: 0.",
+      "projectPath": "C:\\Users\\wprettyman.WISENT\\Documents\\GitHub\\WiseLink-Labels\\WiseLabels.csproj",
+      "warningLevel": 1,
+      "filePath": "C:\\Users\\wprettyman.WISENT\\Documents\\GitHub\\WiseLink-Labels\\WiseLabels.csproj",
+      "targetGraphs": []
+    }
+  ]
 }
