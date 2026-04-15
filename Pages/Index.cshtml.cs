@@ -110,8 +110,9 @@ namespace WiseLabels.Pages
             var firstOfTwelveMonthsAgo = new DateTime(twelveMonthsAgo.Year, twelveMonthsAgo.Month, 1);
 
             var monthlyData = await baseQuery
-                .Where(e => e.OrderDate >= firstOfTwelveMonthsAgo)
-                .GroupBy(e => new { Year = e.OrderDate.Value.Year, Month = e.OrderDate.Value.Month })
+                .Where(e => e.OrderDate.HasValue && e.OrderDate >= firstOfTwelveMonthsAgo)
+                .Select(e => new { OrderDate = e.OrderDate!.Value })
+                .GroupBy(e => new { Year = e.OrderDate.Year, Month = e.OrderDate.Month })
                 .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
                 .OrderBy(g => g.Year).ThenBy(g => g.Month)
                 .ToListAsync();
@@ -131,8 +132,9 @@ namespace WiseLabels.Pages
             var thirtyDaysAgo = DateTime.Now.AddDays(-29).Date;
 
             var dailyData = await baseQuery
-                .Where(e => e.OrderDate >= thirtyDaysAgo)
-                .GroupBy(e => e.OrderDate.Value.Date)
+                .Where(e => e.OrderDate.HasValue && e.OrderDate >= thirtyDaysAgo)
+                .Select(e => new { OrderDate = e.OrderDate!.Value })
+                .GroupBy(e => e.OrderDate.Date)
                 .Select(g => new { Date = g.Key, Count = g.Count() })
                 .OrderBy(g => g.Date)
                 .ToListAsync();

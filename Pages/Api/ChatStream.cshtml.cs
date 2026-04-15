@@ -332,19 +332,21 @@ namespace WiseLabels.Pages.Api
                             quoteDataElement.ValueKind != JsonValueKind.Null)
                         {
                             // Convert to dictionary for easier handling
-                            var quoteDict = new Dictionary<string, object>();
+                            var quoteDict = new Dictionary<string, object?>();
 
                             foreach (var prop in quoteDataElement.EnumerateObject())
                             {
-                                quoteDict[prop.Name] = prop.Value.ValueKind switch
+                                object? propValue = prop.Value.ValueKind switch
                                 {
                                     JsonValueKind.String => prop.Value.GetString() ?? "",
                                     JsonValueKind.Number => prop.Value.TryGetInt32(out var intVal) ? intVal : prop.Value.GetDouble(),
                                     JsonValueKind.True => true,
                                     JsonValueKind.False => false,
-                                    JsonValueKind.Object => JsonSerializer.Deserialize<Dictionary<string, object>>(prop.Value.GetRawText()),
+                                    JsonValueKind.Object => JsonSerializer.Deserialize<Dictionary<string, object?>>(prop.Value.GetRawText()),
                                     _ => prop.Value.GetRawText()
                                 };
+
+                                quoteDict[prop.Name] = propValue;
                             }
 
                             quoteData = quoteDict;

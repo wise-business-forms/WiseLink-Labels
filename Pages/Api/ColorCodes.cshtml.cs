@@ -346,48 +346,36 @@ namespace WiseLabels.Pages.Api
                 {
                     // First, try to parse as JsonElement to inspect structure
                     var jsonDoc = JsonSerializer.Deserialize<JsonElement>(jsonResponse);
+                    var options = new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    };
 
                     if (jsonDoc.TryGetProperty("Data", out var data) && data.ValueKind == JsonValueKind.Array)
                     {
-                        var options = new JsonSerializerOptions
-                        {
-                            PropertyNameCaseInsensitive = true
-                        };
                         paramResponse = JsonSerializer.Deserialize<List<ParameterResponse>>(data.GetRawText(), options);
                     }
 
-                    var result = new List<ParameterResponse>();
-
-                    JsonElement arrayElement = new JsonElement();
-                    List<ParameterResponse> paramResponses = new List<ParameterResponse>();
-
-                    if (jsonDoc.ValueKind != JsonValueKind.Array) 
-                    { 
-                        arrayElement = jsonDoc; 
-                    }
-                    else if (jsonDoc.TryGetProperty("Data", out var dataOut) &&  data.ValueKind == JsonValueKind.Array) 
+                    if (paramResponse == null && jsonDoc.ValueKind == JsonValueKind.Array)
                     {
-                        arrayElement = dataOut;
-                        var options = new JsonSerializerOptions
-                        {
-                            PropertyNameCaseInsensitive = true
-                        };
-                        paramResponse = JsonSerializer.Deserialize<List<ParameterResponse>>(arrayElement.GetRawText(), options);
+                        paramResponse = JsonSerializer.Deserialize<List<ParameterResponse>>(jsonDoc.GetRawText(), options);
                     }
 
-                    // Order printing options
-                    paramResponse.OrderBy(cc => cc.Id);
+                    if (paramResponse != null)
+                    {
+                        return (paramResponse ?? new List<ParameterResponse>())
+                            .OrderBy(cc => cc.Id)
+                            .ToList();
+                    }
 
-                    return paramResponse;
+                    _logger.LogWarning("No color codes found in response");
+                    return new List<ParameterResponse>();
                 }
                 catch (JsonException jsonEx)
                 {
                     _logger.LogError(jsonEx, "JSON deserialization error. Response: {Response}", jsonResponse);
                     throw new Exception($"Failed to parse color codes response: {jsonEx.Message}. Response: {jsonResponse.Substring(0, Math.Min(500, jsonResponse.Length))}", jsonEx);
                 }
-                
-                _logger.LogWarning("No color codes found in response");
-                return new List<ParameterResponse>();
             }
             catch (Exception ex)
             {

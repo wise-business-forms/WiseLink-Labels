@@ -153,7 +153,8 @@ namespace WiseLabels.Pages
             {
                 try
                 {
-                    QuoteRequest = JsonSerializer.Deserialize<QuoteRequest>(quoteData.ToString() ?? "{}");
+                    var quoteJson = Convert.ToString(quoteData) ?? "{}";
+                    QuoteRequest = JsonSerializer.Deserialize<QuoteRequest>(quoteJson);
                     if (QuoteRequest != null && QuoteRequest.CreatedDate != default)
                     {
                         SubmittedDate = QuoteRequest.CreatedDate;

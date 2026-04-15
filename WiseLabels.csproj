@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
-    <DocumentationFile>C:\Users\pmenefee\source\WiseLink-Labels\Documentation\WiseLabels.xml</DocumentationFile>
+    <DocumentationFile>$(MSBuildProjectDirectory)\Documentation\WiseLabels.xml</DocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

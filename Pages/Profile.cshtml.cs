@@ -175,7 +175,8 @@ namespace WiseLabels.Pages
                     requestConfiguration.QueryParameters.Select = new[] { "displayName" };
                 });
 
-                return group?.DisplayName;
+                var displayName = group?.DisplayName;
+                return string.IsNullOrWhiteSpace(displayName) ? groupObjectId ?? string.Empty : displayName;
             }
             catch (ServiceException ex)
             {

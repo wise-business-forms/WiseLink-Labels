@@ -5,15 +5,6 @@
 @{
     ViewData["Title"] = "Confirm Quote Request";
 
-    string FormatReferenceType(string? t) => t switch
-    {
-        "company-name" => "Company Name",
-        "account-number" => "Account Number",
-        "purchase-order-number" => "Purchase Order Number",
-        "invoice-number" => "Invoice Number",
-        _ => "Reference"
-    };
-
     string FormatMaybeValue(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
     string FormatDimension(string? width, string? height)
     {

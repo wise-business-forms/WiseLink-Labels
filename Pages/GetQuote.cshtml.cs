@@ -123,7 +123,8 @@ namespace WiseLabels.Pages
             {
                 try
                 {
-                    SavedQuoteRequest = JsonSerializer.Deserialize<QuoteRequest>(quoteData.ToString() ?? "{}");
+                    var quoteJson = Convert.ToString(quoteData) ?? "{}";
+                    SavedQuoteRequest = JsonSerializer.Deserialize<QuoteRequest>(quoteJson);
                     TempData.Keep("QuoteRequest");
                 }
                 catch (Exception ex)

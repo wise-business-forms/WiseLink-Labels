@@ -53,7 +53,7 @@ namespace WiseLabels.Pages
             {
                 try
                 {
-                    var quoteJson = quoteData.ToString() ?? "{}";
+                    var quoteJson = Convert.ToString(quoteData) ?? "{}";
                     QuoteRequest = JsonSerializer.Deserialize<QuoteRequest>(quoteJson) ?? new QuoteRequest();
                     // Keep the original JSON in TempData so it's available for Edit redirect
                     TempData["QuoteRequest"] = quoteJson;
@@ -202,7 +202,8 @@ namespace WiseLabels.Pages
 
             try
             {
-                quote = JsonSerializer.Deserialize<QuoteRequest>(quoteData.ToString() ?? "{}");
+                var quoteJson = Convert.ToString(quoteData) ?? "{}";
+                quote = JsonSerializer.Deserialize<QuoteRequest>(quoteJson);
                 if (quote == null)
                 {
                     return RedirectToPage("/Index");
@@ -382,7 +383,7 @@ namespace WiseLabels.Pages
             if (TempData.TryGetValue("QuoteRequest", out var quoteData))
             {
                 // Repopulate TempData to ensure it survives the redirect to Index
-                var quoteJson = quoteData.ToString() ?? "{}";
+                var quoteJson = Convert.ToString(quoteData) ?? "{}";
                 TempData["QuoteRequest"] = quoteJson;
                 TempData.Keep("QuoteRequest");
                 _logger.LogInformation("Quote data preserved in TempData for edit redirect");

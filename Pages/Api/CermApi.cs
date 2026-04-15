@@ -50,7 +50,16 @@ namespace WiseLabels.Pages.Api
                 }
 
                 // Fetch data from API (no filtering)
-                var result = await FetchAPIResultsAsync(ApiRequestUrl.ToString(), accessToken);
+                string apiRequestUrl = ApiRequestUrl.ToString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(apiRequestUrl))
+                {
+                    return new JsonResult(new { error = "Server configuration error: CERM API URL not configured" })
+                    {
+                        StatusCode = 500
+                    };
+                }
+
+                var result = await FetchAPIResultsAsync(apiRequestUrl, accessToken);
 
                 return new JsonResult(new { data = result });
             }

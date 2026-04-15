@@ -62,8 +62,9 @@ namespace WiseLabels.Pages.Customers
             // Load customer
             var customerQuery = _context.Customers
                 .AsNoTracking()
-                .Where(c => !c.Name.StartsWith("#") && !c.Name.StartsWith("*") && !c.Name.StartsWith("-") &&
-                           !c.Id.StartsWith("#") && !c.Id.StartsWith("*") && !c.Id.StartsWith("-"));
+                .Where(c => c.Name != null && c.Id != null &&
+                           !(c.Name ?? string.Empty).StartsWith("#") && !(c.Name ?? string.Empty).StartsWith("*") && !(c.Name ?? string.Empty).StartsWith("-") &&
+                           !(c.Id ?? string.Empty).StartsWith("#") && !(c.Id ?? string.Empty).StartsWith("*") && !(c.Id ?? string.Empty).StartsWith("-"));
 
             // Apply filtering if needed
             if (shouldFilter && !string.IsNullOrWhiteSpace(effectiveUserId))
