@@ -1,0 +1,178 @@
+/**
+ * style-arial.css
+ * 
+ * CSS stylesheet that uses Arial as the primary font family with appropriate
+ * fallbacks for web standards compliance and cross-browser compatibility.
+ */
+
+/* Global font settings for the entire HTML document */
+html {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* Body element styling */
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 20px;
+  font-size: 0.875rem; /* 14px */
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: bold;
+  line-height: 1.2;
+  margin: 0 0 1rem 0;
+}
+
+h1 {
+  font-size: 2rem; /* 32px */
+}
+
+h2 {
+  font-size: 1.75rem; /* 28px */
+}
+
+h3 {
+  font-size: 1.5rem; /* 24px */
+}
+
+h4 {
+  font-size: 1.25rem; /* 20px */
+}
+
+h5 {
+  font-size: 1.125rem; /* 18px */
+}
+
+h6 {
+  font-size: 1rem; /* 16px */
+}
+
+/* Paragraphs */
+p {
+  font-family: Arial, Helvetica, sans-serif;
+  margin: 0 0 1rem 0;
+}
+
+/* Form elements */
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="password"],
+textarea,
+select {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.875rem; /* 14px */
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* Buttons */
+button,
+input[type="submit"],
+input[type="button"],
+input[type="reset"] {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.875rem; /* 14px */
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+/* Labels */
+label {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.875rem; /* 14px */
+  font-weight: normal;
+}
+
+/* Tables */
+table {
+  font-family: Arial, Helvetica, sans-serif;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th, td {
+  font-family: Arial, Helvetica, sans-serif;
+  text-align: left;
+  padding: 8px;
+}
+
+/* Links */
+a {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #007bff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Lists */
+ul, ol {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Code and preformatted text */
+code, pre {
+  font-family: 'Courier New', Courier, monospace;
+  background-color: #f4f4f4;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+pre {
+  padding: 10px;
+  overflow-x: auto;
+}
+
+/* Utility classes */
+.text-small {
+  font-size: 0.75rem; /* 12px */
+}
+
+.text-large {
+  font-size: 1.125rem; /* 18px */
+}
+
+.text-bold {
+  font-weight: bold;
+}
+
+.text-normal {
+  font-weight: normal;
+}
+
+/* Form-specific classes for compatibility */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+}
+
+.form-group label {
+  margin: 0 0 2px 0;
+  font-weight: normal;
+  font-size: 0.75rem; /* 12px */
+}
+
+.form-header > div,
+.form-row > div {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.75rem; /* 12px */
+}
+
+.form-title {
+  margin: 0 0 20px;
+  font-size: 1.25rem; /* 20px */
+  text-align: center;
+}
