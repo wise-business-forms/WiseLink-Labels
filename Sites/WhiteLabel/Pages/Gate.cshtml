@@ -1,0 +1,89 @@
+@page "/gate/{token?}"
+@model WiseLabels.WhiteLabel.Pages.GateModel
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(Model.Profile?.CompanyName ?? "WiseLink Labels") — Order Portal</title>
+    <link rel="stylesheet" href="~/css/whitelabel-base.css" />
+    @if (!string.IsNullOrEmpty(Model.Profile?.PrimaryColor))
+    {
+        <!-- Inline CSS variable override for the distributor's brand color -->
+        <style>
+            :root { --portal-primary: @Model.Profile.PrimaryColor; }
+        </style>
+    }
+</head>
+<body class="gate-page">
+    <main class="gate-container">
+
+        @* Show the distributor's logo if provided, otherwise fall back to WiseLink logo *@
+        @if (!string.IsNullOrEmpty(Model.Profile?.LogoUrl))
+        {
+            <img src="@Model.Profile.LogoUrl"
+                 alt="@(!string.IsNullOrEmpty(Model.Profile.LogoAlt) ? Model.Profile.LogoAlt : Model.Profile.CompanyName)"
+                 class="gate-logo" />
+        }
+        else
+        {
+            <img src="~/img/wise-logo-blue.png" alt="WiseLink Labels" class="gate-logo" />
+        }
+
+        @if (Model.TokenValid && Model.Profile is not null)
+        {
+            <h1>Welcome from @Model.Profile.CompanyName</h1>
+            <p>
+                @Model.Profile.CompanyName has invited you to place a custom label order
+                through this private ordering portal, powered by WiseLink Labels.
+            </p>
+
+            @* Distributor contact info block *@
+            @if (!string.IsNullOrEmpty(Model.Profile.ContactName) ||
+                 !string.IsNullOrEmpty(Model.Profile.ContactPhone) ||
+                 !string.IsNullOrEmpty(Model.Profile.ContactEmail))
+            {
+                <div class="distributor-contact">
+                    <strong>Your @Model.Profile.CompanyName Contact</strong>
+                    @if (!string.IsNullOrEmpty(Model.Profile.ContactName))
+                    {
+                        <span>@Model.Profile.ContactName</span>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Profile.ContactPhone))
+                    {
+                        <a href="tel:@Model.Profile.ContactPhone">@Model.Profile.ContactPhone</a>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.Profile.ContactEmail))
+                    {
+                        <a href="mailto:@Model.Profile.ContactEmail">@Model.Profile.ContactEmail</a>
+                    }
+                </div>
+            }
+
+            <form method="post" asp-page-handler="Acknowledge">
+                @Html.AntiForgeryToken()
+                <label class="gate-checkbox">
+                    <input type="checkbox" name="confirmed" value="true" required />
+                    I confirm I have received this private ordering link from
+                    @Model.Profile.CompanyName and agree to the
+                    <a href="/Privacy" target="_blank">terms of use</a>.
+                </label>
+                <button type="submit" class="gate-btn">Proceed to Order Form</button>
+            </form>
+        }
+        else
+        {
+            <h1>Access Not Authorized</h1>
+            <p>
+                This link is not valid or has expired.
+                Please contact your representative for a new link.
+            </p>
+        }
+
+        <footer class="gate-footer">
+            Ordering powered by <a href="https://wiselabels.com" target="_blank">WiseLink Labels</a>
+        </footer>
+    </main>
+</body>
+</html>

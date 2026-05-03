@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!--
+      This is a Razor Class Library (RCL).
+      The three portal projects (Dist, EndUser, Partner) reference this project
+      to share Razor Pages, services, models, and static assets.
+    -->
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    <RazorCompileOnBuild>true</RazorCompileOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>
