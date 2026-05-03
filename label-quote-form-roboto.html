@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Label Quote Form - With Roboto Font</title>
+    <!-- Include the Roboto font stylesheet -->
+    <link rel="stylesheet" href="styles/style1.css">
+    <style>
+        /* Additional form-specific styles */
+        body {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        form div {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: inline-block;
+            width: 200px;
+            font-weight: 500;
+        }
+        
+        input[type="number"],
+        select,
+        input[type="file"] {
+            width: 300px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Label Quote Form</h1>
+    <p>This form uses the Roboto font for a modern, clean appearance.</p>
+    
+    <form action="#" method="post">
+        <div>
+            <label for="label-shape">Label Shape:</label>
+            <select id="label-shape" name="label-shape">
+                <option value="rectangle">Rectangle</option>
+                <option value="square">Square</option>
+                <option value="circle">Circle</option>
+                <option value="oval">Oval</option>
+                <option value="custom">Custom</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="label-width">Label Width (min: 1, max: 10):</label>
+            <input type="number" id="label-width" name="label-width" min="1" max="10" required>
+        </div>
+
+        <div>
+            <label for="label-height">Label Height (min: 1, max: 10):</label>
+            <input type="number" id="label-height" name="label-height" min="1" max="10" required>
+        </div>
+
+        <div>
+            <label for="cutting-die">Cutting Die:</label>
+            <select id="cutting-die" name="cutting-die">
+                <option value="stock">Stock</option>
+                <option value="custom">Custom</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="corners">Corners:</label>
+            <select id="corners" name="corners">
+                <option value="rounded">Rounded</option>
+                <option value="square">Square</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="material">Material:</label>
+            <select id="material" name="material">
+                <option value="water-oil-resistant-paper">Water/Oil Resistant Paper</option>
+                <option value="white-bopp">White BOPP</option>
+                <!-- Add more materials as needed -->
+            </select>
+        </div>
+
+        <div>
+            <label for="finish">Finish:</label>
+            <select id="finish" name="finish">
+                <option value="gloss">Gloss</option>
+                <option value="matte">Matte</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="application-method">Application Method:</label>
+            <select id="application-method" name="application-method">
+                <option value="hand">Hand</option>
+                <option value="machine">Machine</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="unwind-direction">Unwind Direction:</label>
+            <select id="unwind-direction" name="unwind-direction">
+                <option value="top">Top</option>
+                <option value="bottom">Bottom</option>
+                <option value="right">Right</option>
+                <option value="left">Left</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="versions">Versions:</label>
+            <input type="number" id="versions" name="versions" required>
+        </div>
+
+        <div>
+            <label for="total-quantity">Total Quantity:</label>
+            <input type="number" id="total-quantity" name="total-quantity" required>
+        </div>
+
+        <div>
+            <label for="artwork-upload">Artwork Upload:</label>
+            <input type="file" id="artwork-upload" name="artwork-upload" accept=".jpg,.jpeg,.png,.pdf">
+        </div>
+
+        <div>
+            <button type="submit">Submit</button>
+        </div>
+    </form>
+</body>
+</html>
