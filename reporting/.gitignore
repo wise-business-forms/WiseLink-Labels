@@ -1,0 +1,34 @@
+# Environment variables and secrets
+.env
+.env.local
+*.token
+secrets/
+
+# Data exports (regenerate with script)
+data/
+*.csv
+*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Power BI
+*.pbix.backup
+.pbix~

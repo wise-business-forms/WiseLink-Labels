@@ -10,7 +10,7 @@ let
     
     // GraphQL Query to fetch closed issues with closed_by information
     GraphQLQuery = "query {
-  repository(owner: ""wise-business-forms"", name: ""WiseLink-Labels"") {
+  repository(owner: \"wise-business-forms\", name: \"WiseLink-Labels\") {
     issues(first: 100, states: CLOSED, orderBy: {field: UPDATED_AT, direction: DESC}) {
       nodes {
         number
@@ -39,7 +39,7 @@ let
                 #"Accept" = "application/vnd.github.v3+json",
                 #"User-Agent" = "PowerBI"
             ],
-            Body = Json.FromText("{""query"": """ & Text.Replace(query, """", "\""") & """}"),
+            Body = Json.FromText("{\"query\": \"" & Text.Replace(query, "\"", "\\"") & "\"}"),
             Response = Json.Document(Web.Contents(Url, [Headers=Headers, Content=Body])),
             Data = Response[data][repository][issues][nodes]
         in
