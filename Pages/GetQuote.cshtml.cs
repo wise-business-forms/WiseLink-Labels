@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text.Json;
 using CERM.DataAccess;
 using CERM.DataAccess.Models;
@@ -20,13 +20,15 @@ namespace WiseLabels.Pages
         private readonly CermDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly IQuoteService _quoteService;
+        private readonly ILineItemCatalogService _lineItemCatalog;
 
-        public GetQuoteModel(ILogger<GetQuoteModel> logger, CermDbContext context, IConfiguration configuration, IQuoteService quoteService)
+        public GetQuoteModel(ILogger<GetQuoteModel> logger, CermDbContext context, IConfiguration configuration, IQuoteService quoteService, ILineItemCatalogService lineItemCatalog)
         {
             _logger = logger;
             _context = context;
             _configuration = configuration;
             _quoteService = quoteService;
+            _lineItemCatalog = lineItemCatalog;
             PrintingFinishFilters = _configuration
                 .GetSection("QuoteOptions:PrintingFinishFilters")
                 .Get<Dictionary<string, string[]>>()
@@ -41,6 +43,49 @@ namespace WiseLabels.Pages
         public string? ApiRequestJson { get; set; }
         /// <summary>JSON response from CERM API (for debugging on error).</summary>
         public string? ApiResponseJson { get; set; }
+        /// <summary>Charges offered for this quote, with rule-driven pre-selection applied.</summary>
+        public IReadOnlyList<QuoteLineItem> LineItemCatalog { get; private set; } = Array.Empty<QuoteLineItem>();
+
+        /// <summary>
+        /// Loads the charge catalogue for the current form state, merging in any
+        /// selections carried by a saved quote so an edited quote round-trips.
+        /// </summary>
+        private async Task LoadLineItemCatalogAsync()
+        {
+            var context = new LineItemContext(
+                CustomerId: SavedQuoteRequest?.CustomerId,
+                PrintingId: SavedQuoteRequest?.PrintingValue,
+                ShapeValue: SavedQuoteRequest?.ShapeValue,
+                CornersValue: SavedQuoteRequest?.CornersValue,
+                IsCustomDie: SavedQuoteRequest?.IsCustomDie ?? false,
+                HasExistingDie: !string.IsNullOrWhiteSpace(SavedQuoteRequest?.CuttingDieValue)
+                                || !string.IsNullOrWhiteSpace(SavedQuoteRequest?.CuttingDie));
+
+            LineItemCatalog = await _lineItemCatalog.GetCatalogAsync(context, SavedQuoteRequest?.LineItems);
+        }
+
+        /// <summary>
+        /// Reads the line item grid's single JSON field. Only selection and quantity are
+        /// taken from it; everything price-bearing is re-resolved from CERM.
+        /// </summary>
+        private List<QuoteLineItem> ParseLineItemsFromForm(IFormCollection form)
+        {
+            var json = form["lineItemsJson"].ToString();
+            if (string.IsNullOrWhiteSpace(json)) return new List<QuoteLineItem>();
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<QuoteLineItem>>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                }) ?? new List<QuoteLineItem>();
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Could not parse posted line items; the quote will be priced without charges.");
+                return new List<QuoteLineItem>();
+            }
+        }
 
         public async Task OnGetAsync()
         {
@@ -115,6 +160,7 @@ namespace WiseLabels.Pages
             {
                 SavedQuoteRequest = chatQuoteData;
                 _logger.LogInformation("Prepopulating quote form from chat data");
+                await LoadLineItemCatalogAsync();
                 return;
             }
 
@@ -125,6 +171,7 @@ namespace WiseLabels.Pages
                 {
                     var quoteJson = Convert.ToString(quoteData) ?? "{}";
                     SavedQuoteRequest = JsonSerializer.Deserialize<QuoteRequest>(quoteJson);
+                    QuoteRequestCompat.UpgradeLegacyLineItems(SavedQuoteRequest);
                     TempData.Keep("QuoteRequest");
                 }
                 catch (Exception ex)
@@ -172,6 +219,8 @@ namespace WiseLabels.Pages
             {
                 SavedQuoteRequest = selectedQuote;
             }
+
+            await LoadLineItemCatalogAsync();
         }
 
         public async Task<IActionResult> OnPostSubmitAsync()
@@ -194,7 +243,8 @@ namespace WiseLabels.Pages
                     if (artworkFile.Length > maxFileSize)
                     {
                         ModelState.AddModelError(string.Empty, "File size exceeds 50 MB limit.");
-                        SavedQuoteRequest = BuildQuoteRequestFromForm(form);
+                        SavedQuoteRequest = BuildQuoteRequest(form);
+                        await LoadLineItemCatalogAsync();
                         return Page();
                     }
 
@@ -228,18 +278,14 @@ namespace WiseLabels.Pages
                 {
                     _logger.LogError(ex, "Error uploading file");
                     ModelState.AddModelError(string.Empty, "Failed to upload file. Please try again.");
-                    SavedQuoteRequest = BuildQuoteRequestFromForm(form);
+                    SavedQuoteRequest = BuildQuoteRequest(form);
+                    await LoadLineItemCatalogAsync();
                     return Page();
                 }
             }
 
-            var materialId = GetFormValue(form, "material", "materialValue");
-            var materialLabel = GetFormValue(form, "materialDisplay", "materialLabel");
-            var rawShapeValue = GetFormValue(form, "shapeValue", "shapeKey");
-            var shapeLabel = form["shape"].ToString();
-            var resolvedShapeValue = ResolveShapeOutline(rawShapeValue, shapeLabel);
-
-            // Load customer info from form fields (hidden inputs carry the values through POST)
+            // Customer resolution has a session side effect (it clears the stashed
+            // selection), so it stays on the submit path and is passed into the builder.
             var customerId = form["customerId"].ToString();
             var customerDisplayName = form["customerDisplayName"].ToString();
             if (string.IsNullOrWhiteSpace(customerId))
@@ -253,57 +299,14 @@ namespace WiseLabels.Pages
                 LoadSelectedQuoteFromSession(); // clear session
             }
 
-            var quoteRequest = new QuoteRequest
-            {
-                CustomerId = customerId,
-                CustomerDisplayName = customerDisplayName,
-                Name = GetFormValue(form, "name", "contactName"),
-                Company = GetFormValue(form, "company", "contactCompany"),
-                Email = GetFormValue(form, "email", "contactEmail"),
-                Phone = GetFormValue(form, "phone", "contactPhone"),
-                Comments = GetFormValue(form, "comments", "contactComments"),
-                ReferenceType = form["referenceType"].ToString().Trim(),
-                ReferenceValue = form["referenceValue"].ToString().Trim(),
-                Description = TruncateDescription(form["description"].ToString()),
-                Shape = shapeLabel,
-                LabelWidth = form["labelWidth"].ToString(),
-                LabelHeight = form["labelHeight"].ToString(),
-                Diameter = form["diameter"].ToString(),
-                Corners = form["corners"].ToString(),
-                CuttingDie = form["existingDie"].ToString(),
-                DieSizeInfo = form["dieSizeInfo"].ToString(),
-                IsCustomDie = form["isCustomDie"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase),
-                ColorChanges = int.TryParse(form["colorChanges"].ToString(), out var colorChanges) ? colorChanges : (int?)null,
-                DigitalVersionChanges = int.TryParse(form["digitalVersionChanges"].ToString(), out var digitalVersionChanges) ? digitalVersionChanges : (int?)null,
-                NeedsPressProof = form["needsPressProof"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase),
-                PressProofQuantity = int.TryParse(form["pressProofQuantity"].ToString(), out var pressProofQuantity) ? pressProofQuantity : (int?)null,
-                NeedsSpotColorPlateChange = form["needsSpotColorPlateChange"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase),
-                SpotColorPlateChangeQuantity = int.TryParse(form["spotColorPlateChangeQuantity"].ToString(), out var spotColorPlateChangeQuantity) ? spotColorPlateChangeQuantity : (int?)null,
-                Printing = form["printing"].ToString(),
-                Material = string.IsNullOrEmpty(materialLabel) ? materialId : materialLabel,
-                ColorCode = form["colorCode"].ToString(),
-                Finish = form["finish"].ToString(),
-                PackingProcedure = form["packingProcedure"].ToString(),
-                ApplicationMethod = form["applicationMethod"].ToString(),
-                UnwindDirection = form["unwindDirection"].ToString(),
-                TotalQuantity = form["totalQuantity"].ToString(),
-                Quantities = ParseQuantitiesFromForm(form),
-                ArtworkOption = form["artworkOption"].ToString(),
-                ShapeValue = resolvedShapeValue,
-                CornersValue = form["cornersValue"].ToString(),
-                MaterialValue = materialId,
-                ColorCodeValue = form["colorCodeValue"].ToString(),
-                FinishValue = form["finishValue"].ToString(),
-                ApplicationMethodValue = form["applicationMethodValue"].ToString(),
-                UnwindDirectionValue = form["unwindDirectionValue"].ToString(),
-                ArtworkOptionValue = form["artworkOptionValue"].ToString(),
-                CuttingDieValue = form["cuttingDieValue"].ToString(),
-                PrintingValue = form["printingValue"].ToString(),
-                UploadedFileName = uploadedFileName,
-                UploadedFileOriginalName = uploadedFileOriginalName,
-                UploadedFileContentType = uploadedFileContentType,
-                UploadedFileSize = uploadedFileSize
-            };
+            var quoteRequest = BuildQuoteRequest(
+                form,
+                customerId,
+                customerDisplayName,
+                uploadedFileName,
+                uploadedFileOriginalName,
+                uploadedFileContentType,
+                uploadedFileSize);
 
             // Log the JSON request being submitted
             var jsonRequest = JsonSerializer.Serialize(quoteRequest, new JsonSerializerOptions 
@@ -341,6 +344,7 @@ namespace WiseLabels.Pages
             if (!ModelState.IsValid)
             {
                 SavedQuoteRequest = quoteRequest;
+                await LoadLineItemCatalogAsync();
                 return Page();
             }
 
@@ -359,6 +363,7 @@ namespace WiseLabels.Pages
                 });
                 ApiResponseJson = pricingResult.ResponseJson;
 
+                await LoadLineItemCatalogAsync();
                 return Page();
             }
 
@@ -454,6 +459,7 @@ namespace WiseLabels.Pages
             try
             {
                 var selection = JsonSerializer.Deserialize<QuoteRequest>(value);
+                QuoteRequestCompat.UpgradeLegacyLineItems(selection);
                 HttpContext.Session.Remove(SessionKeys.SelectedQuote);
                 return selection;
             }
@@ -548,22 +554,84 @@ namespace WiseLabels.Pages
             };
         }
 
-        private QuoteRequest BuildQuoteRequestFromForm(IFormCollection form)
+        /// <summary>
+        /// Builds a <see cref="QuoteRequest"/> from the posted form.
+        /// This is the single binder used by the submit path and by both file-upload
+        /// failure paths, so a validation error never silently drops fields.
+        /// </summary>
+        private QuoteRequest BuildQuoteRequest(
+            IFormCollection form,
+            string? customerId = null,
+            string? customerDisplayName = null,
+            string? uploadedFileName = null,
+            string? uploadedFileOriginalName = null,
+            string? uploadedFileContentType = null,
+            long? uploadedFileSize = null)
         {
+            var materialId = GetFormValue(form, "material", "materialValue");
+            var materialLabel = GetFormValue(form, "materialDisplay", "materialLabel");
+            var rawShapeValue = GetFormValue(form, "shapeValue", "shapeKey");
+            var shapeLabel = form["shape"].ToString();
+            var resolvedShapeValue = ResolveShapeOutline(rawShapeValue, shapeLabel);
+
+            if (string.IsNullOrWhiteSpace(customerId))
+            {
+                customerId = form["customerId"].ToString();
+            }
+            if (string.IsNullOrWhiteSpace(customerDisplayName))
+            {
+                customerDisplayName = form["customerDisplayName"].ToString();
+            }
+
             return new QuoteRequest
             {
-                Name = form["name"].ToString(),
-                Company = form["company"].ToString(),
-                Email = form["email"].ToString(),
-                Phone = form["phone"].ToString(),
-                Comments = form["comments"].ToString(),
-                Description = form["description"].ToString(),
-                Shape = form["shape"].ToString(),
+                CustomerId = customerId,
+                CustomerDisplayName = customerDisplayName,
+                Name = GetFormValue(form, "name", "contactName"),
+                Company = GetFormValue(form, "company", "contactCompany"),
+                Email = GetFormValue(form, "email", "contactEmail"),
+                Phone = GetFormValue(form, "phone", "contactPhone"),
+                Comments = GetFormValue(form, "comments", "contactComments"),
+                ReferenceType = form["referenceType"].ToString().Trim(),
+                ReferenceValue = form["referenceValue"].ToString().Trim(),
+                Description = TruncateDescription(form["description"].ToString()),
+                Shape = shapeLabel,
                 LabelWidth = form["labelWidth"].ToString(),
                 LabelHeight = form["labelHeight"].ToString(),
-                Material = form["materialDisplay"].ToString(),
+                Diameter = form["diameter"].ToString(),
+                Corners = form["corners"].ToString(),
+                CuttingDie = form["existingDie"].ToString(),
+                DieSizeInfo = form["dieSizeInfo"].ToString(),
+                IsCustomDie = form["isCustomDie"].ToString().Equals("true", StringComparison.OrdinalIgnoreCase),
                 Printing = form["printing"].ToString(),
-                Finish = form["finish"].ToString()
+                Material = string.IsNullOrEmpty(materialLabel) ? materialId : materialLabel,
+                ColorCode = form["colorCode"].ToString(),
+                Finish = form["finish"].ToString(),
+                PackingProcedure = form["packingProcedure"].ToString(),
+                // Both of these were posted by the form but never bound, so QuoteService
+                // always fell back to its Sheet/500 defaults.
+                PackingProcedureValue = form["packingProcedureValue"].ToString(),
+                PackingQuantity = int.TryParse(form["packingQuantity"].ToString(), out var packingQuantity) ? packingQuantity : (int?)null,
+                ApplicationMethod = form["applicationMethod"].ToString(),
+                UnwindDirection = form["unwindDirection"].ToString(),
+                TotalQuantity = form["totalQuantity"].ToString(),
+                Quantities = ParseQuantitiesFromForm(form),
+                LineItems = ParseLineItemsFromForm(form),
+                ArtworkOption = form["artworkOption"].ToString(),
+                ShapeValue = resolvedShapeValue,
+                CornersValue = form["cornersValue"].ToString(),
+                MaterialValue = materialId,
+                ColorCodeValue = form["colorCodeValue"].ToString(),
+                FinishValue = form["finishValue"].ToString(),
+                ApplicationMethodValue = form["applicationMethodValue"].ToString(),
+                UnwindDirectionValue = form["unwindDirectionValue"].ToString(),
+                ArtworkOptionValue = form["artworkOptionValue"].ToString(),
+                CuttingDieValue = form["cuttingDieValue"].ToString(),
+                PrintingValue = form["printingValue"].ToString(),
+                UploadedFileName = uploadedFileName,
+                UploadedFileOriginalName = uploadedFileOriginalName,
+                UploadedFileContentType = uploadedFileContentType,
+                UploadedFileSize = uploadedFileSize
             };
         }
     }

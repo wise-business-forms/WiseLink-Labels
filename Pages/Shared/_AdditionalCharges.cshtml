@@ -1,0 +1,68 @@
+@model IReadOnlyList<WiseLabels.Models.QuoteLineItem>
+@using WiseLabels.Models
+@{
+    // One renderer for the Confirm page, the Success page and (via EmailService) the
+    // confirmation email, so the three can no longer disagree about what was quoted.
+    var charges = (Model ?? Array.Empty<QuoteLineItem>())
+        .Where(i => i.Selected)
+        .OrderBy(i => i.Order)
+        .ToList();
+    var grandTotal = LineItemPricing.TotalOf(charges);
+    string Money(decimal value) => value.ToString("C2");
+}
+
+<section class="additional-charges">
+    <h3>Additional Charges (if applicable)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 55%;">Description</th>
+                <th style="width: 15%;" class="text-right">Qty</th>
+                <th style="width: 15%;" class="text-right">Unit Price</th>
+                <th style="width: 15%;" class="text-right">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (charges.Count == 0)
+            {
+                <tr>
+                    <td colspan="4" style="text-align:center; color:#94a3b8; font-style:italic;">
+                        No additional charges were added to this quote.
+                    </td>
+                </tr>
+            }
+            else
+            {
+                foreach (var charge in charges)
+                {
+                    <tr>
+                        <td style="font-weight: 600;">
+                            @charge.Description
+                            @if (!string.IsNullOrWhiteSpace(charge.Description2))
+                            {
+                                <br />
+                                <span style="font-weight: normal;">@charge.Description2</span>
+                            }
+                            @if (LineItemPricing.IsQuantityBased(charge.PriceBasis))
+                            {
+                                <br />
+                                <small style="color:#64748b; font-weight: normal;">
+                                    @charge.Quantity.ToString("0.##") &times; @Money(charge.UnitPrice) @LineItemPricing.BasisLabel(charge.PriceBasis)
+                                </small>
+                            }
+                        </td>
+                        <td class="text-right">
+                            @(LineItemPricing.IsQuantityBased(charge.PriceBasis) ? charge.Quantity.ToString("0.##") : "—")
+                        </td>
+                        <td class="text-right">@Money(charge.UnitPrice)</td>
+                        <td class="text-right" style="font-weight: 600;">@Money(charge.Total)</td>
+                    </tr>
+                }
+                <tr>
+                    <td colspan="3" class="text-right" style="font-weight: 700;">Total additional charges</td>
+                    <td class="text-right" style="font-weight: 700;">@Money(grandTotal)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</section>

@@ -316,101 +316,7 @@
                 <div id="printing-error" class="form-text text-danger d-none"></div>
             </div>
 
-            <div class="mb-4 d-none" id="line-items-section">
-                <h5 class="form-label fw-semibold mb-3">Line Items</h5>
-                <div class="border rounded p-3">
-                    @if (Model.SavedQuoteRequest != null)
-                    {
-                        <div class="alert alert-warning alert-sm mb-3 d-none" role="alert" id="line-items-warning-alert">
-                            <strong>?? Action Required:</strong> Please review and fill out the line item fields below based on your quote requirements.
-                        </div>
-                    }
-
-                    <div class="mb-3 d-none" id="color-changes-section">
-                        <label for="color-changes" class="form-label fw-semibold">Number of Color Changes</label>
-                        <input 
-                            type="number" 
-                            class="form-control" 
-                            id="color-changes"
-                            name="colorChanges"
-                            min="0"
-                            step="1"
-                            placeholder="Enter number of color changes"
-                            value="@(Model.SavedQuoteRequest?.ColorChanges?.ToString() ?? string.Empty)">
-                        <div class="form-text">Enter the number of color changes needed for this job. Each change will be charged separately.</div>
-                    </div>
-
-                    <div class="mb-3 d-none" id="digital-version-changes-section">
-                        <label for="digital-version-changes" class="form-label fw-semibold">Number of Digital Full Color Version Changes</label>
-                        <input 
-                            type="number" 
-                            class="form-control" 
-                            id="digital-version-changes"
-                            name="digitalVersionChanges"
-                            min="0"
-                            step="1"
-                            placeholder="Enter number of version changes"
-                            value="@(Model.SavedQuoteRequest?.DigitalVersionChanges?.ToString() ?? string.Empty)">
-                        <div class="form-text">Enter the number of version changes needed for this digital job. Each version change will be charged separately.</div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input 
-                                class="form-check-input" 
-                                type="checkbox" 
-                                id="needs-press-proof"
-                                name="needsPressProof"
-                                value="true"
-                                @(Model.SavedQuoteRequest?.NeedsPressProof == true ? "checked" : "")>
-                            <label class="form-check-label" for="needs-press-proof">
-                                Press Proof - Print Only, Not Die Cut
-                            </label>
-                        </div>
-                        <div class="mt-2 d-none" id="press-proof-quantity-section">
-                            <label for="press-proof-quantity" class="form-label">Press Proof Quantity</label>
-                            <input 
-                                type="number" 
-                                class="form-control" 
-                                id="press-proof-quantity"
-                                name="pressProofQuantity"
-                                min="1"
-                                step="1"
-                                placeholder="1"
-                                value="@(Model.SavedQuoteRequest?.PressProofQuantity ?? 1)">
-                            <div class="form-text">Enter the quantity for the press proof.</div>
-                        </div>
-                    </div>
-
-                    <div class="mb-0">
-                        <div class="form-check">
-                            <input 
-                                class="form-check-input" 
-                                type="checkbox" 
-                                id="needs-spot-color-plate-change"
-                                name="needsSpotColorPlateChange"
-                                value="true"
-                                @(Model.SavedQuoteRequest?.NeedsSpotColorPlateChange == true ? "checked" : "")>
-                            <label class="form-check-label" for="needs-spot-color-plate-change">
-                                Spot Color Plate/Copy Change
-                            </label>
-                        </div>
-                        <div class="mt-2 d-none" id="spot-color-plate-change-quantity-section">
-                            <label for="spot-color-plate-change-quantity" class="form-label">Plate/Copy Change Quantity</label>
-                            <input 
-                                type="number" 
-                                class="form-control" 
-                                id="spot-color-plate-change-quantity"
-                                name="spotColorPlateChangeQuantity"
-                                min="1"
-                                step="1"
-                                placeholder="1"
-                                value="@(Model.SavedQuoteRequest?.SpotColorPlateChangeQuantity ?? 1)">
-                            <div class="form-text">Enter the quantity for plate/copy changes.</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            @await Html.PartialAsync("_LineItemsEditor", (IReadOnlyList<WiseLabels.Models.QuoteLineItem>)Model.LineItemCatalog)
 
             <div class="mb-4" id="finish-section">
                 <div class="d-flex align-items-center gap-2 mb-1">
@@ -694,9 +600,7 @@
                 'Unwind':        ['unwindDirection','unwindDirectionValue'],
                 'Quantities':    ['totalQuantity','quantity'],
                 'Artwork':       ['artworkOption','artworkOptionValue'],
-                'Press Proof':   ['needsPressProof','pressProofQuantity'],
-                'Spot Color':    ['needsSpotColorPlateChange','spotColorPlateChangeQuantity'],
-                'Color Changes': ['colorChanges','digitalVersionChanges'],
+                'Line Items':    ['lineItemsJson'],
             };
             const GROUP_CLASSES = {
                 Customer:'table-primary', Shape:'table-info', Dimensions:'table-info',
@@ -937,49 +841,6 @@
             </div>
         }
 
-        <script>
-            // Toggle Press Proof quantity section
-            (function() {
-                const checkbox = document.getElementById('needs-press-proof');
-                const quantitySection = document.getElementById('press-proof-quantity-section');
-
-                if (checkbox && quantitySection) {
-                    checkbox.addEventListener('change', function() {
-                        if (this.checked) {
-                            quantitySection.classList.remove('d-none');
-                        } else {
-                            quantitySection.classList.add('d-none');
-                        }
-                    });
-
-                    // Initialize on page load
-                    if (checkbox.checked) {
-                        quantitySection.classList.remove('d-none');
-                    }
-                }
-            })();
-
-            // Toggle Spot Color Plate Change quantity section
-            (function() {
-                const checkbox = document.getElementById('needs-spot-color-plate-change');
-                const quantitySection = document.getElementById('spot-color-plate-change-quantity-section');
-
-                if (checkbox && quantitySection) {
-                    checkbox.addEventListener('change', function() {
-                        if (this.checked) {
-                            quantitySection.classList.remove('d-none');
-                        } else {
-                            quantitySection.classList.add('d-none');
-                        }
-                    });
-
-                    // Initialize on page load
-                    if (checkbox.checked) {
-                        quantitySection.classList.remove('d-none');
-                    }
-                }
-            })();
-        </script>
 
         <script>
             function formatFileSize(bytes) {
@@ -1470,130 +1331,6 @@
                 }
             })();
 
-            (function () {
-                const colorChangesSection = document.getElementById('color-changes-section');
-                const colorChangesInput = document.getElementById('color-changes');
-                const digitalVersionChangesSection = document.getElementById('digital-version-changes-section');
-                const digitalVersionChangesInput = document.getElementById('digital-version-changes');
-                const lineItemsSection = document.getElementById('line-items-section');
-                const lineItemsWarningAlert = document.getElementById('line-items-warning-alert');
-                const pressProofCheckbox = document.getElementById('needs-press-proof');
-                const pressProofQuantityInput = document.getElementById('press-proof-quantity');
-                const spotColorCheckbox = document.getElementById('needs-spot-color-plate-change');
-                const spotColorQuantityInput = document.getElementById('spot-color-plate-change-quantity');
-
-                if (!colorChangesSection || !colorChangesInput || !digitalVersionChangesSection || !digitalVersionChangesInput || !lineItemsSection) {
-                    console.warn('Missing printing-dependent field elements');
-                    return;
-                }
-
-                let userHasInteracted = false;
-
-                function removeLineItemsAttention() {
-                    if (!lineItemsSection) return;
-
-                    userHasInteracted = true;
-                    lineItemsSection.classList.remove('needs-attention');
-                    if (lineItemsWarningAlert) {
-                        lineItemsWarningAlert.classList.add('d-none');
-                    }
-                }
-
-                function checkLineItemsAttention() {
-                    // Check if we're from a saved quote
-                    const savedQuoteElement = document.getElementById('saved-quote-data');
-                    if (!savedQuoteElement || !lineItemsSection) {
-                        return;
-                    }
-
-                    // Check if line items section is visible
-                    if (lineItemsSection.classList.contains('d-none')) {
-                        return;
-                    }
-
-                    // If user has already interacted with any field, don't re-apply highlighting
-                    if (userHasInteracted) {
-                        return;
-                    }
-
-                    // Check if any visible numeric inputs have no value or are still at the default 0 (not user-entered)
-                    // Only highlight if the fields appear to be untouched
-                    const colorChangesUntouched = !colorChangesSection.classList.contains('d-none') && !colorChangesInput.value;
-                    const digitalVersionUntouched = !digitalVersionChangesSection.classList.contains('d-none') && !digitalVersionChangesInput.value;
-                    const hasUntouchedFields = colorChangesUntouched || digitalVersionUntouched;
-
-                    if (hasUntouchedFields) {
-                        lineItemsSection.classList.add('needs-attention');
-                        if (lineItemsWarningAlert) {
-                            lineItemsWarningAlert.classList.remove('d-none');
-                        }
-                    } else {
-                        lineItemsSection.classList.remove('needs-attention');
-                        if (lineItemsWarningAlert) {
-                            lineItemsWarningAlert.classList.add('d-none');
-                        }
-                    }
-                }
-
-                function updatePrintingDependentFields(printingLabel) {
-                    const labelLower = (printingLabel || '').toLowerCase();
-                    const isSpotPrinting = labelLower.includes('spot');
-                    const isProcessColor = labelLower.includes('process') && labelLower.includes('color');
-
-                    console.log('Printing selection:', printingLabel, '| Spot:', isSpotPrinting, '| Process Color:', isProcessColor);
-
-                    // Show/hide color changes for spot printing
-                    colorChangesSection.classList.toggle('d-none', !isSpotPrinting);
-                    if (!isSpotPrinting) {
-                        colorChangesInput.value = ''; // Clear instead of setting to 0
-                    }
-
-                    // Show/hide digital version changes for process color
-                    digitalVersionChangesSection.classList.toggle('d-none', !isProcessColor);
-                    if (!isProcessColor) {
-                        digitalVersionChangesInput.value = ''; // Clear instead of setting to 0
-                    }
-
-                    // Show line items section if any subsection is visible
-                    const hasVisibleLineItems = isSpotPrinting || isProcessColor;
-                    lineItemsSection.classList.toggle('d-none', !hasVisibleLineItems);
-
-                    // Check if we need attention styling (only if user hasn't interacted yet)
-                    checkLineItemsAttention();
-                }
-
-                // Remove highlighting on ANY interaction with line items fields
-                colorChangesInput.addEventListener('input', removeLineItemsAttention);
-                colorChangesInput.addEventListener('change', removeLineItemsAttention);
-                digitalVersionChangesInput.addEventListener('input', removeLineItemsAttention);
-                digitalVersionChangesInput.addEventListener('change', removeLineItemsAttention);
-
-                if (pressProofCheckbox) {
-                    pressProofCheckbox.addEventListener('change', removeLineItemsAttention);
-                }
-                if (pressProofQuantityInput) {
-                    pressProofQuantityInput.addEventListener('input', removeLineItemsAttention);
-                    pressProofQuantityInput.addEventListener('change', removeLineItemsAttention);
-                }
-                if (spotColorCheckbox) {
-                    spotColorCheckbox.addEventListener('change', removeLineItemsAttention);
-                }
-                if (spotColorQuantityInput) {
-                    spotColorQuantityInput.addEventListener('input', removeLineItemsAttention);
-                    spotColorQuantityInput.addEventListener('change', removeLineItemsAttention);
-                }
-
-                // Listen for printing selection changes
-                window.addEventListener('printingSelectionChanged', event => {
-                    updatePrintingDependentFields(event.detail?.label || '');
-                });
-
-                // Check initial state
-                const printingInput = document.getElementById('printing-input');
-                if (printingInput && printingInput.value) {
-                    updatePrintingDependentFields(printingInput.value);
-                }
-            })();
 
             (function () {
                 const finishSelect = document.getElementById('finish-select');
@@ -2285,6 +2022,14 @@
                         const dieRadius = formatDimension(option.Radius__ ?? option.radius__ ?? '');
                         return dieRadius === radiusValue;
                     });
+
+                    // Keep the hidden die fields in step with the rectangular path. This
+                    // block previously updated only the warning banner, so a circular
+                    // custom die was never flagged and therefore never charged.
+                    const isCustomDieInput = document.getElementById('is-custom-die');
+                    const dieSizeInfoInput = document.getElementById('die-size-info');
+                    if (dieSizeInfoInput) dieSizeInfoInput.value = `${radiusValue}" dia.`;
+                    if (isCustomDieInput) isCustomDieInput.value = hasMatchingDie ? 'false' : 'true';
 
                     if (!hasMatchingDie && customDieWarningRadius && customRadiusSpan) {
                         customRadiusSpan.textContent = `${radiusValue}"`;
@@ -3103,6 +2848,7 @@
 </style>
 
 @section Scripts {
+<script src="~/js/line-items.js" asp-append-version="true"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
 <script>

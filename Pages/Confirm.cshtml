@@ -1,4 +1,4 @@
-@page
+﻿@page
 @model WiseLabels.Pages.ConfirmModel
 @using WiseLabels.Models
 @using System.Globalization
@@ -459,118 +459,7 @@
             </tbody>
         </table>
 
-        <section class="additional-charges">
-            <h3>Additional Charges (if applicable)</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 55%;">Description</th>
-                        <th style="width: 20%;" class="text-right">Price</th>
-                        <th style="width: 15%;">Units</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @* Additional line items for custom die and other charges *@
-                    @{
-                        var hasAnyCharges = (Model.QuoteRequest?.IsCustomDie == true && Model.AdditionalCharges.ContainsKey("CustomDie")) 
-                            || (Model.QuoteRequest?.ColorChanges > 0 && Model.AdditionalCharges.ContainsKey("ColorChanges"))
-                            || (Model.QuoteRequest?.DigitalVersionChanges > 0 && Model.AdditionalCharges.ContainsKey("DigitalVersionChanges"))
-                            || (Model.QuoteRequest?.NeedsPressProof == true && Model.AdditionalCharges.ContainsKey("PressProof"))
-                            || (Model.QuoteRequest?.NeedsSpotColorPlateChange == true && Model.AdditionalCharges.ContainsKey("SpotColorPlateChange"));
-                    }
-
-                    @if (Model.QuoteRequest?.IsCustomDie == true && Model.AdditionalCharges.TryGetValue("CustomDie", out var customDieCharge))
-                    {
-                        <tr style="background: #fef3c7;">
-                            <td style="font-weight: 600;">
-                                <span style="color: #92400e;">⚠️</span> Custom Die Fabrication
-                                <br />
-                                <small style="color: #78350f; font-weight: normal;">
-                                    Die Size: @FormatMaybeValue(Model.QuoteRequest?.DieSizeInfo)
-                                </small>
-                            </td>
-                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(customDieCharge.Price)</td>
-                            <td style="font-weight: 600;">@(customDieCharge.Unit)</td>
-                        </tr>
-                    }
-
-                    @if (Model.QuoteRequest?.ColorChanges > 0 && Model.AdditionalCharges.TryGetValue("ColorChanges", out var colorChangesCharge))
-                    {
-                        var totalColorChangePrice = colorChangesCharge.Price * Model.QuoteRequest.ColorChanges.Value;
-                        <tr style="background: #dbeafe;">
-                            <td style="font-weight: 600;">
-                                <span style="color: #1e40af;">🎨</span> Color Changes
-                                <br />
-                                <small style="color: #1e3a8a; font-weight: normal;">
-                                    @Model.QuoteRequest.ColorChanges changes × @FormatCurrency(colorChangesCharge.Price) per change
-                                </small>
-                            </td>
-                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(totalColorChangePrice)</td>
-                            <td style="font-weight: 600;">total</td>
-                        </tr>
-                    }
-
-                    @if (Model.QuoteRequest?.DigitalVersionChanges > 0 && Model.AdditionalCharges.TryGetValue("DigitalVersionChanges", out var digitalVersionChangesCharge))
-                    {
-                        var totalDigitalVersionChangePrice = digitalVersionChangesCharge.Price * Model.QuoteRequest.DigitalVersionChanges.Value;
-                        <tr style="background: #e0e7ff;">
-                            <td style="font-weight: 600;">
-                                <span style="color: #3730a3;">🖨️</span> Digital Full Color Version Changes
-                                <br />
-                                <small style="color: #312e81; font-weight: normal;">
-                                    @Model.QuoteRequest.DigitalVersionChanges changes × @FormatCurrency(digitalVersionChangesCharge.Price) per change
-                                </small>
-                            </td>
-                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(totalDigitalVersionChangePrice)</td>
-                            <td style="font-weight: 600;">total</td>
-                        </tr>
-                    }
-
-                    @if (Model.QuoteRequest?.NeedsPressProof == true && Model.AdditionalCharges.TryGetValue("PressProof", out var pressProofCharge))
-                    {
-                        var pressProofQty = Model.QuoteRequest.PressProofQuantity ?? 1;
-                        var totalPressProofPrice = pressProofCharge.Price * pressProofQty;
-                        <tr style="background: #fce7f3;">
-                            <td style="font-weight: 600;">
-                                <span style="color: #9f1239;">📄</span> Press Proof - Print Only, Not Die Cut
-                                <br />
-                                <small style="color: #881337; font-weight: normal;">
-                                    @pressProofQty × @FormatCurrency(pressProofCharge.Price) @(pressProofCharge.Unit)
-                                </small>
-                            </td>
-                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(totalPressProofPrice)</td>
-                            <td style="font-weight: 600;">total</td>
-                        </tr>
-                    }
-
-                    @if (Model.QuoteRequest?.NeedsSpotColorPlateChange == true && Model.AdditionalCharges.TryGetValue("SpotColorPlateChange", out var spotColorPlateChangeCharge))
-                    {
-                        var plateChangeQty = Model.QuoteRequest.SpotColorPlateChangeQuantity ?? 1;
-                        var totalPlateChangePrice = spotColorPlateChangeCharge.Price * plateChangeQty;
-                        <tr style="background: #fef9c3;">
-                            <td style="font-weight: 600;">
-                                <span style="color: #854d0e;">🎨</span> Spot Color Plate/Copy Change
-                                <br />
-                                <small style="color: #713f12; font-weight: normal;">
-                                    @plateChangeQty × @FormatCurrency(spotColorPlateChangeCharge.Price) @(spotColorPlateChangeCharge.Unit)
-                                </small>
-                            </td>
-                            <td class="text-right" style="font-weight: 600;">@FormatCurrency(totalPlateChangePrice)</td>
-                            <td style="font-weight: 600;">total</td>
-                        </tr>
-                    }
-
-                    @if (!hasAnyCharges)
-                    {
-                        <tr>
-                            <td colspan="3" style="text-align:center; color:#94a3b8; font-style:italic;">
-                                No additional charges were added to this quote.
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </section>
+        @await Html.PartialAsync("_AdditionalCharges", (IReadOnlyList<WiseLabels.Models.QuoteLineItem>)(Model.QuoteRequest?.LineItems ?? new List<WiseLabels.Models.QuoteLineItem>()))
 
         @if (Model.QuoteRequest != null)
         {
@@ -615,12 +504,9 @@
                                           ("quantities",                   q.Quantities != null ? string.Join(", ", q.Quantities) : null) }),
                 ("Artwork",       new[] { ("artworkOption",                q.ArtworkOption),
                                           ("artworkOptionValue",           q.ArtworkOptionValue) }),
-                ("Press Proof",   new[] { ("needsPressProof",              q.NeedsPressProof.ToString().ToLower()),
-                                          ("pressProofQuantity",           q.PressProofQuantity?.ToString()) }),
-                ("Spot Color",    new[] { ("needsSpotColorPlateChange",    q.NeedsSpotColorPlateChange.ToString().ToLower()),
-                                          ("spotColorPlateChangeQty",      q.SpotColorPlateChangeQuantity?.ToString()) }),
-                ("Color Changes", new[] { ("colorChanges",                 q.ColorChanges?.ToString()),
-                                          ("digitalVersionChanges",        q.DigitalVersionChanges?.ToString()) }),
+                ("Line Items",    new[] { ("selectedCount",                 (q.LineItems?.Count(li => li.Selected) ?? 0).ToString()),
+                                          ("chargesTotal",                 WiseLabels.Models.LineItemPricing.TotalOf(q.LineItems).ToString("C2")),
+                                          ("itemRefs",                     string.Join(", ", (q.LineItems ?? new List<WiseLabels.Models.QuoteLineItem>()).Where(li => li.Selected).Select(li => li.ItemRef))) }),
                 ("File",          new[] { ("uploadedFileName",             q.UploadedFileName),
                                           ("uploadedFileOriginalName",     q.UploadedFileOriginalName),
                                           ("uploadedFileSize",             q.UploadedFileSize?.ToString()) }),
@@ -744,4 +630,3 @@
 </script>
 
 <script src="~/js/site.js"></script>
-<script src="~/js/submit.js" asp-append-version="true"></script>

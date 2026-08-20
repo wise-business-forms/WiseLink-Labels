@@ -51,7 +51,7 @@ Each endpoint in `Pages/Api/` follows the same pattern: authenticate to CERM via
 ## External Dependencies
 
 - **CERM APIs** — OAuth token endpoint + parameter/calculation endpoints (configured in `Cerm:*` settings)
-- **SQL Server** — CERM database via EF Core (connection string: `CermDbConnection`)
+- **SQL Server** — CERM database via EF Core (connection string: `CermDatabase`)
 - **Ollama** (optional) — local LLM for chat feature at `localhost:11434`
 - **SMTP** (optional) — for email notifications
 

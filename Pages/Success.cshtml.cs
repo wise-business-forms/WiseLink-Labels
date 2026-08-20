@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WiseLabels.Models;
 using WiseLabels.Services;
@@ -45,20 +45,6 @@ namespace WiseLabels.Pages
         public bool EmailSent { get; set; }
         public QuoteRequest? QuoteRequest { get; set; }
         public DateTime SubmittedDate { get; set; } = DateTime.UtcNow;
-        public decimal? CustomDiePrice { get; set; }
-        public string? CustomDieUnit { get; set; }
-        public decimal? ColorChangesPrice { get; set; }
-        public string? ColorChangesUnit { get; set; }
-        public int? ColorChangesQty { get; set; }
-        public decimal? DigitalVersionChangesPrice { get; set; }
-        public string? DigitalVersionChangesUnit { get; set; }
-        public int? DigitalVersionChangesQty { get; set; }
-        public decimal? PressProofPrice { get; set; }
-        public string? PressProofUnit { get; set; }
-        public int? PressProofQty { get; set; }
-        public decimal? SpotColorPlateChangePrice { get; set; }
-        public string? SpotColorPlateChangeUnit { get; set; }
-        public int? SpotColorPlateChangeQty { get; set; }
         /// <summary>Submitted date/time in Eastern Time for display.</summary>
         public DateTime SubmittedDateEastern =>
             TimeZoneInfo.ConvertTimeFromUtc(
@@ -96,65 +82,14 @@ namespace WiseLabels.Pages
                 EmailSent = emailSent;
             }
 
-            // Load custom die price and unit
-            if (decimal.TryParse(TempData["CustomDiePrice"]?.ToString(), out var customDiePrice))
-            {
-                CustomDiePrice = customDiePrice;
-            }
-
-            CustomDieUnit = TempData["CustomDieUnit"]?.ToString();
-
-            // Load color changes price and quantity
-            if (decimal.TryParse(TempData["ColorChangesPrice"]?.ToString(), out var colorChangesPrice))
-            {
-                ColorChangesPrice = colorChangesPrice;
-            }
-            ColorChangesUnit = TempData["ColorChangesUnit"]?.ToString();
-            if (int.TryParse(TempData["ColorChangesQty"]?.ToString(), out var colorChangesQty))
-            {
-                ColorChangesQty = colorChangesQty;
-            }
-
-            // Load digital version changes price and quantity
-            if (decimal.TryParse(TempData["DigitalVersionChangesPrice"]?.ToString(), out var digitalVersionChangesPrice))
-            {
-                DigitalVersionChangesPrice = digitalVersionChangesPrice;
-            }
-            DigitalVersionChangesUnit = TempData["DigitalVersionChangesUnit"]?.ToString();
-            if (int.TryParse(TempData["DigitalVersionChangesQty"]?.ToString(), out var digitalVersionChangesQty))
-            {
-                DigitalVersionChangesQty = digitalVersionChangesQty;
-            }
-
-            // Load press proof price and quantity
-            if (decimal.TryParse(TempData["PressProofPrice"]?.ToString(), out var pressProofPrice))
-            {
-                PressProofPrice = pressProofPrice;
-            }
-            PressProofUnit = TempData["PressProofUnit"]?.ToString();
-            if (int.TryParse(TempData["PressProofQty"]?.ToString(), out var pressProofQty))
-            {
-                PressProofQty = pressProofQty;
-            }
-
-            // Load spot color plate change price and quantity
-            if (decimal.TryParse(TempData["SpotColorPlateChangePrice"]?.ToString(), out var spotColorPlateChangePrice))
-            {
-                SpotColorPlateChangePrice = spotColorPlateChangePrice;
-            }
-            SpotColorPlateChangeUnit = TempData["SpotColorPlateChangeUnit"]?.ToString();
-            if (int.TryParse(TempData["SpotColorPlateChangeQty"]?.ToString(), out var spotColorPlateChangeQty))
-            {
-                SpotColorPlateChangeQty = spotColorPlateChangeQty;
-            }
-
-            // Get quote request data for PDF generation
+            // Get quote request data for display and PDF generation
             if (TempData.TryGetValue("QuoteRequest", out var quoteData))
             {
                 try
                 {
                     var quoteJson = Convert.ToString(quoteData) ?? "{}";
                     QuoteRequest = JsonSerializer.Deserialize<QuoteRequest>(quoteJson);
+                    QuoteRequestCompat.UpgradeLegacyLineItems(QuoteRequest);
                     if (QuoteRequest != null && QuoteRequest.CreatedDate != default)
                     {
                         SubmittedDate = QuoteRequest.CreatedDate;
