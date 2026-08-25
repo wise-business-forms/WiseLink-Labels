@@ -30,13 +30,19 @@
             When true a customer's own price row wins over the standard list.
             </summary>
         </member>
-        <member name="P:WiseLabels.Configuration.LineItemOptions.WebFlagValue">
+        <member name="P:WiseLabels.Configuration.LineItemOptions.IncludePrioritizedItems">
             <summary>
-            Sentinel held in <c>stdfpl__.kolom_10</c> marking a price list row as visible
-            to the quote web page - the equivalent of the <c>weblabel</c>/<c>rfqonw4l</c>
-            flags the other CERM parameter tables carry but this one does not.
-            Leave empty to use only the explicitly configured <see cref="P:WiseLabels.Configuration.LineItemOptions.Items"/>.
+            Whether to offer every active price list row that carries a non-blank Priority
+            (<c>stdfpl__.priorite</c>) in addition to the explicitly configured
+            <see cref="P:WiseLabels.Configuration.LineItemOptions.Items"/>.
             </summary>
+            <remarks>
+            <c>stdfpl__</c> has no native <c>weblabel</c>/<c>rfqonw4l</c> flag like the
+            other CERM parameter tables feeding this page. Priority stands in for it:
+            estimators set it on the invoice price lines that belong on a quote, and it
+            already determines display order. Set false to fall back to <see cref="P:WiseLabels.Configuration.LineItemOptions.Items"/>
+            alone.
+            </remarks>
         </member>
         <member name="P:WiseLabels.Configuration.LineItemOptions.MaxQuantity">
             <summary>Maximum quantity accepted for a single line item.</summary>

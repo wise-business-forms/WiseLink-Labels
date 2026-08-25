@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace WiseLabels.Configuration
 {
@@ -29,12 +29,18 @@ namespace WiseLabels.Configuration
         public bool PreferCustomerPricing { get; set; } = true;
 
         /// <summary>
-        /// Sentinel held in <c>stdfpl__.kolom_10</c> marking a price list row as visible
-        /// to the quote web page - the equivalent of the <c>weblabel</c>/<c>rfqonw4l</c>
-        /// flags the other CERM parameter tables carry but this one does not.
-        /// Leave empty to use only the explicitly configured <see cref="Items"/>.
+        /// Whether to offer every active price list row that carries a non-blank Priority
+        /// (<c>stdfpl__.priorite</c>) in addition to the explicitly configured
+        /// <see cref="Items"/>.
         /// </summary>
-        public string WebFlagValue { get; set; } = string.Empty;
+        /// <remarks>
+        /// <c>stdfpl__</c> has no native <c>weblabel</c>/<c>rfqonw4l</c> flag like the
+        /// other CERM parameter tables feeding this page. Priority stands in for it:
+        /// estimators set it on the invoice price lines that belong on a quote, and it
+        /// already determines display order. Set false to fall back to <see cref="Items"/>
+        /// alone.
+        /// </remarks>
+        public bool IncludePrioritizedItems { get; set; } = true;
 
         /// <summary>Maximum quantity accepted for a single line item.</summary>
         public int MaxQuantity { get; set; } = 9999;

@@ -61,13 +61,17 @@ namespace WiseLabels.Services
                 _options.Items.Select(i => i.ItemRef ?? string.Empty), StringComparer.OrdinalIgnoreCase);
 
             var nextOrder = catalog.Count == 0 ? 0 : catalog.Max(i => i.Order);
-            foreach (var row in priceRows.Values)
-            {
-                if (configuredRefs.Contains(row.ItemRef?.Trim() ?? string.Empty)) continue;
+            var prioritized = priceRows.Values
+                .Where(r => !configuredRefs.Contains(r.ItemRef?.Trim() ?? string.Empty))
+                .OrderBy(r => (r.Priority ?? string.Empty).Trim(), StringComparer.Ordinal)
+                .ThenBy(r => r.ItemRef, StringComparer.Ordinal);
 
+            foreach (var row in prioritized)
+            {
                 var item = Project(row, definition: null);
                 if (item == null) continue;
 
+                // Sorted behind the configured entries, in Priority order.
                 item.Order = ++nextOrder + 1000;
                 catalog.Add(item);
             }
@@ -174,10 +178,10 @@ namespace WiseLabels.Services
                     }
                 }
 
-                if (!string.IsNullOrWhiteSpace(_options.WebFlagValue))
+                if (_options.IncludePrioritizedItems)
                 {
                     foreach (var row in await _priceListRepository.GetWebQuoteItemsAsync(
-                                 _options.WebFlagValue, preferred, _options.StandardCustomerRef))
+                                 preferred, _options.StandardCustomerRef))
                     {
                         rows.TryAdd(row.ItemRef?.Trim() ?? string.Empty, row);
                     }
