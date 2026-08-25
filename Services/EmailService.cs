@@ -1,5 +1,6 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Net;
 using System.Net.Mail;
 using System.Text;
@@ -332,6 +333,7 @@ pre {{ margin: 0; white-space: pre-wrap; word-wrap: break-word; font-size: 11px;
             var contactTable = BuildDefinitionTable(GetContactRows(quote));
             var detailTable = BuildDefinitionTable(GetDetailRows(quote));
             var pricingTable = BuildPricingTable(priceBreakdown);
+            var chargesTable = BuildAdditionalChargesTable(quote.LineItems);
 
             var sb = new StringBuilder();
             sb.Append("""
@@ -385,6 +387,11 @@ pre {{ margin: 0; white-space: pre-wrap; word-wrap: break-word; font-size: 11px;
             if (!string.IsNullOrEmpty(detailTable))
             {
                 sb.Append(@"<div class=""section""><h3>Quote Details</h3>" + detailTable + "</div>");
+            }
+
+            if (!string.IsNullOrEmpty(chargesTable))
+            {
+                sb.Append(@"<div class=""section""><h3>Additional Charges</h3>" + chargesTable + "</div>");
             }
 
             if (!string.IsNullOrEmpty(pricingTable))
@@ -469,6 +476,65 @@ pre {{ margin: 0; white-space: pre-wrap; word-wrap: break-word; font-size: 11px;
                   .Append("<td>").Append(WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(price.Currency) ? "USD" : price.Currency)).Append("</td>")
                   .Append("</tr>");
             }
+
+            sb.Append("</tbody></table>");
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Renders the selected line item charges. Shares
+        /// <see cref="LineItemPricing.Total"/> with the Confirm and Success pages, so the
+        /// emailed total cannot disagree with what the customer saw on screen.
+        /// </summary>
+        private static string BuildAdditionalChargesTable(IReadOnlyList<QuoteLineItem>? lineItems)
+        {
+            var charges = (lineItems ?? new List<QuoteLineItem>())
+                .Where(i => i.Selected)
+                .OrderBy(i => i.Order)
+                .ToList();
+
+            if (charges.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var sb = new StringBuilder();
+            sb.Append("""
+<table class="price-table" cellspacing="0" cellpadding="0">
+    <thead>
+        <tr>
+            <th>Description</th>
+            <th>Quantity</th>
+            <th>Unit Price</th>
+            <th>Total</th>
+        </tr>
+    </thead>
+    <tbody>
+""");
+
+            foreach (var charge in charges)
+            {
+                var description = WebUtility.HtmlEncode(charge.Description ?? string.Empty);
+                if (!string.IsNullOrWhiteSpace(charge.Description2))
+                {
+                    description += "<br />" + WebUtility.HtmlEncode(charge.Description2);
+                }
+
+                sb.Append("<tr>")
+                  .Append("<td>").Append(description).Append("</td>")
+                  .Append("<td>")
+                  .Append(LineItemPricing.IsQuantityBased(charge.PriceBasis)
+                      ? charge.Quantity.ToString("0.##", CultureInfo.CurrentCulture)
+                      : "-")
+                  .Append("</td>")
+                  .Append("<td>").Append(charge.UnitPrice.ToString("C2", CultureInfo.CurrentCulture)).Append("</td>")
+                  .Append("<td>").Append(charge.Total.ToString("C2", CultureInfo.CurrentCulture)).Append("</td>")
+                  .Append("</tr>");
+            }
+
+            sb.Append("<tr><td colspan=\"3\"><strong>Total additional charges</strong></td><td><strong>")
+              .Append(LineItemPricing.TotalOf(charges).ToString("C2", CultureInfo.CurrentCulture))
+              .Append("</strong></td></tr>");
 
             sb.Append("</tbody></table>");
             return sb.ToString();

@@ -1,4 +1,4 @@
-using CERM.DataAccess;
+﻿using CERM.DataAccess;
 using DinkToPdf;
 using DinkToPdf.Contracts;
 using System.Runtime.InteropServices;
@@ -36,6 +36,7 @@ builder.Services
 
 builder.Services.Configure<AccessControlOptions>(builder.Configuration.GetSection("Authorization"));
 builder.Services.Configure<WiseLabels.Configuration.UserFilteringOptions>(builder.Configuration.GetSection("UserFiltering"));
+builder.Services.Configure<WiseLabels.Configuration.LineItemOptions>(builder.Configuration.GetSection(WiseLabels.Configuration.LineItemOptions.SectionName));
 builder.Services.AddSingleton<IAuthorizationHandler, GroupAccessHandler>();
 builder.Services.AddAuthorization(options =>
 {
@@ -53,6 +54,11 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.AddRazorPages()
+    // Session-backed TempData. The default CookieTempDataProvider Base64s the whole
+    // serialized QuoteRequest (including QuickQuoteResponseJson) into response cookies
+    // on every GetQuote -> Confirm -> Success hop, which pushes against Kestrel's
+    // 32 KB header limit once line items are added.
+    .AddSessionStateTempDataProvider()
     .AddMicrosoftIdentityUI();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
@@ -70,10 +76,11 @@ builder.Services.AddScoped<WiseLabels.Services.ICermAuthService, WiseLabels.Serv
 builder.Services.AddScoped<WiseLabels.Services.IChatService, WiseLabels.Services.ChatService>();
 builder.Services.AddScoped<WiseLabels.Services.ICustomerContactService, WiseLabels.Services.CustomerContactService>();
 builder.Services.AddScoped<WiseLabels.Services.IUserImpersonationService, WiseLabels.Services.UserImpersonationService>();
-builder.Services.AddDbContext<CermDbContext>(options =>
-options.UseSqlServer(
-    builder.Configuration.GetConnectionString("CermDatabase"),
-    sql => sql.UseCompatibilityLevel(120)));
+builder.Services.AddScoped<WiseLabels.Services.ILineItemCatalogService, WiseLabels.Services.LineItemCatalogService>();
+// NOTE: CermDbContext is registered by AddCermDataAccessEF below (which also applies
+// UseCompatibilityLevel(120) and EnableRetryOnFailure). Do not re-register it here -
+// AddDbContext uses TryAdd, so a duplicate registration silently discards the other
+// one's options.
 builder.Services.AddScoped<CERM.DataAccess.Repositories.Job.IJobRepository, CERM.DataAccess.Repositories.Job.JobRepositoryEF>();
 builder.Services.AddScoped<CERM.DataAccess.Repositories.Substrate.ISubstrateRepository, CERM.DataAccess.Repositories.Substrate.SubstrateRepositoryEF>();
 

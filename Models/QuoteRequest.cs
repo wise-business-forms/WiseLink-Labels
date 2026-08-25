@@ -1,3 +1,6 @@
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace WiseLabels.Models
 {
     public class QuoteRequest
@@ -27,12 +30,6 @@ namespace WiseLabels.Models
         public string? CuttingDie { get; set; }
         public string? DieSizeInfo { get; set; }
         public bool IsCustomDie { get; set; }
-        public int? ColorChanges { get; set; }
-        public int? DigitalVersionChanges { get; set; }
-        public bool NeedsPressProof { get; set; }
-        public int? PressProofQuantity { get; set; }
-        public bool NeedsSpotColorPlateChange { get; set; }
-        public int? SpotColorPlateChangeQuantity { get; set; }
         public string? Printing { get; set; }
         public string? Material { get; set; }
         public string? ColorCode { get; set; }
@@ -66,6 +63,22 @@ namespace WiseLabels.Models
         
         public List<QuotePriceBreakdown>? PriceBreakdown { get; set; }
         public string? QuickQuoteResponseJson { get; set; }
+
+        /// <summary>
+        /// Charges selected for this quote. Replaces the former per-charge scalars
+        /// (ColorChanges, DigitalVersionChanges, NeedsPressProof, PressProofQuantity,
+        /// NeedsSpotColorPlateChange, SpotColorPlateChangeQuantity); those are still
+        /// read from persisted JSON by <see cref="QuoteRequestCompat"/>.
+        /// </summary>
+        public List<QuoteLineItem>? LineItems { get; set; }
+
+        /// <summary>
+        /// Captures JSON properties this model no longer declares, so a QuoteRequest
+        /// serialized by an earlier build (in TempData or in the session) can still be
+        /// upgraded rather than silently losing its charges. See <see cref="QuoteRequestCompat"/>.
+        /// </summary>
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? Extra { get; set; }
 
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     }

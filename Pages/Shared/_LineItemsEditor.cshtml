@@ -1,0 +1,100 @@
+@model IReadOnlyList<WiseLabels.Models.QuoteLineItem>
+@using WiseLabels.Models
+@{
+    var items = (Model ?? Array.Empty<QuoteLineItem>()).OrderBy(i => i.Order).ToList();
+    var serialized = System.Text.Json.JsonSerializer.Serialize(items, new System.Text.Json.JsonSerializerOptions
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+    });
+}
+
+<div class="mb-4" id="line-items-section">
+    <h5 class="form-label fw-semibold mb-1">Line Items</h5>
+    <div class="form-text mb-2">
+        Charges are proposed automatically based on your selections. Tick or untick any of
+        them and adjust the quantities.
+    </div>
+
+    @* The grid posts a single JSON field rather than parallel arrays. Unchecked
+       checkboxes are not submitted, so parallel arrays would desynchronise and attach
+       quantities to the wrong charge. *@
+    <input type="hidden" id="line-items-json" name="lineItemsJson" value="" />
+    <script id="line-items-data" type="application/json">@Html.Raw(serialized)</script>
+
+    <div class="border rounded p-3">
+        @if (items.Count == 0)
+        {
+            <div class="form-text text-muted mb-0" id="line-items-empty">
+                No additional charges are available for this quote.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0" id="line-items-table">
+                    <thead>
+                        <tr>
+                            <th style="width:2.5rem;"></th>
+                            <th>Description</th>
+                            <th style="width:9rem;">Qty</th>
+                            <th style="width:8rem;" class="text-end">Unit Price</th>
+                            <th style="width:8rem;" class="text-end">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in items)
+                        {
+                            <tr class="line-item-row"
+                                data-item-ref="@item.ItemRef"
+                                data-key="@item.Key"
+                                data-price-basis="@item.PriceBasis"
+                                data-unit-price="@item.UnitPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                data-forced="@item.Forced.ToString().ToLowerInvariant()"
+                                data-quantity-editable="@item.QuantityEditable.ToString().ToLowerInvariant()">
+                                <td>
+                                    <input class="form-check-input line-item-selected"
+                                           type="checkbox"
+                                           aria-label="Include @item.Description"
+                                           @(item.Selected ? "checked" : "")
+                                           @(item.Forced ? "disabled" : "") />
+                                </td>
+                                <td>
+                                    <span class="fw-semibold">@item.Description</span>
+                                    @if (!string.IsNullOrWhiteSpace(item.Description2))
+                                    {
+                                        <br /><small class="text-muted">@item.Description2</small>
+                                    }
+                                    @if (item.Forced)
+                                    {
+                                        <br />
+                                        <small class="text-warning-emphasis">
+                                            Required &mdash; no existing die size was selected.
+                                        </small>
+                                    }
+                                </td>
+                                <td>
+                                    <input type="number"
+                                           class="form-control form-control-sm line-item-qty"
+                                           min="0"
+                                           step="1"
+                                           value="@item.Quantity.ToString("0.##")"
+                                           @(item.QuantityEditable ? "" : "disabled") />
+                                </td>
+                                <td class="text-end line-item-unit-price">@item.UnitPrice.ToString("C2")</td>
+                                <td class="text-end fw-semibold line-item-total">@item.Total.ToString("C2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="4" class="text-end fw-bold">Total additional charges</td>
+                            <td class="text-end fw-bold" id="line-items-total">
+                                @LineItemPricing.TotalOf(items).ToString("C2")
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        }
+    </div>
+</div>

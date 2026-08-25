@@ -4,6 +4,121 @@
         <name>WiseLabels</name>
     </assembly>
     <members>
+        <member name="T:WiseLabels.Configuration.LineItemOptions">
+            <summary>
+            Configuration for the quote line item catalogue, bound from
+            <c>QuoteOptions:LineItems</c>.
+            </summary>
+        </member>
+        <member name="F:WiseLabels.Configuration.LineItemOptions.SectionName">
+            <summary>Configuration section path.</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemOptions.StandardCustomerRef">
+            <summary>
+            The <c>stdfpl__.ktrk_ref</c> that holds the standard (non customer-specific)
+            price list. Empty string is the usual sentinel; confirm against the data.
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemOptions.LanguageIndex">
+            <summary>
+            Which CERM language column set to read descriptions from - 1 selects
+            <c>fkttxt11</c>/<c>fkttxt21</c>/<c>omsaant1</c>.
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemOptions.PreferCustomerPricing">
+            <summary>
+            When true a customer's own price row wins over the standard list.
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemOptions.IncludePrioritizedItems">
+            <summary>
+            Whether to offer every active price list row that carries a non-blank Priority
+            (<c>stdfpl__.priorite</c>) in addition to the explicitly configured
+            <see cref="P:WiseLabels.Configuration.LineItemOptions.Items"/>.
+            </summary>
+            <remarks>
+            <c>stdfpl__</c> has no native <c>weblabel</c>/<c>rfqonw4l</c> flag like the
+            other CERM parameter tables feeding this page. Priority stands in for it:
+            estimators set it on the invoice price lines that belong on a quote, and it
+            already determines display order. Set false to fall back to <see cref="P:WiseLabels.Configuration.LineItemOptions.Items"/>
+            alone.
+            </remarks>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemOptions.MaxQuantity">
+            <summary>Maximum quantity accepted for a single line item.</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemOptions.Items">
+            <summary>Explicitly configured catalogue entries, keyed by CERM item ref.</summary>
+        </member>
+        <member name="T:WiseLabels.Configuration.LineItemDefinition">
+            <summary>
+            A configured catalogue entry: which CERM price list row it maps to, how it is
+            labelled, and when it should be offered or pre-ticked.
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemDefinition.Key">
+            <summary>Stable key used in code and in persisted quotes, e.g. "CustomDie".</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemDefinition.ItemRef">
+            <summary>CERM price list item reference (<c>stdfpl__.fpl__ref</c>).</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemDefinition.Label">
+            <summary>Optional display label overriding the CERM description. Display only.</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemDefinition.Order">
+            <summary>Display order in the grid.</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemDefinition.DefaultQuantity">
+            <summary>Quantity proposed when the row is first ticked.</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemDefinition.QuantityEditable">
+            <summary>Whether the user may change the quantity.</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemDefinition.OfferWhen">
+            <summary>
+            Conditions under which the row is offered at all. Empty means always offered -
+            which is the default, and the fix for charges that used to be unreachable.
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemDefinition.AutoSelectWhen">
+            <summary>
+            Conditions under which the row is pre-ticked. The user can always untick it.
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemDefinition.ForceWhen">
+            <summary>
+            Conditions under which the row is mandatory: ticked and not untickable.
+            </summary>
+        </member>
+        <member name="T:WiseLabels.Configuration.LineItemCondition">
+            <summary>
+            One applicability condition. All populated members must match for the condition
+            to hold; a rule list matches if ANY of its conditions hold.
+            </summary>
+            <remarks>
+            Conditions key on printing <em>IDs</em>, never on the printing label text - the
+            previous implementation sniffed the label for "spot"/"process color", which broke
+            as soon as a label was reworded.
+            </remarks>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemCondition.PrintingIdIn">
+            <summary>Matches when the selected printing ID is in this list.</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemCondition.PrintingIdPrefixIn">
+            <summary>Matches when the selected printing ID starts with one of these.</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemCondition.ShapeIn">
+            <summary>Matches when the shape value/name is in this list.</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemCondition.CornersNotIn">
+            <summary>Matches when the corners value is NOT in this list.</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemCondition.CustomDie">
+            <summary>Matches when "a custom die is required" equals this value.</summary>
+        </member>
+        <member name="P:WiseLabels.Configuration.LineItemCondition.NoExistingDie">
+            <summary>Matches when "no existing die was selected" equals this value.</summary>
+        </member>
         <member name="T:WiseLabels.CustomAssemblyLoadContext">
             <summary>
             Custom assembly load context for loading assemblies and unmanaged libraries.
@@ -70,6 +185,188 @@
             <summary>
             Indicates whether all required fields have been collected.
             Set to true when shape, dimensions, material, printing, finish, and totalQuantity are all provided.
+            </summary>
+        </member>
+        <member name="T:WiseLabels.Models.LineItemPricing">
+             <summary>
+             The single source of truth for turning a CERM price basis, unit price and
+             quantity into a line total. Used by the quote form, the Confirm and Success
+             pages, the confirmation email, and (when enabled) the CERM invoice-line writer,
+             so those surfaces cannot disagree.
+             </summary>
+             <remarks>
+             Bases are the CERM "Price category" codes stored in <c>prys_srt</c>. Their order
+             is documented in the CERM help (Parameters / Accounting parameters / Invoice
+             price lines): Text, Discount/supplement, Fixed amount, /kg, /page, /piece, /100,
+             /1.000, /100.000, /1.000 kg, /counter unit, /m, /m2 - i.e. zero-indexed, so
+             /piece is '5' and /1.000 is '7'. This matches the arithmetic in
+             CERM-SQL/common/sql/estimates/Quote_Letter_Prices_ByCalculationId.sql, which
+             warns that confusing the two is "off by a factor of 1,000".
+            
+             Supported bases are an explicit WHITELIST. An unsupported basis is rejected when
+             the catalogue is loaded and can therefore never reach a multiplication here.
+             </remarks>
+        </member>
+        <member name="F:WiseLabels.Models.LineItemPricing.TextOnly">
+            <summary>Free text; carries no price.</summary>
+        </member>
+        <member name="F:WiseLabels.Models.LineItemPricing.FixedAmount">
+            <summary>A fixed amount, independent of quantity.</summary>
+        </member>
+        <member name="F:WiseLabels.Models.LineItemPricing.PerPiece">
+            <summary>Price per piece.</summary>
+        </member>
+        <member name="F:WiseLabels.Models.LineItemPricing.Per100">
+            <summary>Price per 100.</summary>
+        </member>
+        <member name="F:WiseLabels.Models.LineItemPricing.Per1000">
+            <summary>Price per 1,000.</summary>
+        </member>
+        <member name="F:WiseLabels.Models.LineItemPricing.Per100000">
+            <summary>Price per 100,000.</summary>
+        </member>
+        <member name="M:WiseLabels.Models.LineItemPricing.IsSupportedBasis(System.String)">
+            <summary>
+            Whether a price basis can be priced by <see cref="M:WiseLabels.Models.LineItemPricing.Total(System.String,System.Decimal,System.Decimal)"/>. Bases that depend
+            on data the quote form does not hold - '1' (percentage over other lines),
+            '3' (/kg), '4' (/page), '9' (/1.000 kg) and the letter codes - return false
+            and are dropped at catalogue load.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Models.LineItemPricing.Total(System.String,System.Decimal,System.Decimal)">
+            <summary>
+            Computes the line total for a price basis, unit price and quantity.
+            Returns zero for an unsupported basis rather than guessing a multiplier.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Models.LineItemPricing.TotalOf(System.Collections.Generic.IEnumerable{WiseLabels.Models.QuoteLineItem})">
+            <summary>Sums the totals of the selected line items.</summary>
+        </member>
+        <member name="M:WiseLabels.Models.LineItemPricing.IsQuantityBased(System.String)">
+            <summary>Whether the basis prices per unit (so a quantity is meaningful).</summary>
+        </member>
+        <member name="M:WiseLabels.Models.LineItemPricing.BasisLabel(System.String)">
+            <summary>Short human label for the basis, for the "Units" column.</summary>
+        </member>
+        <member name="T:WiseLabels.Models.LineItemSource">
+            <summary>
+            Where a line item on a quote came from. Mirrors the "Kind" column on the
+            CERM desktop's invoice-lines grid.
+            </summary>
+        </member>
+        <member name="F:WiseLabels.Models.LineItemSource.Rule">
+            <summary>Proposed by an applicability rule (the common case).</summary>
+        </member>
+        <member name="F:WiseLabels.Models.LineItemSource.Customer">
+            <summary>Came from the customer's own price list in CERM.</summary>
+        </member>
+        <member name="F:WiseLabels.Models.LineItemSource.Manual">
+            <summary>Ticked by the user even though no rule proposed it.</summary>
+        </member>
+        <member name="T:WiseLabels.Models.QuoteLineItem">
+            <summary>
+            One selectable charge on a quote, sourced from the CERM standard price list
+            (<c>stdfpl__</c>) and destined - once selected - for a CERM calculation
+            invoice line (<c>v1facl__</c>).
+            </summary>
+            <remarks>
+            There is deliberately no <c>Total</c> property. System.Text.Json serializes
+            get-only properties, which would persist a value that is ignored on read and
+            then drift from the recomputed one. Use <see cref="M:WiseLabels.Models.LineItemPricing.Total(System.String,System.Decimal,System.Decimal)"/>.
+            </remarks>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.ItemRef">
+            <summary>CERM price list item reference (<c>stdfpl__.fpl__ref</c>).</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.CustomerRef">
+            <summary>The <c>ktrk_ref</c> the price row was read from, for traceability.</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.Key">
+            <summary>Stable configuration key, e.g. "CustomDie". Independent of the item ref.</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.Description">
+            <summary>First description line (<c>fkttxt1{lang}</c>).</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.Description2">
+            <summary>
+            Second description line (<c>fkttxt2{lang}</c>). CERM treats the two as two
+            LINES of one description and joins them with a newline on the quote letter.
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.Unit">
+            <summary>Unit text (<c>omsaant{lang}</c>), e.g. "each".</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.UnitPrice">
+            <summary>Unit price excluding tax (<c>prijs_bm</c>), captured when the quote was priced.</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.Quantity">
+            <summary>Quantity the charge is billed for. Maps to <c>v1facl__.f_aantal</c>.</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.Selected">
+            <summary>Whether this charge is included on the quote.</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.Forced">
+            <summary>
+            True when the charge is mandatory for this quote and cannot be unticked
+            (currently: the die charge when no existing die was chosen).
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.QuantityEditable">
+            <summary>Whether the quantity is user-editable, or pinned at <see cref="P:WiseLabels.Models.QuoteLineItem.Quantity"/>.</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.PriceBasis">
+            <summary>CERM price category (<c>prys_srt</c>). See <see cref="T:WiseLabels.Models.LineItemPricing"/>.</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.Currency">
+            <summary>Currency of <see cref="P:WiseLabels.Models.QuoteLineItem.UnitPrice"/> (<c>munt_ref</c>).</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.Source">
+            <summary>How this item came to be on the quote.</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.Order">
+            <summary>Display order within the grid.</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteLineItem.Total">
+            <summary>Convenience for views; not serialized.</summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteRequest.LineItems">
+            <summary>
+            Charges selected for this quote. Replaces the former per-charge scalars
+            (ColorChanges, DigitalVersionChanges, NeedsPressProof, PressProofQuantity,
+            NeedsSpotColorPlateChange, SpotColorPlateChangeQuantity); those are still
+            read from persisted JSON by <see cref="T:WiseLabels.Models.QuoteRequestCompat"/>.
+            </summary>
+        </member>
+        <member name="P:WiseLabels.Models.QuoteRequest.Extra">
+            <summary>
+            Captures JSON properties this model no longer declares, so a QuoteRequest
+            serialized by an earlier build (in TempData or in the session) can still be
+            upgraded rather than silently losing its charges. See <see cref="T:WiseLabels.Models.QuoteRequestCompat"/>.
+            </summary>
+        </member>
+        <member name="T:WiseLabels.Models.QuoteRequestCompat">
+             <summary>
+             One-release compatibility shim. A <see cref="T:WiseLabels.Models.QuoteRequest"/> serialized by an
+             earlier build carries the six per-charge scalars instead of a
+             <see cref="P:WiseLabels.Models.QuoteRequest.LineItems"/> collection. Those blobs live in TempData
+             (a quote in flight across a deploy) and in the session under
+             <c>SelectedQuoteSelection</c> (written by a different page, 30-minute lifetime),
+             so they outlive the deploy that removes the properties.
+            
+             Delete this file, the call sites, and <see cref="P:WiseLabels.Models.QuoteRequest.Extra"/> one
+             release after the model change has shipped.
+             </summary>
+        </member>
+        <member name="F:WiseLabels.Models.QuoteRequestCompat.LegacyCharges">
+            <summary>Legacy scalar name to line item configuration key.</summary>
+        </member>
+        <member name="M:WiseLabels.Models.QuoteRequestCompat.UpgradeLegacyLineItems(WiseLabels.Models.QuoteRequest)">
+            <summary>
+            Rebuilds <see cref="P:WiseLabels.Models.QuoteRequest.LineItems"/> from legacy scalars found in
+            <see cref="P:WiseLabels.Models.QuoteRequest.Extra"/>. Prices are not recovered - they are
+            re-resolved from the catalogue by item ref - so only selection and quantity
+            carry over, which is all that was ever user-supplied.
+            No-op when the quote already has line items or carries no legacy data.
             </summary>
         </member>
         <member name="T:WiseLabels.Pages.Api.CermCalculationModel">
@@ -179,6 +476,20 @@
             This routine attempts case-insensitive lookup for common property names.
             </summary>
         </member>
+        <member name="T:WiseLabels.Pages.Api.LineItemsModel">
+            <summary>
+            Returns the selectable charge catalogue for a quote, with the applicability rules
+            already evaluated server-side so the browser never has to reimplement them.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.LineItemsModel.#ctor(Microsoft.Extensions.Logging.ILogger{WiseLabels.Pages.Api.LineItemsModel},WiseLabels.Services.ILineItemCatalogService)">
+            <summary>Creates the endpoint.</summary>
+        </member>
+        <member name="M:WiseLabels.Pages.Api.LineItemsModel.OnGetAsync(System.String,System.String,System.String,System.String,System.Boolean,System.Boolean)">
+            <summary>
+            GET /Api/LineItems?customerId=&amp;printingId=&amp;shapeValue=&amp;cornersValue=&amp;isCustomDie=&amp;hasExistingDie=
+            </summary>
+        </member>
         <member name="M:WiseLabels.Pages.Api.MaterialsModel.GetAllowedMaterialIdsAsync(System.String)">
             <summary>
             Queries the database to get material IDs that are allowed for the given printing selection.
@@ -214,11 +525,40 @@
             Tries two approaches: body-only and basic auth + body.
             </summary>
         </member>
+        <member name="M:WiseLabels.Pages.ConfirmModel.LoadLineItemPricesAsync">
+            <summary>
+            Re-prices the quote's line items against the CERM price list.
+            Prices are never taken from the posted form - see
+            <see cref="M:WiseLabels.Services.ILineItemCatalogService.ResolvePostedAsync(WiseLabels.Services.LineItemContext,System.Collections.Generic.IEnumerable{WiseLabels.Models.QuoteLineItem})"/>.
+            </summary>
+        </member>
         <member name="P:WiseLabels.Pages.GetQuoteModel.ApiRequestJson">
             <summary>JSON payload that was sent to CERM API (for debugging on error).</summary>
         </member>
         <member name="P:WiseLabels.Pages.GetQuoteModel.ApiResponseJson">
             <summary>JSON response from CERM API (for debugging on error).</summary>
+        </member>
+        <member name="P:WiseLabels.Pages.GetQuoteModel.LineItemCatalog">
+            <summary>Charges offered for this quote, with rule-driven pre-selection applied.</summary>
+        </member>
+        <member name="M:WiseLabels.Pages.GetQuoteModel.LoadLineItemCatalogAsync">
+            <summary>
+            Loads the charge catalogue for the current form state, merging in any
+            selections carried by a saved quote so an edited quote round-trips.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.GetQuoteModel.ParseLineItemsFromForm(Microsoft.AspNetCore.Http.IFormCollection)">
+            <summary>
+            Reads the line item grid's single JSON field. Only selection and quantity are
+            taken from it; everything price-bearing is re-resolved from CERM.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Pages.GetQuoteModel.BuildQuoteRequest(Microsoft.AspNetCore.Http.IFormCollection,System.String,System.String,System.String,System.String,System.String,System.Nullable{System.Int64})">
+            <summary>
+            Builds a <see cref="T:WiseLabels.Models.QuoteRequest"/> from the posted form.
+            This is the single binder used by the submit path and by both file-upload
+            failure paths, so a validation error never silently drops fields.
+            </summary>
         </member>
         <member name="P:WiseLabels.Pages.SuccessModel.CermCalculationId">
             <summary>CERM calculation ID (Data.Id) from submission.</summary>
@@ -270,6 +610,13 @@
             komment1: Full name and company (max 60 chars)
             komment2: Email and phone number (max 60 chars)
             komment3: Additional comments (max 60 chars)
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.EmailService.BuildAdditionalChargesTable(System.Collections.Generic.IReadOnlyList{WiseLabels.Models.QuoteLineItem})">
+            <summary>
+            Renders the selected line item charges. Shares
+            <see cref="M:WiseLabels.Models.LineItemPricing.Total(System.String,System.Decimal,System.Decimal)"/> with the Confirm and Success pages, so the
+            emailed total cannot disagree with what the customer saw on screen.
             </summary>
         </member>
         <member name="T:WiseLabels.Services.ICermAuthService">
@@ -333,6 +680,104 @@
             <param name="quoteNumber">The quote number (bon__ref)</param>
             <param name="quoteRequest">Quote request containing customer contact details</param>
             <returns>True if successfully updated, false otherwise</returns>
+        </member>
+        <member name="T:WiseLabels.Services.LineItemContext">
+            <summary>
+            Facts about a quote that decide which line items are offered and pre-ticked.
+            </summary>
+            <param name="CustomerId">CERM customer, used to pick customer-specific pricing.</param>
+            <param name="PrintingId">Selected printing/colour code ID (never the label text).</param>
+            <param name="ShapeValue">Selected shape value.</param>
+            <param name="CornersValue">Selected corners value.</param>
+            <param name="IsCustomDie">Whether dimension matching flagged a custom die.</param>
+            <param name="HasExistingDie">Whether the user picked an existing die from the list.</param>
+        </member>
+        <member name="M:WiseLabels.Services.LineItemContext.#ctor(System.String,System.String,System.String,System.String,System.Boolean,System.Boolean)">
+            <summary>
+            Facts about a quote that decide which line items are offered and pre-ticked.
+            </summary>
+            <param name="CustomerId">CERM customer, used to pick customer-specific pricing.</param>
+            <param name="PrintingId">Selected printing/colour code ID (never the label text).</param>
+            <param name="ShapeValue">Selected shape value.</param>
+            <param name="CornersValue">Selected corners value.</param>
+            <param name="IsCustomDie">Whether dimension matching flagged a custom die.</param>
+            <param name="HasExistingDie">Whether the user picked an existing die from the list.</param>
+        </member>
+        <member name="P:WiseLabels.Services.LineItemContext.CustomerId">
+            <summary>CERM customer, used to pick customer-specific pricing.</summary>
+        </member>
+        <member name="P:WiseLabels.Services.LineItemContext.PrintingId">
+            <summary>Selected printing/colour code ID (never the label text).</summary>
+        </member>
+        <member name="P:WiseLabels.Services.LineItemContext.ShapeValue">
+            <summary>Selected shape value.</summary>
+        </member>
+        <member name="P:WiseLabels.Services.LineItemContext.CornersValue">
+            <summary>Selected corners value.</summary>
+        </member>
+        <member name="P:WiseLabels.Services.LineItemContext.IsCustomDie">
+            <summary>Whether dimension matching flagged a custom die.</summary>
+        </member>
+        <member name="P:WiseLabels.Services.LineItemContext.HasExistingDie">
+            <summary>Whether the user picked an existing die from the list.</summary>
+        </member>
+        <member name="T:WiseLabels.Services.ILineItemCatalogService">
+            <summary>
+            Loads the selectable charge catalogue for a quote from the CERM standard price
+            list, applies the configured labelling and applicability rules, and merges in any
+            selections already made on the quote.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.ILineItemCatalogService.GetCatalogAsync(WiseLabels.Services.LineItemContext,System.Collections.Generic.IEnumerable{WiseLabels.Models.QuoteLineItem})">
+            <summary>
+            Builds the catalogue for a quote. Never throws: a database failure yields an
+            empty catalogue so the quote stays submittable, matching prior behaviour.
+            </summary>
+            <param name="context">Quote facts used to evaluate the rules.</param>
+            <param name="existing">Selections already made, merged in by item ref/key.</param>
+        </member>
+        <member name="M:WiseLabels.Services.ILineItemCatalogService.ResolvePostedAsync(WiseLabels.Services.LineItemContext,System.Collections.Generic.IEnumerable{WiseLabels.Models.QuoteLineItem})">
+            <summary>
+            Re-resolves posted line items against the catalogue: descriptions, units,
+            prices and price bases come from CERM, and only selection and quantity are
+            taken from the caller. Posted items with no catalogue match are dropped.
+            </summary>
+            <remarks>
+            This is the trust boundary. The quote form is user-editable, so a posted
+            price must never be believed.
+            </remarks>
+        </member>
+        <member name="T:WiseLabels.Services.LineItemCatalogService">
+            <inheritdoc cref="T:WiseLabels.Services.ILineItemCatalogService"/>
+        </member>
+        <member name="M:WiseLabels.Services.LineItemCatalogService.#ctor(CERM.DataAccess.Repositories.PriceList.IPriceListItemRepository,Microsoft.Extensions.Options.IOptions{WiseLabels.Configuration.LineItemOptions},Microsoft.Extensions.Logging.ILogger{WiseLabels.Services.LineItemCatalogService})">
+            <summary>Creates the service.</summary>
+        </member>
+        <member name="M:WiseLabels.Services.LineItemCatalogService.GetCatalogAsync(WiseLabels.Services.LineItemContext,System.Collections.Generic.IEnumerable{WiseLabels.Models.QuoteLineItem})">
+            <inheritdoc />
+        </member>
+        <member name="M:WiseLabels.Services.LineItemCatalogService.ResolvePostedAsync(WiseLabels.Services.LineItemContext,System.Collections.Generic.IEnumerable{WiseLabels.Models.QuoteLineItem})">
+            <inheritdoc />
+        </member>
+        <member name="M:WiseLabels.Services.LineItemCatalogService.Project(CERM.DataAccess.Models.PriceListItem,WiseLabels.Configuration.LineItemDefinition)">
+            <summary>
+            Projects a CERM price list row into a quote line item, selecting the language
+            columns and rejecting price bases this application cannot price.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.LineItemCatalogService.SelectLanguage(CERM.DataAccess.Models.PriceListItem,System.Int32)">
+            <summary>
+            CERM stores descriptions as <c>fkttxt{line}{language}</c> - two LINES of one
+            description per language, joined with a newline on the quote letter. Reading
+            only <c>fkttxt11</c> silently drops the second line.
+            </summary>
+        </member>
+        <member name="M:WiseLabels.Services.LineItemCatalogService.Matches(System.Collections.Generic.List{WiseLabels.Configuration.LineItemCondition},WiseLabels.Services.LineItemContext,System.Boolean)">
+            <summary>
+            Evaluates a rule list. A list matches if ANY condition holds; an empty or
+            missing list falls back to <paramref name="offeredByDefault"/>, which is how
+            "always offered" is expressed.
+            </summary>
         </member>
         <member name="M:WiseLabels.Services.QuoteService.BuildCermPayloadJson(WiseLabels.Models.QuoteRequest)">
             <summary>
